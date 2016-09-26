@@ -3,6 +3,11 @@ By Dan Porter, 2016, Version 2.0
 
 These programs are designed to be run in DAWN, though in principle should work in any python environment.
 
+Useage: python py16GUI.py
+
+Requirements: numpy, matplotlib, scipy, tkinter
+
+#########################RUN#######################
 To run in a console:
 	- Ensure you have Anaconda (or similar) Python 2.7 installed
 	- Copy Py16progs.py and Py16GUI.py to a folder
@@ -24,7 +29,7 @@ To run these programs elsewhere:
     - Run the Py16GUI.py script.
 
 
-Using Py16 programs:
+########################Using Py16 programs########################
 You can either use the graphical user interface or use the functions from the Py16 module directly.
 
 Py16 Data Viewer:
