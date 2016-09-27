@@ -122,7 +122,7 @@ except ImportError:
 """
 # Import Py16progs - interprets data loaded and other handy functions
 if os.path.dirname(__file__) not in sys.path:
-    print 'Adding to path: ''{}'''.format(os.path.dirname(__file__))
+    print('Adding to path: ''{}'''.format(os.path.dirname(__file__)) )
     sys.path.insert(0,os.path.dirname(__file__))
 import Py16progs as pp
 
@@ -135,10 +135,14 @@ SF= ("Times New Roman", 14)
 LF= ("Times", 14)
 HF= ('Courier',12)
 # App Figure Sizes
-SMALL = 0.75
-NORMAL = 1.1
-LARGE = 1.5
-
+WINDOWS = {'scan':[6,4], 'pilatus': [6,2.50]}
+LINUX = {'scan':[6,4], 'pilatus': [6,2.90]}
+# Window size needs to be different on Linux
+if 'linux' in sys.platform:
+    print('Linux Distribution detected - adjusting figure size accordingly')
+    NORMAL = LINUX
+else:
+    NORMAL = WINDOWS
 
 "------------------------------------------------------------------------"
 "---------------------------I16_Data_Viewer------------------------------"
@@ -213,22 +217,22 @@ class I16_Data_Viewer():
         self.livemode = tk.IntVar(frm_fldr,0)
         chk_live = tk.Checkbutton(frm_fldr, text='Live Mode',font=BF, command=self.f_livemode, \
                                   variable=self.livemode,onvalue = 1, offvalue = 0)
-        chk_live.pack(side=tk.RIGHT,padx=5)
+        chk_live.pack(side=tk.RIGHT,padx=0)
         
         # Differentiate Plot
         self.diffplot = tk.IntVar(frm_fldr,0)
         chk_diff = tk.Checkbutton(frm_fldr, text='Differentiate',font=BF,variable=self.diffplot, command=self.update_plot)
-        chk_diff.pack(side=tk.RIGHT,padx=5)
+        chk_diff.pack(side=tk.RIGHT,padx=0)
         
         # Log Plot
         self.logplot = tk.IntVar(frm_fldr,0)
         chk_log = tk.Checkbutton(frm_fldr, text='Log',font=BF,variable=self.logplot, command=self.update_plot)
-        chk_log.pack(side=tk.RIGHT,padx=5)
+        chk_log.pack(side=tk.RIGHT,padx=0)
         
         # Auto Pilatus Plot
         self.autopilplot = tk.IntVar(frm_fldr,0)
         chk_log = tk.Checkbutton(frm_fldr, text='Pilatus',font=BF,variable=self.autopilplot, command=self.update_pilatus)
-        chk_log.pack(side=tk.RIGHT,padx=5)
+        chk_log.pack(side=tk.RIGHT,padx=0)
         
         
         "----------------------------Scan Number-----------------------------"
@@ -526,7 +530,7 @@ class I16_Data_Viewer():
         frm_plt = tk.Frame(frm_rgt)
         frm_plt.pack(fill=tk.X,expand=tk.YES)
         
-        self.fig1 = plt.Figure(figsize=figsize*np.array([6,4]))
+        self.fig1 = plt.Figure(figsize=figsize['scan'])
         self.fig1.patch.set_facecolor('w')
         self.ax1 = self.fig1.add_subplot(111)
         self.ax1.set_autoscaley_on(True)
@@ -626,7 +630,7 @@ class I16_Data_Viewer():
         frm_pil = tk.Frame(frm_rgt)
         frm_pil.pack(fill=tk.X,expand=tk.YES)
         
-        self.fig2 = plt.Figure(figsize=figsize*np.array([6,2.35]))
+        self.fig2 = plt.Figure(figsize=figsize['pilatus'])
         self.fig2.patch.set_facecolor('w')
         self.ax2 = self.fig2.add_subplot(111)
         self.ax2.set_xticklabels([])
@@ -964,10 +968,10 @@ class I16_Data_Viewer():
         try:
             x,y,dy,varx,vary,ttl,d = pp.getdata(scanno,vary=setvary,varx=setvarx,norm=norm)
             cmdstr = 'x,y,dy,varx,vary,ttl,d = pp.getdata({},varx=\'{}\',vary=\'{}\',norm={})'
-            print cmdstr.format(scanno,setvarx,setvary,norm)
+            print( cmdstr.format(scanno,setvarx,setvary,norm) )
             self.helper.set(cmdstr.format(scanno,setvarx,setvary,norm) + ' has been sent to the console')
         except:
-            print 'd = pp.readscan({})'.format(scanno)
+            print( 'd = pp.readscan({})'.format(scanno) )
             d = pp.readscan(scanno)
             self.helper.set('d = pp.readscan({})'.format(scanno) + ' has been sent to the console')
     
@@ -1000,7 +1004,7 @@ class I16_Data_Viewer():
         
         # Send the command
         cmdstr = 'pp.plotscan({},varx=\'{}\',vary=\'{}\',fit=\'{}\',norm={})'
-        print cmdstr.format(scanno,setvarx,setvary,fittype,norm)
+        print( cmdstr.format(scanno,setvarx,setvary,fittype,norm) )
         pp.plotscan(scanno,varx=setvarx,vary=setvary,fit=fittype,norm=norm,logplot=logplot,diffplot=diffplot)
         plt.show()
     
@@ -1019,7 +1023,7 @@ class I16_Data_Viewer():
         
         # Send the command
         cmdstr = 'pp.plotpil({},cax={},imnum={},ROIcen={},ROIsize={})'
-        print cmdstr.format(scanno,cax,imnum,ROIcen,ROIsize)
+        print( cmdstr.format(scanno,cax,imnum,ROIcen,ROIsize) )
         pp.plotpil(scanno,cax=cax,imnum=imnum,ROIcen=ROIcen,ROIsize=ROIsize)
         plt.show()
     
@@ -1053,7 +1057,7 @@ class I16_Data_Viewer():
         
         # Send the command
         cmdstr = 'pp.plotscan({},varx=\'{}\',vary=\'{}\',fit=\'{}\',norm={})'
-        print cmdstr.format(scanno,varx,vary,fittype,norm)
+        print( cmdstr.format(scanno,varx,vary,fittype,norm) )
         pp.plotscan(scanno,varx=varx,vary=vary,fit=fittype,norm=norm,save=True,logplot=logplot,diffplot=diffplot)
         plt.close(plt.gcf())
         
@@ -1090,7 +1094,7 @@ class I16_Data_Viewer():
         
         # Send the command
         cmdstr = 'pp.plotscan({},varx=\'{}\',vary=\'{}\',fit=\'{}\',norm={})'
-        print cmdstr.format(scanno,setvarx,setvary,fittype,norm)
+        print( cmdstr.format(scanno,setvarx,setvary,fittype,norm) )
         pp.plotscan(scanno,varx=setvarx,vary=setvary,fit=fittype,norm=norm,logplot=logplot,diffplot=diffplot)
         
         " Find the temp directory"
@@ -1106,7 +1110,7 @@ class I16_Data_Viewer():
         #subprocess.call(['lpr','-o','PageSize=Custom.6x4in','-o','fit-to-page','-r','/home/i16user/tmp/Py16tmp.png'])
         #subprocess.call(['lpr','-o','fit-to-page','-r',fname])
 	#subprocess.call(['lpr','-r','-o','number-up=4','/home/i16user/tmp/Py16tmp.pdf'])
-        print "Figure Printed!"
+        print( "Figure Printed!" )
         self.helper.set('Figure Printed!')
     
     def f_fnl_splotbuffer(self):
@@ -1724,7 +1728,6 @@ class I16_Peak_Analysis:
         save = self.saveopt.get()
         
         if pp.normby == 'none':
-            print 'Norm is off'
             norm = False
         else:
             norm = True
@@ -1838,7 +1841,7 @@ class I16_Peak_Analysis:
         
         if save == 0: save = None
         
-        print 'fit,err = pp.fit_scans(scannos,vary={},depvar={},peaktest={},fit_type={},saveFIT={},save={})'.format(yvar,depvar,test,fit,save,save)
+        print( 'fit,err = pp.fit_scans(scannos,vary={},depvar={},peaktest={},fit_type={},saveFIT={},save={})'.format(yvar,depvar,test,fit,save,save) )
         fit,err = pp.fit_scans(scanno,varx=xvar,vary=yvar,depvar=depvar,
                                peaktest=test,fit_type=fit,
                                saveFIT=save,save=save)
@@ -2051,7 +2054,7 @@ class I16_Advanced_Fitting:
         self.lst_scan.pack(side=tk.TOP,padx=5)
         self.lst_scan.select_set(0)
         self.lst_scan.bind("<<ListboxSelect>>", self.f_scan_select)
-        #print self.lst_scan.curselection()[0]
+        #print( self.lst_scan.curselection()[0] )
         
         scl_scanx.config(command=self.lst_scan.xview)
         scl_scany.config(command=self.lst_scan.yview)
@@ -2352,7 +2355,7 @@ class I16_Advanced_Fitting:
         scannos = scannos[np.where(self.Active)]
         
         for n in range(len(scannos)):
-            print n,scannos[n],masks[n]
+            print( n,scannos[n],masks[n] )
         
         pp.fit_scans(scannos,dependent,yvar,xvar,fit_type,bkg_type,peaktest,abscor=None,plot='all',show_fits=True,
                      mask_cmd=self.Masks,estvals=None,xrange=xrange,sortdep=True,Nloop=Nloop, Binit=Binit, Tinc=Tinc, 
@@ -2500,7 +2503,7 @@ class I16_Advanced_Fitting:
         Converge = self.Converge.get()
         Debug = self.Debug.get()
         
-        #print fit_type,peaktest,Nloop,Binit,Tinc,Change,Converge,Debug
+        #print( fit_type,peaktest,Nloop,Binit,Tinc,Change,Converge,Debug )
         
         # Perform Fit
         out,err = pp.peakfit(x_mask,y_mask,dy_mask,type=fit_type,bkg_type=bkg_type,
@@ -2597,7 +2600,7 @@ class I16_Print_Buffer():
         self.root.destroy()
         #subprocess.call("lpr -o number-up=4 /home/i16user/tmp/Py16tmp.png")
         subprocess.call(['lpr','-o','fit-to-page','-r',fname])
-        print "Buffer Printed!"
+        print( "Buffer Printed!" )
     
     def f_save(self):
         " Save the buffer figure"
@@ -2609,7 +2612,7 @@ class I16_Print_Buffer():
                 'title':'Save the print buffer:'}
         filename = filedialog.asksaveasfilename(**opts)
         self.fig1.savefig(filename,dpi=300)
-        print "Buffer Saved!"
+        print( "Buffer Saved!" )
 
 
 "------------------------------------------------------------------------"
@@ -2838,11 +2841,11 @@ class I16_Check_Log:
 
 
 if __name__ == '__main__':
-    print 'I16_Data_Viewer By Dan Porter'
-    print 'Launching GUI window...'
-    print 'To restart the window, type: I16_Data_Viewer()'
-    print 'Or to just load a scan, type: d = pp.readscan(scan_number)'
-    print 'See "Py16Notes.txt" or type help(pp) for more info'
+    print( 'I16_Data_Viewer By Dan Porter' )
+    print( 'Launching GUI window...' )
+    print( 'To restart the window, type: I16_Data_Viewer()' )
+    print( 'Or to just load a scan, type: d = pp.readscan(scan_number)' )
+    print( 'See "Py16Notes.txt" or type help(pp) for more info' )
     
     
     pp.filedir= '/dls/i16/data/2016/'

@@ -146,7 +146,7 @@ dead_pixel_func = np.median # Define how to choose the replaced intensity for ho
 "----------------------------Plotting Parameters--------------------------"
 plot_colors = ['b','g','m','c','y','k','r'] # change the default colours of plotscan 
 exp_title = '' # Experiment title
-
+#plt.xkcd()
 
 ###########################################################################
 ##############################FUNCTIONS####################################
@@ -191,7 +191,10 @@ def read_dat_file(filename):
         
         for inln in inlines:
             vals = inln.split('=')
-            meta[vals[0]] = eval( vals[1] )
+            try:
+                meta[vals[0]] = eval( vals[1] )
+            except:
+                meta[vals[0]] = vals[1]
     
     
     # Read Main data
@@ -228,7 +231,7 @@ def readscan(num):
     """
     
     if os.path.isdir(filedir) == False: 
-        print "I can't find the directory: {}".format(filedir)
+        print( "I can't find the directory: {}".format(filedir) )
         return None
     
     if num < 1: 
@@ -240,14 +243,14 @@ def readscan(num):
         d = read_dat_file(file)
         #d = dnp.io.load(file,warn=False) # from SciSoftPi
     except:
-        print "Scan {} doesn't exist".format(num)
+        print( "Scan {} doesn't exist".format(num) )
         return None
     
     " Shorten the scan command if it is very long to help with titles etc."
     try:
         cmd = d.metadata.cmd
     except:
-        print "Scan {} doesn't contain any metadata".format(num)
+        print( "Scan {} doesn't contain any metadata".format(num) )
         return None
     if len(cmd) > 80:
         " Shorten long commands"
@@ -322,7 +325,7 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
             pass
     
     if nfloats > 6:
-        print "This may be a 2D Scan - I'm afraid this isn't implemented yet!"
+        print( "This may be a 2D Scan - I'm afraid this isn't implemented yet!" )
     """
     
     " Use scan command to determine variables of scan and title"
@@ -362,7 +365,7 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
             elif cmd.split()[0] == 'scancn':
                 hvar,kvar,lvar=cmd.split()[2:5]
             else:
-                print 'Error: Wrong type of scan'
+                print( 'Error: Wrong type of scan' )
             hvar = float(re.sub("[^0-9.]", "",hvar))
             kvar = float(re.sub("[^0-9.]", "",kvar))
             lvar = float(re.sub("[^0-9.]", "",lvar))
@@ -472,7 +475,7 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
     if abscor is not None:
         # Absorption correction based on a flat plate perpendicular to the scattering plane
         # Requires abscor = absorption coefficient of material
-        print 'Not done yet!'
+        print( 'Not done yet!' )
 
     return x,y,dy,varx,vary,ttl,d
 
@@ -535,17 +538,17 @@ def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,abscor=None,save=
                 yval = getattr(d.metadata,vary)
                 y = np.ones(scn_points)*yval
             else:
-                print 'ERROR: Scan ',num,' contains no ',vary,' data'
+                print( 'ERROR: Scan ',num,' contains no ',vary,' data' )
                 return
             
             # Check correct length of scan
             if len(x) != scn_points:
-                print 'Error: Scan ',num,' has the wrong number of data points. Skipping...'
+                print( 'Error: Scan ',num,' has the wrong number of data points. Skipping...' )
                 skip += [n]
                 continue
             # Check correct type of scan
             if varx2 != out_varx:
-                print 'Error: Scan ',num,' is the wrong type of scan. Skipping...'
+                print( 'Error: Scan ',num,' is the wrong type of scan. Skipping...' )
                 skip += [n]
                 continue
             
@@ -588,12 +591,12 @@ def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,abscor=None,save=
             savefile = os.path.join(savedir, '{}.dat'.format(save))
             head = '{}\n{}\n{}, {}, {}, {}'.format(out_ttl,ini_cmd,varx,vary,varz,'error_'+varz)
             np.savetxt(savefile,(x,y,z,dz),header=head)
-            print 'Saved as {}'.format(savefile)
+            print( 'Saved as {}'.format(savefile) )
         else:
             savefile = os.path.join(savedir, '{} dep {}-{}.dat'.format(vary,runs[0],runs[-1]))
             head = '{}\n{}\n{}, {}, {}, {}'.format(out_ttl,ini_cmd,varx,vary,varz,'error_'+varz)
             np.savetxt(savefile,(x,y,z,dz),header=head)
-            print 'Scan #{} has been saved as {}'.format(num,savefile)
+            print( 'Scan #{} has been saved as {}'.format(num,savefile) )
     
     return storex,storey,storez,out_varx,vary,out_varz,out_ttl
 
@@ -621,7 +624,7 @@ def getvol(num,ROIcen=None,ROIsize=None):
         pilname = [s for s in d.metadata.keys() if "_path_template" in s][0]
         pilpath = getattr(d.metadata,pilname)
     except IndexError:
-        print 'Not a pilatus file!'
+        print( 'Not a pilatus file!' )
         return
     
     " Load first image to get the detector size"
@@ -645,7 +648,7 @@ def getvol(num,ROIcen=None,ROIsize=None):
         pilpath = d.metadata.cam1_path_template
         pil_size = [946,1292]
     else:
-        print 'Not a pilatus file!'
+        print( 'Not a pilatus file!' )
         return
     """
     
@@ -683,14 +686,14 @@ def getvol(num,ROIcen=None,ROIsize=None):
         " Only load the volume within the region of interest"
         idxi = [ROIcen[0]-ROIsize[0]//2,ROIcen[0]+ROIsize[0]//2+1]
         idxj = [ROIcen[1]-ROIsize[1]//2,ROIcen[1]+ROIsize[1]//2+1]
-        #print 'ROI = [{0},{1},{2},{3}]'.format(idxi[0],idxj[0],idxi[1],idxj[1])
+        #print( 'ROI = [{0},{1},{2},{3}]'.format(idxi[0],idxj[0],idxi[1],idxj[1]) )
         
         " Check the box is within the detector"
         if idxi[0] < 0: idxi[1] = idxi[1] - idxi[0]; idxi[0] = 0
         if idxi[1] > pil_size[0]: idxi[0] = idxi[0] - (idxi[1]-pil_size[0]); idxi[1] = pil_size[0]
         if idxj[0] < 0: idxj[1] = idxj[1] - idxj[0]; idxj[0] = 0
         if idxj[1] >  pil_size[1]: idxj[0] = idxj[0] - (idxj[1]-pil_size[1]); idxj[1] = pil_size[1]
-        #print 'new ROI = [{0},{1},{2},{3}]'.format(idxi[0],idxj[0],idxi[1],idxj[1])
+        #print( 'new ROI = [{0},{1},{2},{3}]'.format(idxi[0],idxj[0],idxi[1],idxj[1]) )
         
         vol = vol[idxi[0]:idxi[1],idxj[0]:idxj[1],:]
     
@@ -715,7 +718,7 @@ def pilroi(vol,ROIcen=None,ROIsize=[31,31],disp=False):
     "---Define ROI box---"
     idxi = [ROIcen[0]-ROIsize[0]//2, ROIcen[0]+ROIsize[0]//2+1] # [min, max] short axis
     idxj = [ROIcen[1]-ROIsize[1]//2, ROIcen[1]+ROIsize[1]//2+1] # [min, max] long axis
-    if disp: print 'ROI = [{0},{1},{2},{3}]'.format(idxi[0],idxj[0],idxi[1],idxj[1])
+    if disp: print( 'ROI = [{0},{1},{2},{3}]'.format(idxi[0],idxj[0],idxi[1],idxj[1]) )
     
     " Check the box is within the detector"
     " Move the region, keeping ROIsize constant"
@@ -723,7 +726,7 @@ def pilroi(vol,ROIcen=None,ROIsize=[31,31],disp=False):
     if idxi[1] > pil_size[0]: idxi[0] = idxi[0] - (idxi[1]-pil_size[0]); idxi[1] = pil_size[0]
     if idxj[0] < 0: idxj[1] = idxj[1] - idxj[0]; idxj[0] = 0
     if idxj[1] >  pil_size[1]: idxj[0] = idxj[0] - (idxj[1]-pil_size[1]); idxj[1] = pil_size[1]
-    if disp: print 'new ROI = [{0},{1},{2},{3}]'.format(idxi[0],idxj[0],idxi[1],idxj[1])
+    if disp: print( 'new ROI = [{0},{1},{2},{3}]'.format(idxi[0],idxj[0],idxi[1],idxj[1]) )
     
     "---Background ROI---"
     " Determine background of image and subtract from the region by pixel"
@@ -736,7 +739,7 @@ def pilroi(vol,ROIcen=None,ROIsize=[31,31],disp=False):
     if idxbi[1] > pil_size[0]: idxbi[0] = idxbi[0] - (idxbi[1]-pil_size[0]); idxbi[1] = pil_size[0]
     if idxbj[0] < 0: idxbj[1] = idxbj[1] - idxbj[0]; idxbj[0] = 0
     if idxbj[1] > pil_size[1]: idxbj[0] = idxbj[0] - (idxbj[1]-pil_size[1]); idxbj[1] = pil_size[1]
-    if disp: print 'Background ROI = [{0},{1},{2},{3}]'.format(idxbi[0],idxbj[0],idxbi[1],idxbj[1])
+    if disp: print( 'Background ROI = [{0},{1},{2},{3}]'.format(idxbi[0],idxbj[0],idxbi[1],idxbj[1]) )
     
     " Create background mask of the background ROI and remove the requested ROI"
     MASK = np.zeros(pil_size,dtype=int)
@@ -774,7 +777,7 @@ def latest():
     "Get the latest run during and experiment"
     
     if os.path.isdir(filedir) == False: 
-        print "I can't find the directory: {}".format(filedir)
+        print( "I can't find the directory: {}".format(filedir) )
         return None
     
     # Get all data files in folder
@@ -782,7 +785,7 @@ def latest():
     ls = np.sort(ls)
     
     if len(ls) < 1:
-        print "No files in directory: {}".format(filedir)
+        print( "No files in directory: {}".format(filedir) )
         return
     
     newest = max(ls, key=os.path.getctime)
@@ -797,7 +800,7 @@ def checkexp():
     ls = np.sort(ls)
     
     if len(ls) < 1:
-        print "I can't find the directory: {}".format(filedir)
+        print( "I can't find the directory: {}".format(filedir) )
         return
     
     # First + last run numbers
@@ -826,14 +829,14 @@ def checkexp():
     #if 'date' in ld.metadata.keys(): lt = ld.metadata.date
     
     # Print data to screen
-    print 'Experiment: ',filedir
-    print ' First scan: #{0}    {1}'.format(fn,ft)
-    print '  Last scan: #{0}    {1}'.format(ln,lt)
-    print '  No. scans: {}'.format(len(ls))
-    print 'Experiment ring current: ',exp_ring_current
-    print 'Experiment monitor: ',exp_monitor
-    print 'Normalisation option: ',normby
-    print 'Pilatus Centre: ',pil_centre
+    print( 'Experiment: ',filedir )
+    print( ' First scan: #{0}    {1}'.format(fn,ft) )
+    print( '  Last scan: #{0}    {1}'.format(ln,lt) )
+    print( '  No. scans: {}'.format(len(ls)) )
+    print( 'Experiment ring current: ',exp_ring_current )
+    print( 'Experiment monitor: ',exp_monitor )
+    print( 'Normalisation option: ',normby )
+    print( 'Pilatus Centre: ',pil_centre )
     return
 
 def checkscan(num1=None,num2=None,showval=None):
@@ -850,7 +853,7 @@ def checkscan(num1=None,num2=None,showval=None):
     """
     
     if os.path.isdir(filedir) == False: 
-        print "I can't find the directory: {}".format(filedir)
+        print( "I can't find the directory: {}".format(filedir) )
         return
     
     if num1 is None:
@@ -876,7 +879,7 @@ def checkscan(num1=None,num2=None,showval=None):
         for n in range(len(num)):
             d = readscan(num[n])
             if d is None:
-                print "File does not exist"
+                print( "File does not exist" )
                 continue
             m = d.metadata
             ks = d.keys()
@@ -923,13 +926,13 @@ def checkscan(num1=None,num2=None,showval=None):
                 showval_dict['equal'] = '='
                 showval_dict['val'] = val
             
-            print fmt.format(num=m.SRSRUN,date=m.date,mode=mode,ss=sampsl,ds=detsl,energy=m.Energy,temp=m.Ta,hkl=hkl,cmd=m.cmd,**showval_dict)
+            print( fmt.format(num=m.SRSRUN,date=m.date,mode=mode,ss=sampsl,ds=detsl,energy=m.Energy,temp=m.Ta,hkl=hkl,cmd=m.cmd,**showval_dict) )
         return 
     
     "----------------Single run------------------"
     d = readscan(num[0])
     if d is None:
-        print "File does not exist!"
+        print( "File does not exist!" )
         return d
     m = d.metadata
     ks = d.keys()
@@ -937,82 +940,82 @@ def checkscan(num1=None,num2=None,showval=None):
     if m.Ta == 0: m.Ta = 300
     
     # Print information
-    print '-----------Run ', m.SRSRUN, '-----------'
-    print '  File Dir: ',filedir
-    print '   Command: ',m.cmd
-    print '   Npoints: ',len(d.TimeSec)
-    print '       HKL: ({0},{1},{2})'.format(m.h,m.k,m.l)
-    print '    Energy: {0} keV'.format(m.Energy)
-    print '      Temp: {0} K'.format(m.Ta)
-    print
+    print( '-----------Run ', m.SRSRUN, '-----------' )
+    print( '  File Dir: ',filedir )
+    print( '   Command: ',m.cmd )
+    print( '   Npoints: ',len(d.TimeSec) )
+    print( '       HKL: ({0},{1},{2})'.format(m.h,m.k,m.l) )
+    print( '    Energy: {0} keV'.format(m.Energy) )
+    print( '      Temp: {0} K'.format(m.Ta) )
+    print()
     
     # Check for vertical or horizontal geopmetry
     if m.gam > 0.1:
-        print '    Horizontal Geometry'
-        print '        Mu: {0}'.format(m.mu)
-        print '       Chi: {0}'.format(m.chi)
-        print '     Gamma: {0}'.format(m.gam)
+        print( '    Horizontal Geometry' )
+        print( '        Mu: {0}'.format(m.mu) )
+        print( '       Chi: {0}'.format(m.chi) )
+        print( '     Gamma: {0}'.format(m.gam) )
     else:
-        print '      Vertical Geometry'
-        print '       Eta: {0}'.format(m.eta)
-        print '       Chi: {0}'.format(m.chi)
-        print '     Delta: {0}'.format(m.delta)
-    print 'Psi({0},{1},{2}): {3}'.format(m.azih,m.azik,m.azil,m.psi)
-    print
-    print '       Sx: {0} mm'.format(m.sx)
-    print '       Sy: {0} mm'.format(m.sy)
-    print '       Sz: {0} mm'.format(m.sz)
-    print
-    print '  Sample Slits: {0:4.2f}x{1:4.2f} mm'.format(m.s5xgap,m.s5ygap)
-    print 'Detector Slits: {0:4.2f}x{1:4.2f} mm'.format(m.s6xgap,m.s6ygap)
-    print
+        print( '      Vertical Geometry' )
+        print( '       Eta: {0}'.format(m.eta) )
+        print( '       Chi: {0}'.format(m.chi) )
+        print( '     Delta: {0}'.format(m.delta) )
+    print( 'Psi({0},{1},{2}): {3}'.format(m.azih,m.azik,m.azil,m.psi) )
+    print()
+    print( '       Sx: {0} mm'.format(m.sx) )
+    print( '       Sy: {0} mm'.format(m.sy) )
+    print( '       Sz: {0} mm'.format(m.sz) )
+    print()
+    print( '  Sample Slits: {0:4.2f}x{1:4.2f} mm'.format(m.s5xgap,m.s5ygap) )
+    print( 'Detector Slits: {0:4.2f}x{1:4.2f} mm'.format(m.s6xgap,m.s6ygap) )
+    print()
     
     # Minimirrors
     if m.m4x > 0.1: 
         mm = 'in' 
     else: 
         mm = 'out'
-    print 'Minimirrors: {} ({:4.2f} deg)'.format(mm,m.m4pitch)
+    print( 'Minimirrors: {} ({:4.2f} deg)'.format(mm,m.m4pitch) )
     
     if 'sum' in ks:
         # Pilatus
-        print
-        print 'Detector: Pilatus (do={})'.format(m.delta_axis_offset)
-        print '   Count: {0:1.3g}s'.format(np.mean(d.t))
-        print ' Max val: {0:5.3g}'.format(max(d.maxval))
+        print()
+        print( 'Detector: Pilatus (do={})'.format(m.delta_axis_offset) )
+        print( '   Count: {0:1.3g}s'.format(np.mean(d.t)) )
+        print( ' Max val: {0:5.3g}'.format(max(d.maxval)) )
         
     if 'APD' in ks:
         # APD
-        print
-        print 'Detector: APD'
+        print()
+        print( 'Detector: APD' )
         if m.gam > 0.:
             # Horizontal
             if m.stoke < 45.:
-                print '   Pol: {0} (pi-pi)'.format(m.stoke)  
+                print( '   Pol: {0} (pi-pi)'.format(m.stoke) )
             else:
-                print '   Pol: {0} (pi-sigma)'.format(m.stoke)
+                print( '   Pol: {0} (pi-sigma)'.format(m.stoke) )
         else:
             # Vertical
             if m.stoke < 45.:
-                print '   Pol: {0} (sigma-sigma)'.format(m.stoke)  
+                print( '   Pol: {0} (sigma-sigma)'.format(m.stoke) )
             else:
-                print '   Pol: {0} (sigma-pi)'.format(m.stoke)
-        print '   Count: {0:1.3g}s'.format(np.mean(d.counttime))
-        print ' Max val: {0:5.3g}'.format(max(d.APD))
+                print( '   Pol: {0} (sigma-pi)'.format(m.stoke) )
+        print( '   Count: {0:1.3g}s'.format(np.mean(d.counttime)) )
+        print( ' Max val: {0:5.3g}'.format(max(d.APD)) )
     
     if 'FF' in ks:
-        print
-        print 'Detector: Vortex'
-        print '   Count: {0:1.3g}s'.format(np.mean(d.count_time))
-        print '   ROIs (maxval):'
+        print()
+        print( 'Detector: Vortex' )
+        print( '   Count: {0:1.3g}s'.format(np.mean(d.count_time)) )
+        print( '   ROIs (maxval):' )
         ROIs = [n for n in d.keys() if 'Element' in n]
         for roi in ROIs:
-            print '    {} ({})'.format(roi,max(getattr(d,roi)))
+            print( '    {} ({})'.format(roi,max(getattr(d,roi))) )
         
     # Attenuation
-    print
-    print '    Atten: {0} ({1}%)'.format(m.Atten,m.Transmission*100)
-    print 
+    print()
+    print( '    Atten: {0} ({1}%)'.format(m.Atten,m.Transmission*100) )
+    print()
     
     # additional info
     if showval is not None:
@@ -1022,16 +1025,16 @@ def checkscan(num1=None,num2=None,showval=None):
             val = getattr(m,showval)
         else:
             val = 'No Data'
-        print showval,' = ',val
-        print
+        print( showval,' = ',val )
+        print()
     
     # Timing
     time = d.TimeSec[-1]-d.TimeSec[0]
     hours = np.int(np.floor(time/3600))
     mins = np.int(np.floor(np.remainder(time,3600)/60))
     secs = np.remainder(np.remainder(time,3600),60)
-    print 'Ran on {}'.format(m.date)
-    print 'Time taken: {} hours, {} mins, {} seconds'.format(hours,mins,secs)
+    print( 'Ran on {}'.format(m.date) )
+    print( 'Time taken: {} hours, {} mins, {} seconds'.format(hours,mins,secs) )
     return 
 
 def checklog(time=None,mins=2,cmd=False,find=None):
@@ -1080,7 +1083,7 @@ def checklog(time=None,mins=2,cmd=False,find=None):
             month = time[3]
             year = time[4]
             time = datetime.datetime(year,month,day,hour,min,0)
-        print time
+        print(time)
     
     if mins == 'all':
         # Get all data files in folder
@@ -1094,7 +1097,7 @@ def checklog(time=None,mins=2,cmd=False,find=None):
         # Ge number of minutes
         diff = time - ft
         mins = np.ceil(diff.total_seconds()/60.0)
-        print mins
+        print(mins)
     
     mintime = time - datetime.timedelta(minutes=mins)
     
@@ -1112,7 +1115,7 @@ def checklog(time=None,mins=2,cmd=False,find=None):
         tim=datetime.datetime.strptime(spt[0]+spt[1],'%Y-%m-%d%H:%M:%S,%f')
         
         if tim > mintime and tim < time:
-            print line.rstrip()
+            print( line.rstrip() )
     
     return
 
@@ -1152,12 +1155,12 @@ def prend(start=0,end=None):
         trem = nrem*tperrun
         tend = t2 + trem
         
-        print 'Scan number: #',latest()
-        print 'Scan Started: ',t1
-        print 'Points complete: ',Ncomplete,'/',scanlen
-        print 'Time per point: ',tperrun
-        print 'Still to go: ',nrem,' (',trem,')'
-        print 'Scan will end: ',tend
+        print( 'Scan number: #',latest() )
+        print( 'Scan Started: ',t1 )
+        print( 'Points complete: ',Ncomplete,'/',scanlen )
+        print( 'Time per point: ',tperrun )
+        print( 'Still to go: ',nrem,' (',trem,')' )
+        print( 'Scan will end: ',tend )
         return
     
     st = readscan(start)
@@ -1173,9 +1176,9 @@ def prend(start=0,end=None):
         
         tdif = t2-t1
         
-        print 'Run started: ',t1
-        print 'Run ended: ',t2
-        print 'Run took: ',tdif
+        print( 'Run started: ',t1 )
+        print( 'Run ended: ',t2 )
+        print( 'Run took: ',tdif )
         return
     
     """ If run is still going """
@@ -1195,12 +1198,12 @@ def prend(start=0,end=None):
     trem = nrem*tperrun
     tend = t2 + trem
     
-    print 'Run Started: ',t1
-    print 'Latest scan: #',cur
-    print 'Time per scan: ',tperrun
-    print 'Runs completed: ',ndif,' (',tdif,')'
-    print 'Still to go: ',nrem,' (',trem,')'
-    print 'Run will end: ',tend
+    print( 'Run Started: ',t1 )
+    print( 'Latest scan: #',cur )
+    print( 'Time per scan: ',tperrun )
+    print( 'Runs completed: ',ndif,' (',tdif,')' )
+    print( 'Still to go: ',nrem,' (',trem,')' )
+    print( 'Run will end: ',tend )
     return
 
 def findfile(num,topdir=None):
@@ -1216,13 +1219,13 @@ def findfile(num,topdir=None):
         for n in subFolders[:]:
             if '-files' in n: subFolders.remove(n) # ####-pilatus100k-files
             if '-data' in n: subFolders.remove(n) # snapped-data
-        #print subFolders
-        #print files
+        #print( subFolders )
+        #print( files )
         #a=raw_input('press enter')
         #if a == 'exit': break
         
         if file in files:
-            print 'Scan {} was in directory: {}'.format(num,root)
+            print( 'Scan {} was in directory: {}'.format(num,root) )
             return root
 
 def polflip(sigsig,sigpi,fit='Gauss',output=False,plot=False):
@@ -1257,7 +1260,7 @@ def polflip(sigsig,sigpi,fit='Gauss',output=False,plot=False):
         prt = ttl1
         prN = sigsig
     else:
-        print 'Run {} is not polarized'.format(sigsig)
+        print( 'Run {} is not polarized'.format(sigsig) )
         return
     
     # Find polarisation of scan2
@@ -1286,7 +1289,7 @@ def polflip(sigsig,sigpi,fit='Gauss',output=False,plot=False):
         prt = ttl2
         prN = sigpi
     else:
-        print 'Run {} is not polarized'.format(sigpi)
+        print( 'Run {} is not polarized'.format(sigpi) )
         return
     
     
@@ -1303,13 +1306,13 @@ def polflip(sigsig,sigpi,fit='Gauss',output=False,plot=False):
     
     if output: return FR,CT
     
-    print '--------------Polarisation Analysis-----------------'
-    print 'Fit type: {}'.format(fit)
-    print '{}: {}'.format(npr,nprt)
-    print '{}: {}'.format(pr,prt)
-    print '      {0} / {1} = {2:6.3f}  ({3:3.1f}%)'.format(pr,npr,FR,FR*100)
-    print '{0}-{1} / {0}+{1} = {2:6.3f}'.format(pr,npr,CT)
-    print
+    print( '--------------Polarisation Analysis-----------------' )
+    print( 'Fit type: {}'.format(fit) )
+    print( '{}: {}'.format(npr,nprt) )
+    print( '{}: {}'.format(pr,prt) )
+    print( '      {0} / {1} = {2:6.3f}  ({3:3.1f}%)'.format(pr,npr,FR,FR*100) )
+    print( '{0}-{1} / {0}+{1} = {2:6.3f}'.format(pr,npr,CT) )
+    print()
     
     if plot:
         plotscan([nprN,prN],fit=fit,fits=True)
@@ -1372,7 +1375,7 @@ def polenergy(sigsig,sigpi,background=None,vary='',bkg_scale=None,flipping_ratio
         prN = sigsig
         prlab = '$\pi\sigma$'
     else:
-        print 'Run {} is not polarized'.format(sigsig)
+        print( 'Run {} is not polarized'.format(sigsig) )
         return
     
     # Find polarisation of scan2
@@ -1405,7 +1408,7 @@ def polenergy(sigsig,sigpi,background=None,vary='',bkg_scale=None,flipping_ratio
         prN = sigpi
         prlab = '$\pi\sigma$'
     else:
-        print 'Run {} is not polarized'.format(sigpi)
+        print( 'Run {} is not polarized'.format(sigpi) )
         return
     
     " npr = non-polarisation rotation = ss, pp"
@@ -1492,7 +1495,7 @@ def metaprint(d1,d2=None):
     
     if d2 is None:
         for k in d1.metadata.keys():
-            print '{:>20} : {:<20}'.format(k,d1.metadata[k])
+            print( '{:>20} : {:<20}'.format(k,d1.metadata[k]) )
     else:
         try:
             d2= readscan(d2)
@@ -1500,7 +1503,7 @@ def metaprint(d1,d2=None):
             'Entered data'
         
         # Compare meta data scans
-        print 'Key                  : #{:<10}: #{:<10}'.format(d1.metadata.SRSRUN,d2.metadata.SRSRUN)
+        print( 'Key                  : #{:<10}: #{:<10}'.format(d1.metadata.SRSRUN,d2.metadata.SRSRUN) )
         for k in d1.metadata.keys():
             try:
                 m1 = d1.metadata[k]
@@ -1508,10 +1511,10 @@ def metaprint(d1,d2=None):
                 diff = ''
                 if m1 != m2: 
                     diff = '***'
-                    #print m1,' does not equal ',m2
-                print '{:>20} : {:10} : {:<10} {}'.format(k,d1.metadata[k],d2.metadata[k],diff)
+                    #print( m1,' does not equal ',m2 )
+                print( '{:>20} : {:10} : {:<10} {}'.format(k,d1.metadata[k],d2.metadata[k],diff) )
             except:
-                print '{} does not exist in #{}'.format(k,d2.metadata.SRSRUN)
+                print( '{} does not exist in #{}'.format(k,d2.metadata.SRSRUN) )
 
 def checkpeaks(num,test=1,vary=''):
     "Check multiple runs for peaks"
@@ -1525,7 +1528,7 @@ def checkpeaks(num,test=1,vary=''):
     for n in num:
         x,y,dy = getdata(n,vary=vary)[:3]
         rat = ispeak(y,dy,return_rat=True)
-        print '{} {:8.2f} {}'.format(n,rat,rat>test)
+        print( '{} {:8.2f} {}'.format(n,rat,rat>test) )
 
 def savescan(num=None,varx='',vary='',abscor=None):
     "Save scan as .dat file"
@@ -1537,7 +1540,7 @@ def savescan(num=None,varx='',vary='',abscor=None):
     savefile = os.path.join(savedir, '{}_{}.dat'.format(num,saveable(vary)))
     head = '{}\n{}\n{}, {}, {}'.format(ttl,d.metadata.cmd,varx,vary,'error_'+vary)
     np.savetxt(savefile,(x,y,dy),header=head)
-    print 'Scan #{} has been saved as {}'.format(num,savefile)
+    print( 'Scan #{} has been saved as {}'.format(num,savefile) )
 
 def loadscan(num,vary=''):
     "Load a scan.dat file saved with savescan"
@@ -1637,7 +1640,7 @@ def create_analysis_file(runs,depvar='Ta',vary='',varx='',fit_type = 'pVoight',b
         f.write('# Load fitted data:\n')
         f.write('#fit,err = dp.load_fits([{},{}],depvar=\'{}\',fit_type=\'{}\')\n\n'.format(runs[0],runs[-1],depvar,fit_type))
     
-    print 'New Analysis file written to ',filename
+    print( 'New Analysis file written to ',filename )
 
 def get_all_scannos():
     "Returns the scan numbers available in filedir"
@@ -1778,7 +1781,7 @@ def fit_scans(runs,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='fl
     "-----Loading-----"
     for n,run in enumerate(runs):
         d = readscan(run)
-        if d is None: print 'File for run #{} does not exist!'.format(run); return
+        if d is None: print( 'File for run #{} does not exist!'.format(run) ); return
         x,y,dy,labvarx,labvary,ttl = getdata(d,vary=vary,abscor=abscor)[:6]
         
         if mask_cmd is not None: x,y,dy = maskvals(x,y,dy,mask_cmd[n])
@@ -1820,14 +1823,14 @@ def fit_scans(runs,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='fl
             errstore[n,Ndep+6] = err['Area']
             errstore[n,Ndep+7] = out['CHI2 per dof']
         else:
-            print 'Peak height not found... something went wrong?'
+            print( 'Peak height not found... something went wrong?' )
         
         x_exp += [x]
         y_exp += [y]
         x_fit += [out['x']]
         y_fit += [out['y']]
         peak_rat = ispeak(y,dy,test = peaktest,return_rat=True)
-        print '{0:3.0f}/{1} {2} {3}: Peak={4:7.3g}  Amp={5:<8.0f}  Cen={6:<6.2f}  Wid={7: <5.2g}  Frac={8:<5.2g}  Bkg={9:<8.2g}  Int={10:<8.2g}    CHI{11:8.2g}'.format(n,len(runs)-1,run,depstr,peak_rat,*valstore[n,Ndep+1:])
+        print( '{0:3.0f}/{1} {2} {3}: Peak={4:7.3g}  Amp={5:<8.0f}  Cen={6:<6.2f}  Wid={7: <5.2g}  Frac={8:<5.2g}  Bkg={9:<8.2g}  Int={10:<8.2g}    CHI{11:8.2g}'.format(n,len(runs)-1,run,depstr,peak_rat,*valstore[n,Ndep+1:]) )
     
     # Data range
     if xrange is None and 'Ta' in depvar:
@@ -1882,14 +1885,14 @@ def fit_scans(runs,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='fl
             esavefile = os.path.join(savedir, '{}_errors.dat'.format(saveFIT))
             np.savetxt(savefile,valstore,header=header)
             np.savetxt(esavefile,errstore,header=header)
-            print 'Saved as {}'.format(savefile)
+            print( 'Saved as {}'.format(savefile) )
         else:
             savefile = os.path.join(savedir, '{0} ScansFIT {1:1.0f}-{2:1.0f} {3}.dat'.format(' '.join(depvar),runs[0],runs[-1],fit_type))
             esavefile = os.path.join(savedir, '{0} ScansFIT {1:1.0f}-{2:1.0f} {3}_errors.dat'.format(' '.join(depvar),runs[0],runs[-1],fit_type))
             np.savetxt(savefile,valstore,header=header)
             np.savetxt(esavefile,errstore,header=header)
-            print 'Saved as {}'.format(savefile)
-            print 'Reload this scan with:\n val,err = load_fits([{},{}],depvar={},fit_type=\'{}\')'.format(runs[0],runs[-1],depvar,fit_type)
+            print( 'Saved as {}'.format(savefile) )
+            print( 'Reload this scan with:\n val,err = load_fits([{},{}],depvar={},fit_type=\'{}\')'.format(runs[0],runs[-1],depvar,fit_type) )
         
     
     "------Plotting------"
@@ -2070,12 +2073,12 @@ def load_fits(runs=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,disp
     first_line = first_line.strip('#')
     names = first_line.split(',')
     #depvar = names[0]
-    print names
+    print( names )
     
     "-----Printing-----"
     if disp:
         for n in range(len(valstore)):
-            print '{0:3.0f}/{1} {2} {3}: Amp={5:<8.0f}  Cen={6:<6.2f}  Wid={7: <5.2g}  Frac={8:<5.2g}  Bkg={9:<8.2g}  Int={10:<8.2g}    CHI{11:8.2g}'.format(n,len(runs)-1,*valstore[n,Ndep+1:])
+            print( '{0:3.0f}/{1} {2} {3}: Amp={5:<8.0f}  Cen={6:<6.2f}  Wid={7: <5.2g}  Frac={8:<5.2g}  Bkg={9:<8.2g}  Int={10:<8.2g}    CHI{11:8.2g}'.format(n,len(runs)-1,*valstore[n,Ndep+1:]) )
     
     "------Plotting------"
     try:
@@ -2228,7 +2231,7 @@ def pil_peaks(runs,depvar='Ta',ROIsize=[31,31],cax=None,save=False):
             pil_size = vol.shape[:2]
             idxi = np.array([ROIcen[0]-ROIsize[0]//2,ROIcen[0]+ROIsize[0]//2+1])
             idxj = np.array([ROIcen[1]-ROIsize[1]//2,ROIcen[1]+ROIsize[1]//2+1])
-            print 'ROI = [{0},{1},{2},{3}]'.format(idxi[0],idxj[0],idxi[1],idxj[1])
+            print( 'ROI = [{0},{1},{2},{3}]'.format(idxi[0],idxj[0],idxi[1],idxj[1]) )
             axs[axn].plot(idxj[[0,1,1,0,0]],idxi[[0,0,1,1,0]],'k-',linewidth=2)
             axs[axn].plot([pil_centre[1],pil_centre[1]],[0,pil_size[0]],'k:',linewidth=2)
             axs[axn].plot([0,pil_size[1]],[pil_centre[0],pil_centre[0]],'k:',linewidth=2)
@@ -2306,7 +2309,7 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
     "---Load data---"
     try:
         d = readscan(num)
-        if d is None: print 'File for run #{} does not exist!'.format(num); return
+        if d is None: print( 'File for run #{} does not exist!'.format(num) ); return
     except:
         d = num
         num = d.metadata.SRSRUN
@@ -2583,7 +2586,7 @@ def plotpil(num,cax=None,varx='',imnum=None,bkg_scan=None,ROIcen=None,ROIsize=[7
     
     " Load data file"
     d = readscan(num)
-    if d is None: print 'File for run #{} does not exist!'.format(num); return
+    if d is None: print( 'File for run #{} does not exist!'.format(num) ); return
     
     " Get data"
     x,y,dy,varx,varynew,ttl = getdata(d,varx=varx)[:6]
@@ -2612,7 +2615,7 @@ def plotpil(num,cax=None,varx='',imnum=None,bkg_scan=None,ROIcen=None,ROIsize=[7
         cmax = md + 10**(0.7*np.log10(mx-md))
         if cmax <= 0: cmax = 1
         cax = [0,cmax]
-        print 'caxis set at [{0:1.3g},{1:1.3g}]'.format(cax[0],cax[1])
+        print( 'caxis set at [{0:1.3g},{1:1.3g}]'.format(cax[0],cax[1]) )
     
     " Create figure & plot 1st image"
     fig = plt.figure(figsize=[10,6])
@@ -2629,7 +2632,7 @@ def plotpil(num,cax=None,varx='',imnum=None,bkg_scan=None,ROIcen=None,ROIsize=[7
     pil_size = vol.shape[:2]
     idxi = np.array([ROIcen[0]-ROIsize[0]//2,ROIcen[0]+ROIsize[0]//2+1])
     idxj = np.array([ROIcen[1]-ROIsize[1]//2,ROIcen[1]+ROIsize[1]//2+1])
-    print 'ROI = [{0},{1},{2},{3}]'.format(idxi[0],idxj[0],idxi[1],idxj[1])
+    print( 'ROI = [{0},{1},{2},{3}]'.format(idxi[0],idxj[0],idxi[1],idxj[1]) )
     ax.plot(idxj[[0,1,1,0,0]],idxi[[0,0,1,1,0]],'k-',linewidth=2)
     ax.plot([pil_centre[1],pil_centre[1]],[0,pil_size[0]],'k:',linewidth=2)
     ax.plot([0,pil_size[1]],[pil_centre[0],pil_centre[0]],'k:',linewidth=2)
@@ -2699,7 +2702,7 @@ def plotscans(scans=[],depvar=None,vary='',varx='',fit=None,norm=True,logplot=Fa
     for n,num in enumerate(scans):
         try:
             d = readscan(num)
-            if d is None: print 'File for run #{} does not exist!'.format(num); return
+            if d is None: print( 'File for run #{} does not exist!'.format(num) ); return 
         except:
             d = num
             num = d.metadata.SRSRUN
@@ -2976,11 +2979,11 @@ def linefit(x,y,dy=None,disp=False):
     xold = x
     offset = 0.
     if any(np.abs(x)<0.001):
-        print 'Zero detected - adding 0.001 to x values'
+        print( 'Zero detected - adding 0.001 to x values' )
         offset = 0.001
         x = x + offset
     if any(np.isnan(dy)):
-        print 'Ignoring errors due to NaNs'
+        print( 'Ignoring errors due to NaNs' )
         dy=np.ones(len(y))
     
     # Handle zero intensities
@@ -3015,11 +3018,11 @@ def linefit(x,y,dy=None,disp=False):
     
     # Print Results
     if disp:
-        print ' ------Line Fit:----- '
-        print '  Gradient = {0:10.3G} +/- {1:10.3G}'.format(vals[0],)
-        print ' Intercept = {0:10.3G} +/- {1:10.3G}'.format(cen,dcen)
-        print '     CHI^2 = {0:10.3G}'.format(chi)
-        print '  CHI^2 per free par = {0:10.3G}'.format(chinfp)
+        print( ' ------Line Fit:----- ' )
+        print( '  Gradient = {0:10.3G} +/- {1:10.3G}'.format(grad,dgrad) )
+        print( ' Intercept = {0:10.3G} +/- {1:10.3G}'.format(inter,dinter) )
+        print( '     CHI^2 = {0:10.3G}'.format(chi) )
+        print( '  CHI^2 per free par = {0:10.3G}'.format(chinfp) )
     return grad,inter,dgrad,dinter,yfit
 
 def simpplt(x,height=1,cen=0,FWHM=0.5,bkg=0):
@@ -3067,12 +3070,12 @@ def simpfit(x,y,disp=None):
     
     # Print Results
     if disp is not None:
-        print ' ------Simple Fit:----- '
-        print ' Amplitude = {0:10.3G} +/- {1:10.3G}'.format(amp,damp)
-        print '    Centre = {0:10.3G} +/- {1:10.3G}'.format(cen,dcen)
-        print '      FWHM = {0:10.3G} +/- {1:10.3G}'.format(wid,dwid)
-        print 'Background = {0:10.3G} +/- {1:10.3G}'.format(bkg,dbkg)
-        print '      Area = {0:10.3G} +/- {1:10.3G}'.format(ara,dara)
+        print( ' ------Simple Fit:----- ' )
+        print( ' Amplitude = {0:10.3G} +/- {1:10.3G}'.format(amp,damp) )
+        print( '    Centre = {0:10.3G} +/- {1:10.3G}'.format(cen,dcen) )
+        print( '      FWHM = {0:10.3G} +/- {1:10.3G}'.format(wid,dwid) )
+        print( 'Background = {0:10.3G} +/- {1:10.3G}'.format(bkg,dbkg) )
+        print( '      Area = {0:10.3G} +/- {1:10.3G}'.format(ara,dara) )
     
     return amp,cen,wid,bkg,ara,damp,dcen,dwid,dbkg,dara
 
@@ -3146,11 +3149,11 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
     xold = 1.0*x
     offset = 0.
     if any(np.abs(x)<0.0001):
-        print 'Zero detected - adding 0.0001 to x values'
+        print( 'Zero detected - adding 0.0001 to x values' )
         offset = 0.0001
         x = x + offset
     if any(np.isnan(dy)):
-        print 'Ignoring errors due to NaNs'
+        print( 'Ignoring errors due to NaNs' )
         dy=np.ones(len(y))
     
     # Handle zero intensities
@@ -3245,9 +3248,9 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
     else:
         # Check if a peak exists to fit
         peak_rat = ispeak(y,dy,test=peaktest,disp=False,return_rat=True)
-        if debug: print 'Peak ratio: {:1.2g} ({:1.2g})'.format(peak_rat,peaktest)
+        if debug: print( 'Peak ratio: {:1.2g} ({:1.2g})'.format(peak_rat,peaktest) )
         if peak_rat < peaktest:
-            if debug: print 'No peak here (rat={:1.2g}). Fitting background instead!'.format(peak_rat)
+            if debug: print( 'No peak here (rat={:1.2g}). Fitting background instead!'.format(peak_rat) )
             amp,cen,wid,bkg,ara,damp,dcen,dwid,dbkg,dara = simpfit(xold,y)
             type = 'Background'
             fitfunc = straightline
@@ -3261,25 +3264,25 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
         try:
             fitvals, covmat = curve_fit(fitfunc,x,y,estvals,sigma=dy,absolute_sigma=True)
         except RuntimeError:
-            if debug: print 'Initial fit failed!'
+            if debug: print( 'Initial fit failed!' )
             fitvals = 1*estvals
             covmat = np.nan*np.eye(len(estvals))
         yfit = fitfunc(xold,*fitvals) # New curve
         chi = np.sum( (y-yfit)**2 / dy) # Calculate CHI^2
-        if debug: print 'Initial Fit CHI**2 = ',chi
+        if debug: print( 'Initial Fit CHI**2 = ',chi )
         
         # Check errors are reasonable
         errvals = np.sqrt(np.diag(covmat))
         if any(np.isnan(errvals)):
             chi = np.inf
         
-        if debug: print 'Estimates: ',estvals
-        if debug: print 'Initial Fit: ',list(fitvals),'CHI**2 = ',chi
+        if debug: print( 'Estimates: ',estvals )
+        if debug: print( 'Initial Fit: ',list(fitvals),'CHI**2 = ',chi )
         
         # Check new values are reasonable
         for n,val in enumerate(fitvals):
             if val < minvals[n] or val > maxvals[n]:
-                if debug: print 'Initial value out of range: {} = {} ({}:{})'.format(valnames[n],val,minvals[n],maxvals[n])
+                if debug: print( 'Initial value out of range: {} = {} ({}:{})'.format(valnames[n],val,minvals[n],maxvals[n]) )
                 chi = np.inf # will not accept change if fitvalues fall out of range
         
         "----------------RMC-------------------"
@@ -3288,23 +3291,23 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
         Ntemp = 0
         while converge < converge_max:
             beta = Binit*Tinc**Ntemp
-            if debug: print 'New Temperature: ',Ntemp,beta
+            if debug: print( 'New Temperature: ',Ntemp,beta )
             Ntemp += 1
             if Ntemp > Nloop:
                 break
             for MCloop in range(Nloop):
                 ini_estvals = 1*estvals # 1*estvals copies the array rather than links to it!
-                if debug: print Ntemp,MCloop,'Current estimates: ',list(ini_estvals)
+                if debug: print( Ntemp,MCloop,'Current estimates: ',list(ini_estvals) )
                 # Loop over each estimator and randomly vary it
                 for estn in range(len(estvals)):
                     inc_factor = np.random.normal(1,change_factor)
                     est_new = 1*estvals
                     est_new[estn] = est_new[estn]*inc_factor
-                    if debug: print '\tNew {} = {}'.format(valnames[estn],est_new[estn])
+                    if debug: print( '\tNew {} = {}'.format(valnames[estn],est_new[estn]) )
                     try:
                         fitvals, covmat = curve_fit(fitfunc,x,y,est_new,sigma=dy,absolute_sigma=True)
                     except RuntimeError:
-                        if debug: print beta,MCloop,estn,'Fit failed.'
+                        if debug: print( beta,MCloop,estn,'Fit failed.' )
                         continue
                     yfit = fitfunc(xold,*fitvals) # New curve
                     chi_new = np.sum( (y-yfit)**2 / dy) # Calculate CHI^2
@@ -3316,17 +3319,17 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
                     
                     # Check new values are reasonable
                     for n,val in enumerate(fitvals):
-                        #if debug: print beta,MCloop,estn,'CheckVal: ',n,val,minvals[n],maxvals[n]
+                        #if debug: print( beta,MCloop,estn,'CheckVal: ',n,val,minvals[n],maxvals[n] )
                         if val < minvals[n] or val > maxvals[n]:
-                            if debug: print '\t\tValue out of range: {} = {} ({}:{})'.format(valnames[n],val,minvals[n],maxvals[n])
+                            if debug: print( '\t\tValue out of range: {} = {} ({}:{})'.format(valnames[n],val,minvals[n],maxvals[n]) )
                             chi_new = np.inf # will not accept change if fitvalues fall out of range
-                    if debug: print '\tFits: {}'.format(list(fitvals))
-                    if debug: print '\tErrors: {}'.format(list(errvals))
-                    if debug: print '\tCHI**2: {}'.format(chi_new)
+                    if debug: print( '\tFits: {}'.format(list(fitvals)) )
+                    if debug: print( '\tErrors: {}'.format(list(errvals)) )
+                    if debug: print( '\tCHI**2: {}'.format(chi_new) )
                     
                     # Metropolis Algorithm
                     if chi_new < chi or np.exp(beta*(chi-chi_new)) > np.random.rand():
-                        if debug: print '\tFits Kept!'
+                        if debug: print( '\tFits Kept!' )
                         estvals = 1*fitvals # = 1*est_new
                         chi = 1*chi_new
                         changes[estn] += 1
@@ -3338,11 +3341,11 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
                 else:
                     converge += 1
                 
-                if debug: print beta,MCloop,chi,'Changes: ',changes,chvals,converge
+                if debug: print( beta,MCloop,chi,'Changes: ',changes,chvals,converge )
                 
                 # break the loop if the solution has converged
                 if converge >= converge_max:
-                    if debug: print 'Fit converged in {} temps!'.format(Ntemp-1)
+                    if debug: print( 'Fit converged in {} temps!'.format(Ntemp-1) )
                     break
         
         # After the loop, perform a final check
@@ -3357,7 +3360,7 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
     
     # Check fit has worked
     if any(np.isnan(errvals)) or chi == np.inf:
-        print 'Fit didnt work: use summation instead'
+        print( 'Fit didnt work: use summation instead' )
         amp,cen,wid,bkg,ara,damp,dcen,dwid,dbkg,dara = simpfit(xold,y)
         if ara < 0: ara=0
         type = 'Simple'
@@ -3455,12 +3458,12 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
     
     # Print Results
     if disp:
-        print ' ------{} Fit:----- '.format(type)
+        print( ' ------{} Fit:----- '.format(type) )
         for estn in range(len(fitvals)):
-            print '{0:10s} = {1:10.3G} +/- {2:10.3G}'.format(valnames[estn],fitvals[estn],errvals[estn])
-        print '      Area = {0:10.3G} +/- {1:10.3G}'.format(ara,dara)
-        print '     CHI^2 = {0:10.8G}'.format(chi)
-        print '  CHI^2 per free par = {0:10.3G}'.format(chinfp)
+            print( '{0:10s} = {1:10.3G} +/- {2:10.3G}'.format(valnames[estn],fitvals[estn],errvals[estn]) )
+        print( '      Area = {0:10.3G} +/- {1:10.3G}'.format(ara,dara) )
+        print( '     CHI^2 = {0:10.8G}'.format(chi) )
+        print( '  CHI^2 per free par = {0:10.3G}'.format(chinfp) )
     return output,outerr
 
 def fittest(x,y,dy=None,tryall=False,disp=False):
@@ -3473,11 +3476,11 @@ def fittest(x,y,dy=None,tryall=False,disp=False):
     xold = x
     offset = 0.
     if any(np.abs(x)<0.001):
-        print 'Zero detected - adding 0.001 to x values'
+        print( 'Zero detected - adding 0.001 to x values' )
         offset = 0.001
         x = x + offset
     if any(np.isnan(dy)):
-        print 'Ignoring errors due to NaNs'
+        print( 'Ignoring errors due to NaNs' )
         dy=np.ones(len(y))
     
     # Handle zero intensities
@@ -3558,11 +3561,11 @@ def fittest(x,y,dy=None,tryall=False,disp=False):
                     chival[n] = np.inf
         
         if disp:
-            print '----{}: {}----'.format(n,fitname[n])
+            print( '----{}: {}----'.format(n,fitname[n]) )
             for v in range(len(valnames[n])):
-                print '{0:10s} = {1:10.3G} +/- {2:10.3G}'.format(valnames[n][v],fitvals[v],errvals[v])
-            #print '      Area = {0:10.3G} +/- {1:10.3G}'.format(ara,dara)
-            print '     CHI^2 = {0:10.8G}'.format(chival[n])
+                print( '{0:10s} = {1:10.3G} +/- {2:10.3G}'.format(valnames[n][v],fitvals[v],errvals[v]) )
+            #print( '      Area = {0:10.3G} +/- {1:10.3G}'.format(ara,dara) )
+            print( '     CHI^2 = {0:10.8G}'.format(chival[n]) )
     
     # Find the minimum chi
     minval = np.argmin(chival)
@@ -3599,11 +3602,11 @@ def orderparfit(x,y,dy=None,Tc=None,disp=None):
     xold = x
     offset = 0.
     if any(np.abs(x)<0.001):
-        print 'Zero detected - adding 0.001 to x values'
+        print( 'Zero detected - adding 0.001 to x values' )
         offset = 0.001
         x = x + offset
     if any(np.isnan(dy)):
-        print 'Ignoring errors due to NaNs'
+        print( 'Ignoring errors due to NaNs' )
         dy=np.ones(len(y))
     
     # Handle zero intensities
@@ -3615,7 +3618,7 @@ def orderparfit(x,y,dy=None,Tc=None,disp=None):
         Tc = x[len(x)//2]
     beta = 0.5
     amp = np.mean(y[:len(y)//10])
-    print Tc,beta,amp
+    print( Tc,beta,amp )
     
     try:
         vals, covmat = curve_fit(orderpar,x,y,[Tc,beta,amp],sigma=dy)
@@ -3642,17 +3645,17 @@ def orderparfit(x,y,dy=None,Tc=None,disp=None):
     
     # Check fit has worked
     if Tc <= 0 or any(np.isnan([dTc,dbeta,damp])):
-        print 'Fit didn''t work: oh dear'
+        print( 'Fit didn''t work: oh dear' )
         return
     
     # Print Results
     if disp:
-        print ' ------Order Parameter Fit:----- '
-        print '        Tc = {0:10.3G} +/- {1:10.3G}'.format(Tc,dTc)
-        print '      Beta = {0:10.3G} +/- {1:10.3G}'.format(beta,dbeta)
-        print '       Amp = {0:10.3G} +/- {1:10.3G}'.format(amp,damp)
-        print '     CHI^2 = {0:10.3G}'.format(chi)
-        print '  CHI^2 per free par = {0:10.3G}'.format(chinfp)
+        print( ' ------Order Parameter Fit:----- ' )
+        print( '        Tc = {0:10.3G} +/- {1:10.3G}'.format(Tc,dTc) )
+        print( '      Beta = {0:10.3G} +/- {1:10.3G}'.format(beta,dbeta) )
+        print( '       Amp = {0:10.3G} +/- {1:10.3G}'.format(amp,damp) )
+        print( '     CHI^2 = {0:10.3G}'.format(chi) )
+        print( '  CHI^2 per free par = {0:10.3G}'.format(chinfp) )
     return Tc,beta,amp,dTc,dbeta,damp,yfit
 
 
@@ -3721,7 +3724,7 @@ def pilpeak(vol,disp=False):
     pos = np.multiply(pos,step) # recover unbinned index
     ROIcen = [pos[0]+peakregion[0],pos[1]+peakregion[1]]
     if disp:
-        print 'Peak found at [{0},{1}], frame #{2}, in region [{3},{4},{5},{6}]'.format(ROIcen[0],ROIcen[1],pos[2],peakregion[0],peakregion[1],peakregion[2],peakregion[3])
+        print( 'Peak found at [{0},{1}], frame #{2}, in region [{3},{4},{5},{6}]'.format(ROIcen[0],ROIcen[1],pos[2],peakregion[0],peakregion[1],peakregion[2],peakregion[3]) )
     return ROIcen,pos[2]
 
 def peakfind(Y,cutoff=0.01):
@@ -3785,11 +3788,11 @@ def ispeak(Y,dY=None,test = 1,disp=False,return_rat=False):
     rat = signal / err
     # A peak exists if the signal/background ratio is greater than about 15
     if disp:
-        print 'avg: ',s
-        print 'bkg: ',bkg
-        print 'signal: ',signal
-        print 'error: ',err
-        print 'rat: ',rat
+        print( 'avg: ',s )
+        print( 'bkg: ',bkg )
+        print( 'signal: ',signal )
+        print( 'error: ',err )
+        print( 'rat: ',rat )
     if return_rat:
         return rat
     return rat > test
@@ -3844,7 +3847,7 @@ def abscor(eta=0,chi=90,delta=0,mu=0,gamma=0,u=1.0,disp=False,plot=False):
     
     " Calcualte the absorption correction"
     A = np.sin(theta-phi) / (u*( np.sin(theta-phi) + np.sin(theta+phi) )) # IT-C Table 6.3.3.1
-    #print np.round(np.rad2deg(eta),2),np.round(np.rad2deg(chi),2),np.round(np.rad2deg(delta),2),np.round(Q,3),np.round(N,3),' phi = ',round(np.rad2deg(phi),1),' A = ',np.round(A,3)
+    #print( np.round(np.rad2deg(eta),2),np.round(np.rad2deg(chi),2),np.round(np.rad2deg(delta),2),np.round(Q,3),np.round(N,3),' phi = ',round(np.rad2deg(phi),1),' A = ',np.round(A,3) )
     
     if disp:
         " Convert angles"
@@ -3856,7 +3859,7 @@ def abscor(eta=0,chi=90,delta=0,mu=0,gamma=0,u=1.0,disp=False,plot=False):
         dphi = np.rad2deg(phi)
         sQ = str(np.round(Q,2))
         sN = str(np.round(N,2))
-        print 'eta: {:5.2f} mu: {:5.2f} chi: {:5.2f} delta: {:5.2f} gamma: {:5.2f}  Q={:16s}  N={:16s}  phi = {:5.2f}  A = {:5.2g}'.format(deta,dmu,dchi,ddelta,dgamma,sQ,sN,dphi,A)
+        print( 'eta: {:5.2f} mu: {:5.2f} chi: {:5.2f} delta: {:5.2f} gamma: {:5.2f}  Q={:16s}  N={:16s}  phi = {:5.2f}  A = {:5.2g}'.format(deta,dmu,dchi,ddelta,dgamma,sQ,sN,dphi,A) )
         
     
     if plot:
@@ -3978,7 +3981,7 @@ def saveplot(name,dpi=None):
     gcf = plt.gcf()
     savefile = os.path.join(savedir, '{}.png'.format(saveable(name)))
     gcf.savefig(savefile,dpi=dpi)
-    print 'Saved Figure {} as {}.png'.format(gcf.number,savefile)
+    print( 'Saved Figure {} as {}.png'.format(gcf.number,savefile) )
 
 def frange(start,stop=None,step=1):
     "Like np.arange but ends at stop, rather than stop-step"
