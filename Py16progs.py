@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 """
 Module: I16 Data analysis programs "Py16Progs.py"
 
@@ -71,8 +72,8 @@ Functions:
     str = stfm(val,err)
     
 
-Version 2.0
-Last updated: 21/09/16
+Version 2.1
+Last updated: 03/09/16
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -87,6 +88,7 @@ Version History:
 10/08/16 1.8    Added logplot and diffplot options to plotscan
 08/09/16 1.9    Generalised getvol for any detector by pre-loading the first image
 21/09/16 2.0    Removed dnp.io.load. New title includes folder and new functions for lists of scan numbers
+03/10/16 2.1    Ordered keys in dataloader, some minor fixes
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -103,7 +105,7 @@ Ideas for the future:
 
 """
 
-import os
+import sys,os
 import glob # find files
 import re # regular expressions
 import datetime # Dates and times
@@ -116,6 +118,8 @@ from scipy.optimize import curve_fit # Peak fitting
 from scipy import misc # read pilatus images
 from scipy.signal import convolve
 from itertools import product
+from collections import OrderedDict
+
 
 
 ###########################################################################
@@ -172,7 +176,7 @@ def read_dat_file(filename):
     f.close()
     
     # Read metadata
-    meta = {}
+    meta = OrderedDict()
     lineno = 0
     for ln in lines:
         lineno += 1
@@ -203,12 +207,12 @@ def read_dat_file(filename):
     # Load 2D arrays of scanned values
     vals = np.loadtxt(lines[lineno+1:],ndmin=2)
     # Assign arrays to a dictionary
-    main = {}
+    main = OrderedDict()
     for name,value in zip(names,vals.T):
         main[name] = value
     
     # Convert to class instance
-    d = dict2obj(main)
+    d = dict2obj(main,order=names)
     d.metadata = dict2obj(meta)
     return d
 
@@ -574,14 +578,14 @@ def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,abscor=None,save=
         pol = vals[5]
     else: 
         pol = ''
-    fmt = '{ttl}{xvar}-{yvar} #{rn1:1.0f}-{rn2:1.0f} {hkl} {en} {temp} {pol}'
+    fmt = '{ttl} {xvar}-{yvar} #{rn1:1.0f}-{rn2:1.0f} {hkl} {en} {temp} {pol}'
     if out_varx in ['Energy','en'] or vary in ['Energy','en']:
         energy=''
     if out_varx in ['Ta','Tb'] or vary in ['Ta','Tb']:
         temp=''
     out_ttl = fmt.format(ttl=ettl,rn1=nums[0],rn2=nums[-1],
                          xvar=out_varx,yvar=vary,
-                         hkl=hkl,en=energy,temp=temp,pol=pol)
+                         hkl=hkl,en=energy,temp=temp,pol=pol).strip()
     
     " Save a .dat file"
     " Data can be loaded with x,y,z,dz = np.loadtxt(file.dat)"
@@ -1118,6 +1122,76 @@ def checklog(time=None,mins=2,cmd=False,find=None):
             print( line.rstrip() )
     
     return
+
+def scantitle(num):
+    "Generate a formatted title for the current scan"
+    
+    "---Handle inputs---"
+    if num is None:
+        num = latest()
+    
+    " Multiple nums given"
+    if type(num)==list:
+        nums = num[1:]
+        num = num[0]
+    else:
+        nums = []
+    
+    "---Load data---"
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    if d is None:
+        return [],[],[],'','','',d
+    
+    "---Get metadata---"
+    keys = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
+    m = d.metadata
+    cmd = m.cmd # Scan command
+    
+    """
+    # Is this a 2D scan?
+    nfloats = 0
+    for s in cmd.split():
+        try:
+            float(s)
+            nfloats+=1
+        except ValueError:
+            pass
+    
+    if nfloats > 6:
+        print( "This may be a 2D Scan - I'm afraid this isn't implemented yet!" )
+    """
+    
+    " Use scan command to determine variables of scan and title"
+    HKL = '({0:1.3g},{1:1.3g},{2:1.3g})'.format(round(m.h,2)+0.0,round(m.k,2)+0.0,round(m.l,2)+0.0)
+    Energy = '{0:1.4g}keV'.format(m.Energy)
+    Temp = '{0:1.3g}K'.format(m.Ta)
+    if Temp == '0K': Temp = '300K'
+    pol = ''
+    if m.delta_axis_offset < 1 and m.thp > 10:
+        if m.gam > 0.:
+            if m.stoke < 45.:
+                pol = ' p-p'
+            else:
+                pol = ' p-s'
+        else:
+            if m.stoke < 45.:
+                pol = ' s-s'
+            else:
+                pol = ' s-p'
+    
+    "---exp_title---"
+    if exp_title is '':
+        etitle = os.path.basename(filedir)
+    else:
+        etitle = exp_title
+    
+    "---Generate title---"
+    ttl = '{} #{} {} {} {}{}'.format(etitle,m.SRSRUN,HKL,Energy,Temp,pol).strip()
+    return ttl
 
 def prend(start=0,end=None):
     "Calculate the end time of a run"
@@ -2059,7 +2133,7 @@ def load_fits(runs=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,disp
     
     if type(runs) is str:
         file = os.path.join(savedir,runs+'.dat')
-        efile = os.path.join(savedir,runs+'_error.dat')
+        efile = os.path.join(savedir,runs+'_errors.dat')
     
     if file is None:
         file = os.path.join(savedir, '{0} ScansFIT {1:1.0f}-{2:1.0f} {3}.dat'.format(' '.join(depvar),runs[0],runs[-1],fit_type))
@@ -2309,7 +2383,7 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
     "---Load data---"
     try:
         d = readscan(num)
-        if d is None: print( 'File for run #{} does not exist!'.format(num) ); return
+        if d is None: return
     except:
         d = num
         num = d.metadata.SRSRUN
@@ -2327,7 +2401,7 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
         if labels in m.keys():
             lbl = '{}, {} = {}'.format(str(m.SRSRUN),labels,getattr(m,labels))
         elif labels in d.keys():
-            lbl = '{}, {} = {}'.format(str(m.SRSRUN),labels,np.mean(getattr(d,lables)))
+            lbl = '{}, {} = {}'.format(str(m.SRSRUN),labels,np.mean(getattr(d,labels)))
     
     " Get data" 
     x,y,dy,varx,varynew,ttl = getdata(d,vary=vary,varx=varx,norm=norm)[:6]
@@ -2443,8 +2517,8 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
             if labels is None:
                 lbl = str(mn.SRSRUN)
             else:
-                if labels in d.keys():
-                    lab_val = np.mean(getattr(d,labels))
+                if labels in dn.keys():
+                    lab_val = np.mean(getattr(dn,labels))
                 elif labels in mn.keys():
                     lab_val = getattr(mn,labels)
                 else:
@@ -2581,7 +2655,7 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
             saveplot(ttl)
     return
 
-def plotpil(num,cax=None,varx='',imnum=None,bkg_scan=None,ROIcen=None,ROIsize=[75,67],save=False):
+def plotpil(num,cax=None,varx='',imnum=None,bkg_scan=None,ROIcen=None,ROIsize=[75,67],show_peakregion=False,save=False):
     "Pilatus image viewer, plotpil(#)"
     
     " Load data file"
@@ -2636,6 +2710,12 @@ def plotpil(num,cax=None,varx='',imnum=None,bkg_scan=None,ROIcen=None,ROIsize=[7
     ax.plot(idxj[[0,1,1,0,0]],idxi[[0,0,1,1,0]],'k-',linewidth=2)
     ax.plot([pil_centre[1],pil_centre[1]],[0,pil_size[0]],'k:',linewidth=2)
     ax.plot([0,pil_size[1]],[pil_centre[0],pil_centre[0]],'k:',linewidth=2)
+    
+    if show_peakregion:
+        pry1,prx1,pry2,prx2 = peakregion
+        print('peakregion = [{},{},{},{}]'.format(*peakregion))
+        ax.plot([prx1,prx2,prx2,prx1,prx1],[pry1,pry1,pry2,pry2,pry1],'r-',linewidth=2)
+    
     ax.set_aspect('equal')
     ax.autoscale(tight=True)
     
@@ -4097,8 +4177,16 @@ def maskvals(x,y,dy,mask_cmd):
         mask[ eval(m) ] = False
     return x[mask],y[mask],dy[mask]
 
-class dict2obj(dict):
+class dict2obj(OrderedDict):
     "Convert dictionary object to class instance"
-    def __init__(self,dictvals):
-        self.__dict__.update(**dictvals)
-        self.update(**dictvals)
+    def __init__(self,dictvals,order=None):
+        # Initialise OrderedDict (not sure which of these is correct)
+        super(dict2obj, self).__init__()
+        #OrderedDict.__init__(self)
+        
+        if order is None:
+            order = dictvals.keys()
+        
+        for name in order:
+            setattr(self,name,dictvals[name])
+            self.update({name:dictvals[name]})

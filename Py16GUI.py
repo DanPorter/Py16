@@ -56,8 +56,8 @@ OPERATION:
      "Fit Peaks" - On each scan, perform a fitting routine, storing the area, width, centre, etc, 
                    plot the results and save them to a .dat file.
 
-Version 2.0
-Last updated: 24/09/16
+Version 2.1
+Last updated: 03/10/16
 
 Version History:
 07/02/16 0.9    Program created
@@ -72,6 +72,7 @@ Version History:
 10/08/16 1.8    Added logplot and diffplot options
 08/09/16 1.9    Added auto pilatus update checkbox
 24/09/16 2.0    Removed requirement for SciSoftPi data loader
+03/09/16 2.1    Some minor corrections
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -127,7 +128,7 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 2.0
+Py16GUI_Version = 2.1
 
 # App Fonts
 BF= ("Times", 12)
@@ -1022,9 +1023,9 @@ class I16_Data_Viewer():
         imnum = self.pilpos
         
         # Send the command
-        cmdstr = 'pp.plotpil({},cax={},imnum={},ROIcen={},ROIsize={})'
+        cmdstr = 'pp.plotpil({},cax={},imnum={},ROIcen={},ROIsize={}, show_peakregion=True)'
         print( cmdstr.format(scanno,cax,imnum,ROIcen,ROIsize) )
-        pp.plotpil(scanno,cax=cax,imnum=imnum,ROIcen=ROIcen,ROIsize=ROIsize)
+        pp.plotpil(scanno,cax=cax,imnum=imnum,ROIcen=ROIcen,ROIsize=ROIsize,show_peakregion=True)
         plt.show()
     
     def f_fnl_splotsave(self):
