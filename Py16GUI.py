@@ -57,7 +57,7 @@ OPERATION:
                    plot the results and save them to a .dat file.
 
 Version 2.1
-Last updated: 03/10/16
+Last updated: 07/10/16
 
 Version History:
 07/02/16 0.9    Program created
@@ -72,7 +72,7 @@ Version History:
 10/08/16 1.8    Added logplot and diffplot options
 08/09/16 1.9    Added auto pilatus update checkbox
 24/09/16 2.0    Removed requirement for SciSoftPi data loader
-03/09/16 2.1    Some minor corrections
+07/10/16 2.1    Some minor corrections, addition of parameters window
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -202,6 +202,10 @@ class I16_Data_Viewer():
         # Peak Analysis
         btn_anal = tk.Button(frm_fldr, text='Multiplot/ Peak Analysis',font=BF, command=self.f_anal)
         btn_anal.pack(side=tk.RIGHT,padx=5)
+        
+        # Parameters
+        btn_para = tk.Button(frm_fldr, text='Params',font=BF, command=self.f_params)
+        btn_para.pack(side=tk.RIGHT,padx=5)
         
         # Analysis Folder
         frm_fldr = tk.Frame(frame)
@@ -586,15 +590,19 @@ class I16_Data_Viewer():
         lbl_pilcen = tk.Label(frm_pilopt2, text='Centre:',font=SF,width=6)
         lbl_pilcen.pack(side=tk.LEFT,padx=1)
         ety_pilcen_i = tk.Entry(frm_pilopt2, textvariable=self.pilcen_i, width=4)
+        ety_pilcen_i.bind('<Return>',self.update_pilatus)
         ety_pilcen_i.pack(side=tk.LEFT,padx=1)
         ety_pilcen_j = tk.Entry(frm_pilopt2, textvariable=self.pilcen_j, width=4)
+        ety_pilcen_j.bind('<Return>',self.update_pilatus)
         ety_pilcen_j.pack(side=tk.LEFT,padx=1)
         
         lbl_roisiz = tk.Label(frm_pilopt2, text='ROI:',font=SF,width=5)
         lbl_roisiz.pack(side=tk.LEFT,padx=1)
         ety_roisiz_i = tk.Entry(frm_pilopt2, textvariable=self.roisiz_i, width=4)
+        ety_roisiz_i.bind('<Return>',self.update_pilatus)
         ety_roisiz_i.pack(side=tk.LEFT,padx=1)
         ety_roisiz_j = tk.Entry(frm_pilopt2, textvariable=self.roisiz_j, width=4)
+        ety_roisiz_j.bind('<Return>',self.update_pilatus)
         ety_roisiz_j.pack(side=tk.LEFT,padx=1)
         
         btn_peak = tk.Button(frm_pilopt2, text='Find Peak',font=BF,command=self.f_pilopt_peak)
@@ -734,6 +742,14 @@ class I16_Data_Viewer():
         dir = filedialog.askdirectory(initialdir=inidir)
         self.savedir.set(dir)
         self.helper.set('Now click "Last" to load the latest scan, or enter a scan number and press Enter')
+    
+    def f_params(self):
+        "Launch parameters GUI"
+        
+        pp.filedir = self.filedir.get()
+        pp.savedir = self.savedir.get()
+        
+        I16_Params()
     
     def f_anal(self):
         "Launch analysis GUI"
@@ -893,7 +909,7 @@ class I16_Data_Viewer():
         
         self.pilcen_i.set(pp.pil_centre[0])
         self.pilcen_j.set(pp.pil_centre[1])
-        self.roisiz_i.set(13)
+        self.roisiz_i.set(15)
         self.roisiz_j.set(13)
         self.update_pilatus()
     
@@ -2345,7 +2361,10 @@ class I16_Advanced_Fitting:
         Converge = self.Converge.get()
         Debug = self.Debug.get()
         save = self.saveopt.get()
-        xrange = eval(self.xrange.get())
+        try:
+            xrange = eval(self.xrange.get())
+        except SyntaxError:
+            xrange = None
         
         # Masks
         masks = np.array(self.Masks)
@@ -2838,7 +2857,146 @@ class I16_Check_Log:
     "------------------------------------------------------------------------"
     "--------------------------General Functions-----------------------------"
     "------------------------------------------------------------------------"
+
+"------------------------------------------------------------------------"
+"--------------------------------I16_Params------------------------------"
+"------------------------------------------------------------------------"
+class I16_Params:
+    "------------------------------------------------------------------------"
+    "--------------------------GUI Initilisation-----------------------------"
+    "------------------------------------------------------------------------"
+    def __init__(self):
+        # Create Tk inter instance
+        self.root = tk.Tk()
+        self.root.wm_title('Parameters')
+        self.root.minsize(width=300, height=200)
+        self.root.maxsize(width=400, height=500)
+        
+        dwid = 15
+        
+        #Frame
+        frame = tk.Frame(self.root)
+        frame.pack(side=tk.LEFT,anchor=tk.N)
+        
+        "---------------------------Normalisation----------------------------"
+        #Frame 1
+        frame1 = tk.Frame(frame,borderwidth=2,relief=tk.RIDGE)
+        frame1.pack(fill=tk.X,expand=tk.TRUE)
+        
+        # Line 1a
+        frame1a = tk.Frame(frame1)
+        frame1a.pack()
+        
+        # Ring Current
+        self.exp_ring_current = tk.DoubleVar(frame1,pp.exp_ring_current)
+        lbl_ring = tk.Label(frame1a,text='Ring Current:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_ring.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_ring = tk.Entry(frame1a,textvariable=self.exp_ring_current, width=20)
+        ety_ring.pack(side=tk.LEFT,padx=5,pady=5)
+        
+        # Line 1b
+        frame1b = tk.Frame(frame1)
+        frame1b.pack()
+        
+        # Monitor
+        self.exp_monitor = tk.DoubleVar(frame1,pp.exp_monitor)
+        lbl_mon = tk.Label(frame1b,text='ic1:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_mon.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_mon = tk.Entry(frame1b,textvariable=self.exp_monitor, width=20)
+        ety_mon.pack(side=tk.LEFT,padx=5,pady=5)
+        
+        "---------------------------Pilatus Params-----------------------------"
+        #Frame 2
+        frame2 = tk.Frame(frame,borderwidth=2,relief=tk.RIDGE)
+        frame2.pack(fill=tk.X,expand=tk.TRUE)
+        
+        # Line 2a
+        frame2a = tk.Frame(frame2)
+        frame2a.pack(fill=tk.X)
+        
+        # Pil_centre
+        self.pil_centre = tk.StringVar(frame2,str(pp.pil_centre))
+        lbl_cen = tk.Label(frame2a,text='Central Pixel:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_cen.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_cen = tk.Entry(frame2a,textvariable=self.pil_centre, width=20)
+        ety_cen.pack(side=tk.LEFT,padx=5,pady=5)
+        
+        # Line 2b
+        frame2b = tk.Frame(frame2)
+        frame2b.pack(fill=tk.X)
+        
+        # Hot Pixel
+        self.hot_pixel = tk.StringVar(frame2,str(pp.hot_pixel))
+        lbl_hot = tk.Label(frame2b,text='Max Pixel:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_hot.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_hot = tk.Entry(frame2b,textvariable=self.hot_pixel, width=20)
+        ety_hot.pack(side=tk.LEFT,padx=5,pady=5)
+        
+        # Line 2c
+        frame2c = tk.Frame(frame2)
+        frame2c.pack(fill=tk.X)
+        
+        # Peak Region
+        self.peakregion = tk.StringVar(frame2,str(pp.peakregion))
+        lbl_pkrg = tk.Label(frame2c,text='Peak Search Area:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_pkrg.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_pkrg = tk.Entry(frame2c,textvariable=self.peakregion, width=20)
+        ety_pkrg.pack(side=tk.LEFT,padx=5,pady=5)
+        
+        
+        "---------------------------Plotting----------------------------"
+        #Frame 3
+        frame3 = tk.Frame(frame,borderwidth=2,relief=tk.RIDGE)
+        frame3.pack(fill=tk.X,expand=tk.TRUE)
+        
+        # Line 3a
+        frame3a = tk.Frame(frame3)
+        frame3a.pack()
+        
+        # Plot colours
+        self.plot_colors = tk.StringVar(frame3,str(pp.plot_colors))
+        lbl_pltcol = tk.Label(frame3a,text='Colours:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_pltcol.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_pltcol = tk.Entry(frame3a,textvariable=self.plot_colors, width=20)
+        ety_pltcol.pack(side=tk.LEFT,padx=5,pady=5)
+        
+        # Line 3b
+        frame3b = tk.Frame(frame3)
+        frame3b.pack()
+        
+        # Last scan
+        self.exp_title = tk.StringVar(frame3,pp.exp_title)
+        lbl_titl = tk.Label(frame3b,text='Title:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_titl.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_titl = tk.Entry(frame3b,textvariable=self.exp_title, width=20)
+        ety_titl.pack(side=tk.LEFT,padx=5,pady=5)
+        
+        "---------------------------Button----------------------------"
+        #Frame 4
+        frame4 = tk.Frame(frame,borderwidth=2)
+        frame4.pack(fill=tk.X,expand=tk.TRUE)
+        
+        btn_update = tk.Button(frame4,text='Update',fg='red',font=BF,command=self.f_update)
+        btn_update.pack(fill=tk.X,expand=tk.TRUE)
+        
     
+    "------------------------------------------------------------------------"
+    "---------------------------Button Functions-----------------------------"
+    "------------------------------------------------------------------------"
+    def f_update(self):
+        "Update parameters and exit"
+        
+        pp.exp_ring_current = self.exp_ring_current.get()
+        pp.exp_monitor = self.exp_monitor.get()
+        pp.pil_centre = eval(self.pil_centre.get())
+        pp.hot_pixel = eval(self.hot_pixel.get())
+        pp.peakregion = eval(self.peakregion.get())
+        pp.plot_colors = eval(self.plot_colors.get())
+        pp.exp_title = self.exp_title.get()
+        
+        # Close window
+        self.root.destroy()
+
 
 
 if __name__ == '__main__':

@@ -6,6 +6,7 @@
 # 18/08/2016
 
 import sys,os
+import numpy as np
 import matplotlib.pyplot as plt # Plotting
 from mpl_toolkits.mplot3d import Axes3D # 3D plotting
 
@@ -22,12 +23,15 @@ dp.filedir = '/dls/i16/data/2015/cm12169-2'
 # Directory to save files to
 dp.savedir='/home/i16user/Desktop' 
 
+# Update default save location for exported plots
+plt.rcParams["savefig.directory"] = dp.savedir
+
 # Experiment Parameters
 dp.exp_ring_current = 300.0 # Average ring current for normalisation
 dp.exp_monitor = 800.0 # Average monitor current for normalisation
 dp.normby = 'rc' # ring current ('rc'), monitor ('ic1') or none ('none')
-dp.pil_centre = [110, 242] 
-dp.peakregion=[7,153,186,332] # Search for peaks within this area of the detector [min_y,min_x,max_y,max_x]
+dp.pil_centre = [110, 242] # Find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
+dp.peakregion=[7,153,186,332] # 'nroi_peak' will search for peaks within this area of the detector [min_y,min_x,max_y,max_x]
 dp.exp_title = ''
 
 # Scan numbers

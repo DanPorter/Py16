@@ -88,7 +88,7 @@ Version History:
 10/08/16 1.8    Added logplot and diffplot options to plotscan
 08/09/16 1.9    Generalised getvol for any detector by pre-loading the first image
 21/09/16 2.0    Removed dnp.io.load. New title includes folder and new functions for lists of scan numbers
-03/10/16 2.1    Ordered keys in dataloader, some minor fixes
+07/10/16 2.1    Ordered keys in dataloader, some minor fixes
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -142,7 +142,7 @@ exp_monitor = 800.0 # Standard ic1monitor value for current experiment for norma
 normby = 'rc' # Incident beam normalisation option: 'rc','ic1' or 'none'
 
 "----------------------------Pilatus Parameters---------------------------"
-pil_centre = [110,242] # Centre of pilatus images (for current value see localStation.py
+pil_centre = [110,242] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
 hot_pixel = 2**20-100 # Pixels on the pilatus greater than this are set to the intensity chosen by dead_pixel_func
 peakregion=[7,153,186,332] # Search for peaks within this area of the detector [min_y,min_x,max_y,max_x]
 dead_pixel_func = np.median # Define how to choose the replaced intensity for hot/broken pixels 
@@ -1660,6 +1660,7 @@ def create_analysis_file(runs,depvar='Ta',vary='',varx='',fit_type = 'pVoight',b
         
         # Import stuff
         f.write('import sys,os\n')
+        f.write('import numpy as np\n')
         #f.write('import scisoftpy as dnp # Make sure this is in your python path\n')
         f.write('import matplotlib.pyplot as plt # Plotting\n')
         f.write('from mpl_toolkits.mplot3d import Axes3D # 3D plotting\n\n')
@@ -1676,6 +1677,8 @@ def create_analysis_file(runs,depvar='Ta',vary='',varx='',fit_type = 'pVoight',b
         f.write('dp.filedir = \'{}\' \n\n'.format(filedir))
         f.write('# Directory to save files to\n')
         f.write('dp.savedir=\'{}\' \n\n'.format(savedir))
+        f.write('# Update default save location for exported plots\n')
+        f.write('plt.rcParams["savefig.directory"] = dp.savedir \n\n')
         
         # Normalisation Options and Pilatus Centre
         f.write('# Experiment Parameters\n')
@@ -4034,22 +4037,37 @@ def rot3D(vec,alpha=0.,beta=0.,gamma=0.):
     # Rotate coordinates
     return np.dot(R,vec.T).T
 
-def labels(ttl=None,xvar=None,yvar=None,zvar=None):
+def labels(ttl=None,xvar=None,yvar=None,zvar=None,size='Normal'):
     " Add good labels to current plot "
     " labels(title,xlabel,ylabel,zlabel)"
     
+    if size.lower() == 'big':
+        tik = 30
+        tit = 32
+        lab = 35
+    else:
+        # Normal
+        tik = 18
+        tit = 20
+        lab = 22
+    
+    
+    
+    plt.xticks(fontsize=tik)
+    plt.yticks(fontsize=tik)
+    
     if ttl != None:
-        plt.gca().set_title(ttl,fontsize=20,fontweight='bold')
+        plt.gca().set_title(ttl,fontsize=tit,fontweight='bold')
     
     if xvar != None:
-        plt.gca().set_xlabel(xvar,fontsize=18)
+        plt.gca().set_xlabel(xvar,fontsize=lab)
     
     if yvar != None:
-        plt.gca().set_ylabel(yvar,fontsize=18)
+        plt.gca().set_ylabel(yvar,fontsize=lab)
     
     if zvar != None:
         # Don't think this works, use ax.set_zaxis
-        plt.gca().set_xlabel(zvar,fontsize=18)
+        plt.gca().set_xlabel(zvar,fontsize=lab)
     return
 
 def saveplot(name,dpi=None):
