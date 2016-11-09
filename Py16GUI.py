@@ -56,8 +56,8 @@ OPERATION:
      "Fit Peaks" - On each scan, perform a fitting routine, storing the area, width, centre, etc, 
                    plot the results and save them to a .dat file.
 
-Version 2.1
-Last updated: 07/10/16
+Version 2.2
+Last updated: 17/10/16
 
 Version History:
 07/02/16 0.9    Program created
@@ -73,6 +73,7 @@ Version History:
 08/09/16 1.9    Added auto pilatus update checkbox
 24/09/16 2.0    Removed requirement for SciSoftPi data loader
 07/10/16 2.1    Some minor corrections, addition of parameters window
+17/10/16 2.2    Addition of rem. Bkg for pilatus and pilatus peakregion/ background lines
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -90,6 +91,7 @@ Future Ideas:
 - add option for temperature reading by different sensor (Tb,Tc,Td)
 - Advanced plot allow different estimates
 - Advanced plot multi peak fitting
+- Checkexp button (opens message box)
 """
 
 import sys,os,datetime,time,subprocess,tempfile
@@ -128,7 +130,7 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 2.1
+Py16GUI_Version = 2.2
 
 # App Fonts
 BF= ("Times", 12)
@@ -274,7 +276,7 @@ class I16_Data_Viewer():
         self.varx = tk.StringVar(frm_popt,'')
         lbl_varx = tk.Label(frm_popt, text='X',font=SF)
         lbl_varx.pack(side=tk.LEFT,padx=(5,2),pady=5)
-        ety_varx = tk.Entry(frm_popt, textvariable=self.varx, width=6)
+        ety_varx = tk.Entry(frm_popt, textvariable=self.varx, width=8)
         ety_varx.bind('<Return>',self.update_plot)
         ety_varx.pack(side=tk.LEFT,padx=(2,5),pady=5)
         
@@ -282,7 +284,7 @@ class I16_Data_Viewer():
         self.vary = tk.StringVar(frm_popt,'')
         lbl_vary = tk.Label(frm_popt, text='Y',font=SF)
         lbl_vary.pack(side=tk.LEFT,padx=(5,2),pady=5)
-        ety_vary = tk.Entry(frm_popt, textvariable=self.vary, width=12)
+        ety_vary = tk.Entry(frm_popt, textvariable=self.vary, width=20)
         ety_vary.bind('<Return>',self.update_plot)
         ety_vary.pack(side=tk.LEFT,padx=(2,3),pady=5)
         
@@ -567,6 +569,7 @@ class I16_Data_Viewer():
         
         # Pilatus variables
         self.pilatus_active = False
+        self.pilatus_scan = 0
         self.pilpos = 0
         self.pilstr = tk.StringVar(frm_pilopt,'(0) eta = 0')
         self.pilcen_i = tk.IntVar(frm_pilopt,initial_pilcen[0])
@@ -634,6 +637,18 @@ class I16_Data_Viewer():
         btn_pilpos2 = tk.Button(frm_pilopt3, text='>',font=BF, command=self.f_pilopt_posright)
         btn_pilpos2.pack(side=tk.LEFT,padx=2)
         
+        frm_pilopt3a = tk.Frame(frm_pilopt3)
+        frm_pilopt3a.pack(side=tk.LEFT,fill=tk.X)
+        
+        # Remove background
+        self.rembkg = tk.IntVar(frm_pilopt3a,0)
+        chk_rbkg = tk.Checkbutton(frm_pilopt3a, text='Rem. Bkg',font=('Times',8),borderwidth=0,variable=self.rembkg, command=self.f_pilopt_rembkg)
+        chk_rbkg.pack(side=tk.TOP,padx=0,pady=0)
+        
+        self.remfrm = tk.IntVar(frm_pilopt3a,0)
+        chk_rfrm = tk.Checkbutton(frm_pilopt3a, text='Rem. Frm',font=('Times',8),borderwidth=0,variable=self.remfrm, command=self.f_pilopt_remfrm)
+        chk_rfrm.pack(side=tk.TOP,padx=0,pady=0)
+        
         "----------------------------Pilatus Window------------------------------"
         # Figure window 2, below pilatus options buttons
         frm_pil = tk.Frame(frm_rgt)
@@ -659,9 +674,11 @@ class I16_Data_Viewer():
         pil_size = [195,487]
         idxi = np.array([ROIcen[0]-ROIsize[0]//2,ROIcen[0]+ROIsize[0]//2+1])
         idxj = np.array([ROIcen[1]-ROIsize[1]//2,ROIcen[1]+ROIsize[1]//2+1])
-        self.pilp1, = self.ax2.plot(idxj[[0,1,1,0,0]],idxi[[0,0,1,1,0]],'k-',linewidth=2)
-        self.pilp2, = self.ax2.plot([pil_centre[1],pil_centre[1]],[0,pil_size[0]],'k:',linewidth=2)
-        self.pilp3, = self.ax2.plot([0,pil_size[1]],[pil_centre[0],pil_centre[0]],'k:',linewidth=2)
+        self.pilp1, = self.ax2.plot(idxj[[0,1,1,0,0]],idxi[[0,0,1,1,0]],'k-',linewidth=2) # ROI
+        self.pilp2, = self.ax2.plot([pil_centre[1],pil_centre[1]],[0,pil_size[0]],'k:',linewidth=2) # vertical line
+        self.pilp3, = self.ax2.plot([0,pil_size[1]],[pil_centre[0],pil_centre[0]],'k:',linewidth=2) # Horizontal line
+        self.pilp4, = self.ax2.plot([],[],'r-',linewidth=2) # ROI background
+        self.pilp5, = self.ax2.plot([],[],'y-',linewidth=2) # Peak region
         self.ax2.set_aspect('equal')
         self.ax2.autoscale(tight=True)
         
@@ -872,16 +889,29 @@ class I16_Data_Viewer():
         self.helper.set('Find Peak: centres at the largest pixel, use "nroi" to define a new region of interest here')
         ROIsizei = self.roisiz_i.get()
         ROIsizej = self.roisiz_j.get()
-        vary = 'nroi_peak[{},{}]'.format(ROIsizei,ROIsizej)
+        
+        if self.rembkg.get() and self.remfrm.get():
+            vary = 'nroi_peak_bkg_sfm[{},{}]'.format(ROIsizei,ROIsizej)
+        elif self.rembkg.get():
+            vary = 'nroi_peak_bkg[{},{}]'.format(ROIsizei,ROIsizej)
+        elif self.remfrm.get():
+            vary = 'nroi_peak_sfm[{},{}]'.format(ROIsizei,ROIsizej)
+        else:
+            vary = 'nroi_peak[{},{}]'.format(ROIsizei,ROIsizej)
         self.vary.set(vary)
         
-        if self.pilatus_active:
-            [ROIceni,ROIcenj],frame = pp.pilpeak(self.vol,disp=True)
-            
-            self.pilpos = frame
-            self.pilcen_i.set(str(ROIceni))
-            self.pilcen_j.set(str(ROIcenj))
-            self.update_pilatus()
+        [ROIceni,ROIcenj],frame = pp.pilpeak(self.vol,disp=True)
+        
+        self.pilpos = frame
+        self.pilcen_i.set(str(ROIceni))
+        self.pilcen_j.set(str(ROIcenj))
+        
+        # Show peakregion
+        pry1,prx1,pry2,prx2 = pp.peakregion
+        self.pilp5.set_xdata([prx1,prx2,prx2,prx1,prx1])
+        self.pilp5.set_ydata([pry1,pry1,pry2,pry2,pry1])
+        
+        self.update_pilatus()
     
     def f_pilopt_nroi(self):
         "Send pil values to vary"
@@ -892,7 +922,15 @@ class I16_Data_Viewer():
         ROIsizei = self.roisiz_i.get()
         ROIsizej = self.roisiz_j.get()
         
-        vary = 'nroi[{},{},{},{}]'.format(ROIceni,ROIcenj,ROIsizei,ROIsizej)
+        if self.rembkg.get() and self.remfrm.get():
+            vary = 'nroi_bkg_sfm[{},{},{},{}]'.format(ROIceni,ROIcenj,ROIsizei,ROIsizej)
+        elif self.rembkg.get():
+            vary = 'nroi_bkg[{},{},{},{}]'.format(ROIceni,ROIcenj,ROIsizei,ROIsizej)
+        elif self.remfrm.get():
+            vary = 'nroi_sfm[{},{},{},{}]'.format(ROIceni,ROIcenj,ROIsizei,ROIsizej)
+        else:
+            vary = 'nroi[{},{},{},{}]'.format(ROIceni,ROIcenj,ROIsizei,ROIsizej)
+       
         self.vary.set(vary)
     
     def f_pilopt_def2(self):
@@ -956,6 +994,27 @@ class I16_Data_Viewer():
         self.plt2.set_xdata([xval,xval])
         self.plt2.set_ydata(ylim)
         self.fig1.canvas.draw()
+    
+    def f_pilopt_rembkg(self):
+        "Remove background from ROI"
+        
+        if self.rembkg.get():
+            self.helper.set('Set ROI with background removal. Backgound is average of area in RED')
+            self.update_pilatus()
+        else:
+            self.update_pilatus()
+    
+    def f_pilopt_remfrm(self):
+        "Remove background from ROI"
+        
+        if self.remfrm.get():
+            self.helper.set('Remove first frame from all images in scan')
+            self.pilatus_active = False
+            self.update_pilatus()
+        else:
+            self.helper.set('Return to uncorrected images')
+            self.pilatus_active = False
+            self.update_pilatus()
     
     def f_fnl_send(self):
         "Send instructions to console"
@@ -1037,11 +1096,16 @@ class I16_Data_Viewer():
         ROIsize = [self.roisiz_i.get(),self.roisiz_j.get()]
         cax = [self.pilint_i.get(),self.pilint_j.get()]
         imnum = self.pilpos
+        ROIbkg = self.rembkg.get()
+        if self.remfrm.get():
+            bkg_img=0
+        else:
+            bkg_img=None
         
         # Send the command
-        cmdstr = 'pp.plotpil({},cax={},imnum={},ROIcen={},ROIsize={}, show_peakregion=True)'
-        print( cmdstr.format(scanno,cax,imnum,ROIcen,ROIsize) )
-        pp.plotpil(scanno,cax=cax,imnum=imnum,ROIcen=ROIcen,ROIsize=ROIsize,show_peakregion=True)
+        cmdstr = 'pp.plotpil({},cax={},imnum={},bkg_img={},ROIcen={},ROIsize={}, show_ROIbkg=ROIbkg)'
+        print( cmdstr.format(scanno,cax,imnum,bkg_img,ROIcen,ROIsize,ROIbkg) )
+        pp.plotpil(scanno,cax=cax,imnum=imnum,bkg_img=bkg_img,ROIcen=ROIcen,ROIsize=ROIsize,show_ROIbkg=ROIbkg)
         plt.show()
     
     def f_fnl_splotsave(self):
@@ -1301,18 +1365,6 @@ class I16_Data_Viewer():
             y = np.log(y)
             vary = 'log({})'.format(vary)
         
-        # Set pilatus position
-        if self.livemode.get():
-            self.pilpos = len(x)
-        else:
-            self.pilpos = int(len(x)//2)
-        
-        # Reset pilatus plot
-        if self.autopilplot.get():
-            self.update_pilatus()
-        else:
-            self.pilatus_active = False
-        
         # Update main Plot
         self.plt1.set_xdata(x)
         self.plt1.set_ydata(y)
@@ -1324,6 +1376,15 @@ class I16_Data_Viewer():
         self.ax1.set_xlabel(varx)
         self.ax1.set_ylabel(vary)
         self.ax1.set_title('#{}'.format(self.scanno.get()),fontsize=16)
+        
+        # Reset pilatus plot
+        if self.autopilplot.get():
+            self.update_pilatus()
+        elif self.pilatus_scan == self.scanno.get():
+            self.update_pilatus()
+        else:
+            self.pilatus_active = False
+            self.pilatus_scan = 0
         
         # Perform Fit
         fit_type = self.fittype.get()
@@ -1360,6 +1421,7 @@ class I16_Data_Viewer():
         if self.pilatus_active == False:
             self.helper.set('Loading pilatus images for scan #{}, use the arrows to scroll'.format(self.scanno.get()))
             self.pilatus_active = True
+            self.pilatus_scan = self.scanno.get()
             pp.filedir = self.filedir.get()
             pp.savedir = self.savedir.get()
             
@@ -1374,6 +1436,18 @@ class I16_Data_Viewer():
                 self.pilatus_active = False
                 self.helper.set('This isnt a pilatus scan!')
                 return
+            
+            # Subtract first frame from all images
+            if self.remfrm.get():
+                bkgcut = self.vol[:,:,0].copy()
+                for n in range(len(x)):
+                    self.vol[:,:,n] = self.vol[:,:,n] - bkgcut
+            
+            # Set pilatus position
+            if self.livemode.get():
+                self.pilpos = len(x)
+            else:
+                self.pilpos = int(len(x)//2)
             
             # Set pilatus variables
             imgno = self.pilpos
@@ -1393,6 +1467,10 @@ class I16_Data_Viewer():
             
             # Update pilatus image
             self.pilim.set_data(self.vol[:,:,imgno])
+            
+            # Remove peakregion
+            self.pilp5.set_xdata([])
+            self.pilp5.set_ydata([])
         
         # Set intensity cutoffs
         self.pilim.set_clim([self.pilint_i.get(),self.pilint_j.get()])
@@ -1411,6 +1489,21 @@ class I16_Data_Viewer():
         self.pilp2.set_ydata([0,pil_size[0]])
         self.pilp3.set_xdata([0,pil_size[1]])
         self.pilp3.set_ydata([pil_centre[0],pil_centre[0]])
+        
+        if self.rembkg.get():
+            "---Background ROI---" "FROM fun pilroi()"
+            " The background region is twice the area of the required region"
+            idxbi = np.array([ROIcen[0]-ROIsize[0],ROIcen[0]+ROIsize[0]])
+            idxbj = np.array([ROIcen[1]-ROIsize[1],ROIcen[1]+ROIsize[1]])
+            if idxbi[0] < 0: idxbi[1] = idxbi[1] - idxbi[0]; idxbi[0] = 0
+            if idxbi[1] > pil_size[0]: idxbi[0] = idxbi[0] - (idxbi[1]-pil_size[0]); idxbi[1] = pil_size[0]
+            if idxbj[0] < 0: idxbj[1] = idxbj[1] - idxbj[0]; idxbj[0] = 0
+            if idxbj[1] > pil_size[1]: idxbj[0] = idxbj[0] - (idxbj[1]-pil_size[1]); idxbj[1] = pil_size[1]
+            self.pilp4.set_xdata(idxbj[[0,1,1,0,0]])
+            self.pilp4.set_ydata(idxbi[[0,0,1,1,0]])
+        else:
+            self.pilp4.set_xdata([])
+            self.pilp4.set_ydata([])
         
         self.ax2.set_aspect('equal')
         self.ax2.autoscale(tight=True)
@@ -1697,7 +1790,7 @@ class I16_Peak_Analysis:
         
         if save == 0: save = None
         
-        pp.create_analysis_file(scanno, depvar=depvar, varx=xvar, vary=yvar, fit_type = fit,peaktest=test,save=save)
+        pp.create_analysis_file(scanno, depvar=depvar, varx=xvar, vary=yvar, fit_type = fit,peaktest=test,savePLOT=save)
     
     def f_adv_fit(self):
         "Start Advanced Fitting GUI"
@@ -1858,10 +1951,10 @@ class I16_Peak_Analysis:
         
         if save == 0: save = None
         
-        print( 'fit,err = pp.fit_scans(scannos,vary={},depvar={},peaktest={},fit_type={},saveFIT={},save={})'.format(yvar,depvar,test,fit,save,save) )
+        print( 'fit,err = pp.fit_scans(scannos,vary={},depvar={},peaktest={},fit_type={},saveFIT={},savePLOT={})'.format(yvar,depvar,test,fit,save,save) )
         fit,err = pp.fit_scans(scanno,varx=xvar,vary=yvar,depvar=depvar,
                                peaktest=test,fit_type=fit,
-                               saveFIT=save,save=save)
+                               saveFIT=save,savePLOT=save)
         plt.show()
 
 
@@ -1931,7 +2024,7 @@ class I16_Advanced_Fitting:
         ety_depv.pack(side=tk.LEFT,padx=5,pady=5)
         
         # Plot range
-        self.xrange = tk.StringVar(frm_titl,'[{:1.2f},{:1.2f}]'.format(self.depvals[0],self.depvals[-1]))
+        self.xrange = tk.StringVar(frm_titl,'[{:1.2f},{:1.2f}]'.format(np.min(self.depvals),np.max(self.depvals)))
         lbl_depr = tk.Label(frm_titl, text='Range: ',font=SF)
         lbl_depr.pack(side=tk.LEFT,padx=5,pady=5)
         ety_depr = tk.Entry(frm_titl, textvariable=self.xrange, width=20)
@@ -2379,7 +2472,7 @@ class I16_Advanced_Fitting:
         
         pp.fit_scans(scannos,dependent,yvar,xvar,fit_type,bkg_type,peaktest,abscor=None,plot='all',show_fits=True,
                      mask_cmd=self.Masks,estvals=None,xrange=xrange,sortdep=True,Nloop=Nloop, Binit=Binit, Tinc=Tinc, 
-                     change_factor=Change, converge_max=Converge, min_change=0.01,save=save,saveFIT=save)
+                     change_factor=Change, converge_max=Converge, min_change=0.01,savePLOT=save,saveFIT=save)
         plt.show()
     
     def f_scan_makefile(self):
@@ -2424,7 +2517,7 @@ class I16_Advanced_Fitting:
         
         pp.create_analysis_file(scannos,depvar,yvar,xvar,fit_type,bkg_type,peaktest,abscor=None,plot='all',show_fits=True,
                                 mask_cmd=masks,estvals=None,xrange=xrange,sortdep=True,Nloop=Nloop, Binit=Binit, Tinc=Tinc, 
-                                change_factor=Change, converge_max=Converge, min_change=0.01,save=save,saveFIT=save)
+                                change_factor=Change, converge_max=Converge, min_change=0.01,savePLOT=save,saveFIT=save)
     
     "------------------------------------------------------------------------"
     "--------------------------General Functions-----------------------------"
@@ -2938,7 +3031,7 @@ class I16_Params:
         
         # Peak Region
         self.peakregion = tk.StringVar(frame2,str(pp.peakregion))
-        lbl_pkrg = tk.Label(frame2c,text='Peak Search Area:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_pkrg = tk.Label(frame2c,text='Peak Region: [>y,>x,<Y,<X]',font=SF, justify=tk.RIGHT, width=dwid, wraplength=200)
         lbl_pkrg.pack(side=tk.LEFT,padx=5,pady=5)
         ety_pkrg = tk.Entry(frame2c,textvariable=self.peakregion, width=20)
         ety_pkrg.pack(side=tk.LEFT,padx=5,pady=5)

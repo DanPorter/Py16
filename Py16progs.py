@@ -72,8 +72,8 @@ Functions:
     str = stfm(val,err)
     
 
-Version 2.1
-Last updated: 03/09/16
+Version 2.2
+Last updated: 17/10/16
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -89,6 +89,7 @@ Version History:
 08/09/16 1.9    Generalised getvol for any detector by pre-loading the first image
 21/09/16 2.0    Removed dnp.io.load. New title includes folder and new functions for lists of scan numbers
 07/10/16 2.1    Ordered keys in dataloader, some minor fixes
+17/10/16 2.2    Improved ROI functionality - _sfm to remove first frame
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -150,7 +151,7 @@ dead_pixel_func = np.median # Define how to choose the replaced intensity for ho
 "----------------------------Plotting Parameters--------------------------"
 plot_colors = ['b','g','m','c','y','k','r'] # change the default colours of plotscan 
 exp_title = '' # Experiment title
-#plt.xkcd()
+#plt.xkcd() # cool plots!
 
 ###########################################################################
 ##############################FUNCTIONS####################################
@@ -400,8 +401,15 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
         # e.g. 'nroipeak'       > As 'nroi', with peak search 
         # e.g. 'nroipeak[11,11]'> at peak centre, with size [11,11]
         # e.g. 'nroipeakbkg[31,31]' > at peak centre with background subtraction
+        # e.g. 'nroi_sfm' > subtract frame 0 from all images before ROI is generated
         
         vol = getvol(m.SRSRUN) # Load pilatus images as 3D volume
+        
+        " Subtract first frame"
+        if 'sfm' in vary.lower():
+            bkgcut = vol[:,:,0].copy()
+            for n in range(len(x)):
+                vol[:,:,n] = vol[:,:,n] - bkgcut
         
         " Find requested position in string"
         roival = re.findall('\d+',vary) # get numbers in vary
@@ -415,6 +423,9 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
             ROIcen,frame = pilpeak(vol,disp=True)
         
         y,ROI_maxval,ROI_bkg = pilroi(vol,ROIcen=ROIcen,ROIsize=ROIsize)
+        
+        if 'maxval' in vary.lower():
+            y = ROI_maxval
         
         " Calculate errors"
         dy = error_func(y)
@@ -759,7 +770,7 @@ def pilroi(vol,ROIcen=None,ROIsize=[31,31],disp=False):
     for n in range(Nframe):
         ROI = vol[idxi[0]:idxi[1],idxj[0]:idxj[1],n]
         ROI_sum[n] = ROI.sum()
-        ROI_maxval[n] = error_func( ROI.max() )
+        ROI_maxval[n] = ROI.max()
         
         " Subtract the ROI from the background area"
         BKG = vol[BKGidx[0],BKGidx[1],n]
@@ -1616,19 +1627,32 @@ def savescan(num=None,varx='',vary='',abscor=None):
     np.savetxt(savefile,(x,y,dy),header=head)
     print( 'Scan #{} has been saved as {}'.format(num,savefile) )
 
-def loadscan(num,vary=''):
-    "Load a scan.dat file saved with savescan"
+def loadscan(num,vary=None):
+    "Load a scan.dat file saved with savescan from the analysis folder"
     
-    filename = os.path.join(savedir, '{}_{}.dat'.format(num,saveable(vary)))
+    if vary is None:
+        # Get all data files in folder
+        ls=glob.glob(savedir+os.path.sep+'*.dat')
+        ls = np.sort(ls)
+        for file in ls:
+            if str(num) in file:
+                filename = file
+                break
+    else:
+        filename = os.path.join(savedir, '{}_{}.dat'.format(num,saveable(vary)))
+    try:
+        print('Reading ',filename)
+    except:
+        print('There is no file for scan #',num)
     
     # Get Header Data
     with open(filename,'r') as ff:
         # Line 1 = title
-        ttl = ff.readline().strip('# ')
+        ttl = ff.readline().strip('# ').stip('\n')
         # Line 2 = scan command
         cmd = ff.readline().strip('# ')
         # Line 3 = variable names
-        varx,vary,dvary = ff.readline().strip('# ').split(',')
+        varx,vary,dvary = ff.readline().strip('# ').split(', ')
         
     # Get x, y, dy data
     x,y,dy = np.loadtxt(filename)
@@ -1638,7 +1662,7 @@ def loadscan(num,vary=''):
 def create_analysis_file(runs,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='flat',peaktest=1,
                   abscor=None,plot='all',show_fits=True,mask_cmd=None,estvals=None,xrange=None,sortdep=True,
                   Nloop=10, Binit=1e-5, Tinc=2, change_factor=0.5, converge_max=100, min_change=0.01,
-                  save=False,saveFIT=False):
+                  savePLOT=False,saveFIT=False):
     "Creates a new python analysis script in the anaysis folder"
     
     ttl = saveable(exp_title)
@@ -1711,7 +1735,7 @@ def create_analysis_file(runs,depvar='Ta',vary='',varx='',fit_type = 'pVoight',b
         f.write('fitopt = dict(depvar=\'{}\',vary=\'{}\',varx=\'{}\',fit_type = \'{}\',bkg_type=\'{}\',peaktest={},\n'.format(depvar,vary,varx,fit_type,bkg_type,peaktest))
         f.write('              abscor={},plot=\'{}\',show_fits={},mask_cmd=mask_cmd,estvals=estvals,xrange={},sortdep={},\n'.format(abscor,plot,show_fits,xrange,sortdep))
         f.write('              Nloop={}, Binit={}, Tinc={}, change_factor={}, converge_max={}, min_change={},\n'.format(Nloop,Binit,Tinc,change_factor,converge_max,min_change))
-        f.write('              save={},saveFIT={})\n\n'.format(save,saveFIT))
+        f.write('              savePLOT={},saveFIT={})\n\n'.format(savePLOT,saveFIT))
         f.write('fit,err = dp.fit_scans(scans,**fitopt)\n\n')
         # Load
         f.write('# Load fitted data:\n')
@@ -1737,7 +1761,7 @@ def get_all_scannos():
 def fit_scans(runs,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='flat',peaktest=1,
                   abscor=None,plot='all',show_fits=True,mask_cmd=None,estvals=None,xrange=None,sortdep=True,
                   Nloop=10, Binit=1e-5, Tinc=2, change_factor=0.5, converge_max=100, min_change=0.01,
-                  save=False,saveFIT=False):
+                  savePLOT=False,saveFIT=False):
     """ 
      Automated routine to fit peaks and plot results within runs of multiple scans dependent  
      on another variable, such as temperature, energy or azimuthal depdences.
@@ -1767,7 +1791,7 @@ def fit_scans(runs,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='fl
     change_factor : (0.5)     : RMC - width of normal distribution about which the estimate parameters are randomly varied
      converge_max : (100)     : RMC is converged when converge_max is reached
        min_change : (0.01)    : RMC - converge value in increased by one when the relative change is less than this
-             save : (None)    : Save a jpg of the plot in the default directory (True/'Name.jpg'/None)
+         savePLOT : (None)    : Save a jpg of the plot in the default directory (True/'Name.jpg'/None)
           saveFIT : (None)    : Save a text file of the fits in the default directory (True/'Name.txt'/None)
         
      OUTPUTS:
@@ -1942,9 +1966,9 @@ def fit_scans(runs,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='fl
                 axs[axn].plot(x_fit[calno],y_fit[calno],'r-',linewidth=2)
                 axs[axn].set_title('#{}: {}={}'.format(rn,depvar[0],valstore[calno,1]))
             "---Save Multiplot figure---"
-            if save not in [None, False, '']:
-                if type(save) is str:
-                    saveplot('{} FITS {}'.format(save,n))
+            if savePLOT not in [None, False, '']:
+                if type(savePLOT) is str:
+                    saveplot('{} FITS {}'.format(savePLOT,n))
                 else:
                     saveplot('{0} ScansFIT {1:1.0f}-{2:1.0f} {3} FITS {4}'.format(' '.join(depvar),runs[0],runs[-1],fit_type,n))
                 
@@ -2071,9 +2095,9 @@ def fit_scans(runs,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='fl
             fig.subplots_adjust(left=0.15)
         
         "---Save Figure---"
-        if save not in [None, False, '']:
-            if type(save) is str:
-                saveplot('{} {}'.format(save,nplot))
+        if savePLOT not in [None, False, '']:
+            if type(savePLOT) is str:
+                saveplot('{} {}'.format(savePLOT,nplot))
             else:
                 saveplot('{0} ScansFIT {1} {2:1.0f}-{3:1.0f} {4}'.format(' '.join(depvar),nplot,runs[0],runs[-1],fit_type))
     
@@ -2086,7 +2110,7 @@ def fit_scans(runs,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='fl
     
     return out_values,out_errors
 
-def load_fits(runs=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,disp=False,save=False):
+def load_fits(runs=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,disp=False,save=False,**fitopt):
     """ 
      Load previously fitted data from fit_scans(), assuming it completed succesfully and was saved.
       > The inputs are used to determine the automatic filename
@@ -2097,14 +2121,15 @@ def load_fits(runs=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,disp
          val,err = load_fits(runs,depvar='Ta',fit_type = 'pVoight',plot=None)
      
      INPUTS:
-             runs : list/array of scan numbers used in fit_scans(), only the first and final values are required
+             runs : [N,M]     : list of scan numbers used in fit_scans(), only the first and final values are required
            depvar : 'Ta'      : Independent variable, e.g. 'Ta','Energy','psi'
          fit_type : 'pVoight  : Type of fit to perform e.g. 'Simple','pVoight','Lorentz','Gauss'
              plot : None      : Plot the loaded fit data, available: [None,'all','int','cen','wid']
              file : None      : If given, this filename will be used to open the data files
              disp : False     : If True, prints the data on the console
              save : False     : If true, saves images of the plots
-        
+       ALTERNATIVE:
+             runs : 'filename': Name of .dat file where fit data is stored (no other parameters are required) 
      OUTPUTS:
               val : Fitted values
                     val['Scan Number']
@@ -2127,6 +2152,9 @@ def load_fits(runs=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,disp
                     err['Area']
                     err['CHI2 per dof']
     
+    E.G. val,err = load_fits([572138,572368],depvar=['sx', 'sy'],fit_type='Gauss')
+    E.G. val,err = load_fits('sx sy ScansFIT 572138-572368 Gauss')
+    
     """
     
     # Turn depvar into a list
@@ -2135,6 +2163,8 @@ def load_fits(runs=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,disp
     Ndep = len(depvar)
     
     if type(runs) is str:
+        if runs[-4:] == '.dat':
+            runs = runs[:-4]
         file = os.path.join(savedir,runs+'.dat')
         efile = os.path.join(savedir,runs+'_errors.dat')
     
@@ -2147,7 +2177,7 @@ def load_fits(runs=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,disp
     with open(file,'r') as ff:
         first_line = ff.readline().strip()
     
-    first_line = first_line.strip('#')
+    first_line = first_line.strip('# ')
     names = first_line.split(',')
     #depvar = names[0]
     print( names )
@@ -2163,6 +2193,8 @@ def load_fits(runs=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,disp
     except AttributeError:
         plot = [plot]
     for nplot in plot:
+        if nplot is None:
+            break
         if nplot == 'all':
             # 2D Plots of area, width and position
             fig = plt.figure(figsize=[18,12])
@@ -2658,8 +2690,24 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
             saveplot(ttl)
     return
 
-def plotpil(num,cax=None,varx='',imnum=None,bkg_scan=None,ROIcen=None,ROIsize=[75,67],show_peakregion=False,save=False):
-    "Pilatus image viewer, plotpil(#)"
+def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75,67],show_ROIbkg=False,show_peakregion=False,save=False):
+    """
+    Pilatus image viewer, plotpil(#)
+    Displays pilatus image with a slider to looks throught the whole scan
+    Options:
+      num             : Scan number (0 for latest scan)
+      cax             : [min,max] colour map cut offs, or None for automatic (Default=None)
+      varx            : scannable to use as slider axis, or None for automatic (Default=None)
+      imnum           : Image number to start at - 0-scanlength, or None for middle (Default=None)
+      bkg_img         : If not None, image number bkg_img will be subtracted from all the other images in the scan (Default=None)
+      ROIcen          : Centre of region of interest [-y,x], or None for pp.pil_centre (Default=None)
+      ROIsize         : Size of region of interest to plot [ywid,xwid] (Default=[75,67]-ROI2)
+      show_ROIbkg     : If True, plots the background region of the ROI (Default=False)
+      show_peakregion : If True, plots the pp.peakregion area (Default=False)
+      save            : If True, saves an image of the resulting figure to pp.savedir (Default=False)
+    
+    E.G. plotpil(0,[0,1E3],imnum=0,bkg_img=0,ROIcen=[110,242],ROIsize=[21,10],show_peakregion=True)
+    """
     
     " Load data file"
     d = readscan(num)
@@ -2676,9 +2724,9 @@ def plotpil(num,cax=None,varx='',imnum=None,bkg_scan=None,ROIcen=None,ROIsize=[7
     cmd = d.metadata.cmd
     
     " Subtract one frame from all the others for background subtraction"
-    if bkg_scan is not None:
-        bkgcut = vol[:,:,bkg_scan].copy()
-        for n in range(len(xvals)):
+    if bkg_img is not None:
+        bkgcut = vol[:,:,bkg_img].copy()
+        for n in range(len(x)):
             vol[:,:,n] = vol[:,:,n] - bkgcut
     
     " Default initial frame"
@@ -2717,7 +2765,22 @@ def plotpil(num,cax=None,varx='',imnum=None,bkg_scan=None,ROIcen=None,ROIsize=[7
     if show_peakregion:
         pry1,prx1,pry2,prx2 = peakregion
         print('peakregion = [{},{},{},{}]'.format(*peakregion))
-        ax.plot([prx1,prx2,prx2,prx1,prx1],[pry1,pry1,pry2,pry2,pry1],'r-',linewidth=2)
+        ax.plot([prx1,prx2,prx2,prx1,prx1],[pry1,pry1,pry2,pry2,pry1],'y-',linewidth=2)
+    
+    if show_ROIbkg:
+        "---Background ROI---" "FROM fun pilroi()"
+        " Determine background of image and subtract from the region by pixel"
+        " The background region is twice the area of the required region"
+        idxbi = [ROIcen[0]-ROIsize[0],ROIcen[0]+ROIsize[0]]
+        idxbj = [ROIcen[1]-ROIsize[1],ROIcen[1]+ROIsize[1]]
+        
+        " Check the box is within the detector"
+        if idxbi[0] < 0: idxbi[1] = idxbi[1] - idxbi[0]; idxbi[0] = 0
+        if idxbi[1] > pil_size[0]: idxbi[0] = idxbi[0] - (idxbi[1]-pil_size[0]); idxbi[1] = pil_size[0]
+        if idxbj[0] < 0: idxbj[1] = idxbj[1] - idxbj[0]; idxbj[0] = 0
+        if idxbj[1] > pil_size[1]: idxbj[0] = idxbj[0] - (idxbj[1]-pil_size[1]); idxbj[1] = pil_size[1]
+        print( 'Background ROI = [{0},{1},{2},{3}]'.format(idxbi[0],idxbj[0],idxbi[1],idxbj[1]))
+        ax.plot(idxbj[[0,1,1,0,0]],idxbi[[0,0,1,1,0]],'r-',linewidth=2)
     
     ax.set_aspect('equal')
     ax.autoscale(tight=True)
@@ -2767,7 +2830,7 @@ def plotdwn(num,save=None):
     y = getattr(d,vary)
     
     #Create plot
-    np.plot.plot(x,y,title='#{0}: {1}'.format(num,d.metadata.cmd),name = '#{0}'.format(num))
+    #dnp.plot.plot(x,y,title='#{0}: {1}'.format(num,d.metadata.cmd),name = '#{0}'.format(num))
     return
 
 def plotscans(scans=[],depvar=None,vary='',varx='',fit=None,norm=True,logplot=False,save=False):
@@ -3532,7 +3595,7 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
     
     # Calculate CHI^2
     ycomp = fitfunc(xold,*fitvals)
-    chi = np.sum( (y-ycomp)**2 / dy)
+    chi = np.sum( (y-ycomp)**2 / dy**2)
     dof = len(y) - len(fitvals) # Number of degrees of freedom (Nobs-Npar)
     chinfp = chi/dof
     output['CHI**2'] = chi
@@ -3882,6 +3945,20 @@ def ispeak(Y,dY=None,test = 1,disp=False,return_rat=False):
 
 
 "----------------------------Misc Functions-------------------------------"
+
+def scanfile(num):
+    "Returns the full file name of scan #num"
+    
+    if os.path.isdir(filedir) == False: 
+        print( "I can't find the directory: {}".format(filedir) )
+        return None
+    
+    if num < 1: 
+        if latest() is None: return None
+        num = latest()+num
+    
+    file = os.path.join(filedir, '%i.dat' %num)
+    return file
 
 def abscor(eta=0,chi=90,delta=0,mu=0,gamma=0,u=1.0,disp=False,plot=False):
     """
