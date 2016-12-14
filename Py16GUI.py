@@ -56,8 +56,8 @@ OPERATION:
      "Fit Peaks" - On each scan, perform a fitting routine, storing the area, width, centre, etc, 
                    plot the results and save them to a .dat file.
 
-Version 2.2
-Last updated: 17/10/16
+Version 2.3
+Last updated: 14/12/16
 
 Version History:
 07/02/16 0.9    Program created
@@ -74,6 +74,7 @@ Version History:
 24/09/16 2.0    Removed requirement for SciSoftPi data loader
 07/10/16 2.1    Some minor corrections, addition of parameters window
 17/10/16 2.2    Addition of rem. Bkg for pilatus and pilatus peakregion/ background lines
+14/12/16 2.3    New option menus for exp directories and X,Y variables, other minor improvements
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -84,7 +85,6 @@ I16, Diamond Light Source
 
 """
 Future Ideas:
-- Fix pilatus plot size issue
 - Convert to Qt
 - Add hover boxes over buttons
 - During live mode, show last line of log file in info bar
@@ -130,7 +130,7 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 2.2
+Py16GUI_Version = 2.3
 
 # App Fonts
 BF= ("Times", 12)
@@ -192,10 +192,16 @@ class I16_Data_Viewer():
         frm_fldr = tk.Frame(frame)
         frm_fldr.pack(fill=tk.X)
         self.filedir = tk.StringVar(frm_fldr,initial_dir)
-        lbl_fldr = tk.Label(frm_fldr, text='Data Folder: ',font=SF)
+        lbl_fldr = tk.Label(frm_fldr, text='Data Folder: ',width=15,font=SF)
         lbl_fldr.pack(side=tk.LEFT,padx=5,pady=5)
-        ety_fldr = tk.Entry(frm_fldr, textvariable=self.filedir, width=60)
-        ety_fldr.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_fldr = tk.Entry(frm_fldr, textvariable=self.filedir, width=50)
+        ety_fldr.pack(side=tk.LEFT,padx=0,pady=5)
+        
+        exp_list = [pp.filedir]+pp.exp_list_get()
+        opt_fldr = tk.OptionMenu(frm_fldr, self.filedir, *exp_list)
+        opt_fldr.config(width=1,height=1,fg=opt_fldr['menu']['bg'],activeforeground=opt_fldr['menu']['bg'])
+        opt_fldr.pack(side=tk.LEFT,padx=0,pady=5)
+        
         btn_fldr = tk.Button(frm_fldr, text='Browse',font=BF, command=self.f_fldr_browse)
         btn_fldr.pack(side=tk.LEFT,padx=5,pady=5)
         btn2_fldr = tk.Button(frm_fldr, text='Search',font=BF, command=self.f_fldr_find)
@@ -213,10 +219,16 @@ class I16_Data_Viewer():
         frm_fldr = tk.Frame(frame)
         frm_fldr.pack(fill=tk.X)
         self.savedir = tk.StringVar(frm_fldr,pp.savedir)
-        lbl_fldr = tk.Label(frm_fldr, text='Analysis Folder: ',font=SF)
+        lbl_fldr = tk.Label(frm_fldr, text='Analysis Folder: ',width=15,font=SF)
         lbl_fldr.pack(side=tk.LEFT,padx=5,pady=5)
-        ety_fldr = tk.Entry(frm_fldr, textvariable=self.savedir, width=62)
-        ety_fldr.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_fldr = tk.Entry(frm_fldr, textvariable=self.savedir, width=50)
+        ety_fldr.pack(side=tk.LEFT,padx=0,pady=5)
+        
+        sav_list = [pp.savedir]+pp.sav_list_get()
+        opt_fldr = tk.OptionMenu(frm_fldr, self.savedir, *sav_list)
+        opt_fldr.config(width=1,height=1,fg=opt_fldr['menu']['bg'],activeforeground=opt_fldr['menu']['bg'])
+        opt_fldr.pack(side=tk.LEFT,padx=0,pady=5)
+        
         btn_fldr = tk.Button(frm_fldr, text='Browse',font=BF, command=self.f_fldr2_browse)
         btn_fldr.pack(side=tk.LEFT,padx=5,pady=5)
         
@@ -276,24 +288,32 @@ class I16_Data_Viewer():
         self.varx = tk.StringVar(frm_popt,'')
         lbl_varx = tk.Label(frm_popt, text='X',font=SF)
         lbl_varx.pack(side=tk.LEFT,padx=(5,2),pady=5)
-        ety_varx = tk.Entry(frm_popt, textvariable=self.varx, width=8)
-        ety_varx.bind('<Return>',self.update_plot)
-        ety_varx.pack(side=tk.LEFT,padx=(2,5),pady=5)
+        #ety_varx = tk.Entry(frm_popt, textvariable=self.varx, width=8)
+        #ety_varx.bind('<Return>',self.update_plot)
+        #ety_varx.pack(side=tk.LEFT,padx=(2,5),pady=5)
+        xlist = ['x']
+        self.opt_varx = tk.OptionMenu(frm_popt, self.varx, *xlist, command=self.f_popt_varx)
+        self.opt_varx.config(width=8)
+        self.opt_varx.pack(side=tk.LEFT,padx=(2,5),pady=5)
         
         # vary box
         self.vary = tk.StringVar(frm_popt,'')
         lbl_vary = tk.Label(frm_popt, text='Y',font=SF)
         lbl_vary.pack(side=tk.LEFT,padx=(5,2),pady=5)
-        ety_vary = tk.Entry(frm_popt, textvariable=self.vary, width=20)
-        ety_vary.bind('<Return>',self.update_plot)
-        ety_vary.pack(side=tk.LEFT,padx=(2,3),pady=5)
+        #ety_vary = tk.Entry(frm_popt, textvariable=self.vary, width=20)
+        #ety_vary.bind('<Return>',self.update_plot)
+        #ety_vary.pack(side=tk.LEFT,padx=(2,3),pady=5)
+        ylist = ['y']
+        self.opt_vary = tk.OptionMenu(frm_popt, self.vary, *ylist,command=self.f_popt_vary)
+        self.opt_vary.config(width=10)
+        self.opt_vary.pack(side=tk.LEFT,padx=(2,3),pady=5)
         
         # normalise menu
         normopts = ['rc','ic1','none']
         self.normtype = tk.StringVar(frm_popt, normopts[0])
         lbl_nrm = tk.Label(frm_popt, text='Norm: ', font=SF)
         lbl_nrm.pack(side=tk.LEFT,padx=0,pady=5)
-        opt_nrm = tk.OptionMenu(frm_popt, self.normtype, *normopts)
+        opt_nrm = tk.OptionMenu(frm_popt, self.normtype, *normopts,command=self.f_popt_norm)
         opt_nrm.config(width=4)
         opt_nrm.pack(side=tk.LEFT,padx=0,pady=5)
         
@@ -734,6 +754,10 @@ class I16_Data_Viewer():
     "------------------------------------------------------------------------"
     "---------------------------Button Functions-----------------------------"
     "------------------------------------------------------------------------"
+    def f_fldr_opt(self):
+        "Load previous experiment"
+        pass
+    
     def f_fldr_browse(self):
         "Browse for data directory"
         inidir = self.filedir.get()
@@ -763,16 +787,14 @@ class I16_Data_Viewer():
     def f_params(self):
         "Launch parameters GUI"
         
-        pp.filedir = self.filedir.get()
-        pp.savedir = self.savedir.get()
+        self.set_files()
         
         I16_Params()
     
     def f_anal(self):
         "Launch analysis GUI"
         
-        pp.filedir = self.filedir.get()
-        pp.savedir = self.savedir.get()
+        self.set_files()
         
         I16_Peak_Analysis(self.scanno.get())
     
@@ -807,8 +829,7 @@ class I16_Data_Viewer():
     def f_scan_st(self):
         "Latest Scan number"
         
-        pp.filedir = self.filedir.get()
-        pp.savedir = self.savedir.get()
+        self.set_files()
         
         try:
             num = pp.latest()
@@ -826,7 +847,7 @@ class I16_Data_Viewer():
     def f_scan_mt(self):
         "Send metadata to console"
         # Get the parameters
-        pp.filedir = self.filedir.get()
+        self.set_files()
         scanno = self.scanno.get()
         
         self.helper.set('Scan metadata is displayed on the console (you may need to hit Enter)')
@@ -834,6 +855,20 @@ class I16_Data_Viewer():
     
     def f_popt_plot(self):
         "Plot current scan"
+        self.update_plot()
+    
+    def f_popt_varx(self,x):
+        "Get varx and plot current scan"
+        self.varx.set(x)
+        self.update_plot()
+    
+    def f_popt_vary(self,x):
+        "Get vary and plot current scan"
+        self.vary.set(x)
+        self.update_plot()
+    
+    def f_popt_norm(self,x):
+        "Plot scan with fit"
         self.update_plot()
     
     def f_popt_fit(self,x):
@@ -1023,7 +1058,7 @@ class I16_Data_Viewer():
         global x,y,dy,varx,vary,ttl,d
         
         # Get the parameters
-        pp.filedir = self.filedir.get()
+        self.set_files()
         pp.normby = self.normtype.get()
         scanno = self.scanno.get()
         setvarx = self.varx.get()
@@ -1055,7 +1090,7 @@ class I16_Data_Viewer():
         "Send plotscan command to console"
         
         # Get the parameters
-        pp.filedir = self.filedir.get()
+        self.set_files()
         pp.normby = self.normtype.get()
         scanno = self.scanno.get()
         logplot = self.logplot.get()
@@ -1088,7 +1123,7 @@ class I16_Data_Viewer():
         "Send plotpil command to console"
         
         # Get the parameters
-        pp.filedir = self.filedir.get()
+        self.set_files()
         pp.normby = self.normtype.get()
         scanno = self.scanno.get()
         
@@ -1112,8 +1147,7 @@ class I16_Data_Viewer():
         "Send plotscan command to console, save result and close"
         
         # Get the parameters
-        pp.filedir = self.filedir.get()
-        pp.savedir = self.savedir.get()
+        pself.set_files()
         pp.normby = self.normtype.get()
         scanno = self.scanno.get()
         logplot = self.logplot.get()
@@ -1149,8 +1183,7 @@ class I16_Data_Viewer():
         "Linux ONLY!"
         
         # Get the parameters
-        pp.filedir = self.filedir.get()
-        pp.savedir = self.savedir.get()
+        self.set_files()
         pp.normby = self.normtype.get()
         scanno = self.scanno.get()
         logplot = self.logplot.get()
@@ -1228,6 +1261,17 @@ class I16_Data_Viewer():
     "--------------------------General Functions-----------------------------"
     "------------------------------------------------------------------------"
     
+    
+    def set_files(self):
+        "Set the filedir and savedir commands"
+        
+        if pp.filedir != self.filedir.get():
+            pp.filedir = self.filedir.get()
+            pp.exp_list_add()
+        if pp.savedir != self.savedir.get():
+            pp.savedir = self.savedir.get()
+            pp.sav_list_add()
+    
     def writeval(self,mstr,label_str,label_var,wid=27):
         frame = tk.Frame(mstr)
         frame.pack(fill=tk.X)        
@@ -1246,8 +1290,9 @@ class I16_Data_Viewer():
         "Load metadata for current scan"
         
         self.pilatus_active = False
-        pp.filedir = self.filedir.get()
-        pp.savedir = self.savedir.get()
+        
+        self.set_files()
+        
         d = pp.readscan(self.scanno.get())
         self.fittype.set('None')
         self.vary.set('')
@@ -1285,6 +1330,24 @@ class I16_Data_Viewer():
             self.runtime.set('')
             self.timetaken.set('')
             return
+        
+        keys = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
+        
+        # Set varx and vary optionmenu entrys
+        self.opt_varx['menu'].delete(0, 'end')
+        for key in keys:
+            #self.opt_varx['menu'].add_command(label=key, command=tk._setit(self.varx, key))
+            self.opt_varx['menu'].add_command(label=key, command=lambda k=key: self.f_popt_varx(k))
+        
+        if hasattr(d,'path'):
+            keys += ['ROI - bkg']
+            keys += ['Custom ROI']
+        keys.reverse()
+        self.opt_vary['menu'].delete(0, 'end')
+        for key in keys:
+            #self.opt_vary['menu'].add_command(label=key, command=tk._setit(self.vary, key))
+            self.opt_vary['menu'].add_command(label=key, command=lambda k=key: self.f_popt_vary(k))
+        
         m = d.metadata
         
         # Initilise frame variables
@@ -1338,8 +1401,7 @@ class I16_Data_Viewer():
     def update_plot(self,event=None):
         "Plot metadata for current scan"
         
-        pp.filedir = self.filedir.get()
-        pp.savedir = self.savedir.get()
+        self.set_files()
         pp.normby = self.normtype.get()
         d = pp.readscan(self.scanno.get())
         if d is None:
@@ -1351,6 +1413,20 @@ class I16_Data_Viewer():
             norm = True
         
         yvar = self.vary.get()
+        if yvar == 'Custom ROI':
+            ROIceni = self.pilcen_i.get()
+            ROIcenj = self.pilcen_j.get()
+            ROIsizei = self.roisiz_i.get()
+            ROIsizej = self.roisiz_j.get()
+            yvar = 'nroi[{},{},{},{}]'.format(ROIceni,ROIcenj,ROIsizei,ROIsizej)
+        elif yvar == 'ROI - bkg':
+            ROIceni = self.pilcen_i.get()
+            ROIcenj = self.pilcen_j.get()
+            ROIsizei = self.roisiz_i.get()
+            ROIsizej = self.roisiz_j.get()
+            yvar = 'nroi_bkg[{},{},{},{}]'.format(ROIceni,ROIcenj,ROIsizei,ROIsizej)
+        
+        
         xvar = self.varx.get()
         try:
             x,y,dy,varx,vary,ttl,d = pp.getdata(d,varx=xvar,vary=yvar,norm=norm)
@@ -1422,8 +1498,7 @@ class I16_Data_Viewer():
             self.helper.set('Loading pilatus images for scan #{}, use the arrows to scroll'.format(self.scanno.get()))
             self.pilatus_active = True
             self.pilatus_scan = self.scanno.get()
-            pp.filedir = self.filedir.get()
-            pp.savedir = self.savedir.get()
+            self.set_files()
             
             
             # get data
@@ -1634,7 +1709,7 @@ class I16_Peak_Analysis:
         frm_scan = tk.Frame(frame)
         frm_scan.pack(fill=tk.X)
         self.first = tk.IntVar(frm_scan,initial_num)
-        self.last = tk.IntVar(frm_scan,initial_num+1)
+        self.last = tk.StringVar(frm_scan,'{}+1'.format(initial_num))
         self.step = tk.IntVar(frm_scan,1)
         lbl_first = tk.Label(frm_scan, text='First: ',font=SF)
         lbl_first.pack(side=tk.LEFT,padx=5,pady=5)
@@ -1734,14 +1809,14 @@ class I16_Peak_Analysis:
     def f_scan_ld(self):
         "Update GUI for selected scan number"
         first = self.first.get()
-        last = self.last.get()
+        last = eval(self.last.get())
         step = self.step.get()
         
         if last > pp.latest(): 
             last = pp.latest()
             self.last.set(last)
         
-        scans = range(first,last,step)
+        scans = range(first,last+1,step)
         
         # Update text in evalbox
         scanstr = str(scans)
