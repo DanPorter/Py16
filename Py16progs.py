@@ -72,8 +72,8 @@ Functions:
     str = stfm(val,err)
     
 
-Version 2.3
-Last updated: 14/12/16
+Version 2.4
+Last updated: 19/12/16
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -91,6 +91,7 @@ Version History:
 07/10/16 2.1    Ordered keys in dataloader, some minor fixes
 17/10/16 2.2    Improved ROI functionality - _sfm to remove first frame
 14/12/16 2.3    Improved multiscan titles, funtions to write + load previous experiment directories for fast access
+19/12/16 2.4    Added checkscans and auto_varx/vary functions, added dont_normalise for none-normalisable values
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -143,9 +144,10 @@ error_func = lambda x: np.sqrt(np.abs(x)+0.1) # Define how the error on each int
 exp_ring_current = 300.0 # Standard ring current for current experiment for normalisation
 exp_monitor = 800.0 # Standard ic1monitor value for current experiment for normalisation
 normby = 'rc' # Incident beam normalisation option: 'rc','ic1' or 'none'
+dont_normalise = ['Ta','Tb','Tc','Td','ic1monitor','rc']
 
 "----------------------------Pilatus Parameters---------------------------"
-pil_centre = [110,242] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
+pil_centre = [103,244] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
 hot_pixel = 2**20-100 # Pixels on the pilatus greater than this are set to the intensity chosen by dead_pixel_func
 peakregion=[7,153,186,332] # Search for peaks within this area of the detector [min_y,min_x,max_y,max_x]
 dead_pixel_func = np.median # Define how to choose the replaced intensity for hot/broken pixels 
@@ -483,7 +485,7 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
         normtxt = ''
     
     " Normalise the data by time, transmission and incident beam"
-    if norm:
+    if norm and vary not in dont_normalise:
         y = y/d.metadata.Transmission/cnt/inorm
         dy = dy/d.metadata.Transmission/cnt/inorm
         vary += '/Tran./t/'+normtxt
@@ -889,62 +891,8 @@ def checkscan(num1=None,num2=None,showval=None):
     
     "-----------------Multi run------------------"
     if len(num)>1:
-        # Print brief info
-        #fmt = '{num} | {date} | {mode:4s} {energy:5.3g}keV {temp:5.3g}K ({h:1.2g},{k:1.2g},{l:1.2g}) | {cmd}'
-        fmt = '{num} | {date} | {mode:4s} {ss} {ds} {energy:5.3g}keV {temp:5.3g}K {hkl:17s} {show}{equal}{val} | {cmd}'
-        showval_dict = {'show':'','equal':'','val':''}
-        for n in range(len(num)):
-            d = readscan(num[n])
-            if d is None:
-                print( "File does not exist" )
-                continue
-            m = d.metadata
-            ks = d.keys()
-            
-            if m.Ta == 0: m.Ta = 300
-            
-            sampsl = '{0:4.2g}x{1:<4.2g}'.format(m.s5xgap,m.s5ygap)
-            detsl = '{0:4.2g}x{1:<4.2g}'.format(m.s6xgap,m.s6ygap)
-            
-            h = round(m.h*100)//100 + 0.0 # + 0.0 to remove -0 
-            k = round(m.k*100)//100 + 0.0
-            l = round(m.l*100)//100 + 0.0
-            hkl = '({h:1.2g},{k:1.2g},{l:1.2g})'.format(h=h,k=k,l=l)
-            if m.gam>0.0:
-                mode= 'H'
-                pol = 'p'
-            else:
-                mode='V'
-                pol='s'
-            if 'sum' in ks: mode=mode+'Pil'
-            if 'FF' in ks: mode=mode+'Vtx'
-            if 'xmapc' in ks: mode=mode+'xma'
-            if 'APD' in ks:
-                if m.stoke < 45.: 
-                    if m.gam>0.0:
-                        pol = pol+'p'
-                    else:
-                        pol = pol+'s'
-                else:
-                    if m.gam>0.0:
-                        pol = pol+'s'
-                    else:
-                        pol = pol+'p'
-                mode = mode+pol
-            
-            if showval is not None:
-                if showval in ks:
-                    val = np.mean(getattr(d,showval))
-                elif showval in m.keys():
-                    val = getattr(m,showval)
-                else:
-                    val = 'No Data'
-                showval_dict['show'] = showval
-                showval_dict['equal'] = '='
-                showval_dict['val'] = val
-            
-            print( fmt.format(num=m.SRSRUN,date=m.date,mode=mode,ss=sampsl,ds=detsl,energy=m.Energy,temp=m.Ta,hkl=hkl,cmd=m.cmd,**showval_dict) )
-        return 
+        checkscans(num,showval=showval)
+        return
     
     "----------------Single run------------------"
     d = readscan(num[0])
@@ -1054,6 +1002,84 @@ def checkscan(num1=None,num2=None,showval=None):
     print( 'Time taken: {} hours, {} mins, {} seconds'.format(hours,mins,secs) )
     return 
 
+def checkscans(num1=None,num2=None,showval=None,find_scans=None):
+    """
+    Get brief info about each scan in a list
+    
+    checkscans([587892,587893,587894])
+    
+    checkscans(...,showval='phi') >> also display infomation from a variable, such as 'phi'
+    
+    checkscans(...,find_scans='eta') >> only display 'eta' scans
+    """
+    
+    if num1 is None:
+        num1 = range(-10,1)
+    if num2 is not None:
+        num1 = range(num1,num2)
+    nums = np.asarray(num1,dtype=int).reshape(-1)
+    
+    # Print brief info
+    #fmt = '{nums} | {date} | {mode:4s} {energy:5.3g}keV {temp:5.3g}K ({h:1.2g},{k:1.2g},{l:1.2g}) | {cmd}'
+    fmt = '{nums} | {date} | {mode:4s} {ss} {ds} {energy:5.3g}keV {temp:5.3g}K {hkl:17s} {show}{equal}{val} | {cmd}'
+    showval_dict = {'show':'','equal':'','val':''}
+    for n in range(len(nums)):
+        d = readscan(nums[n])
+        if d is None:
+            continue
+        
+        m = d.metadata
+        ks = d.keys()
+        varx = auto_varx(d)
+        
+        # Only display scans of type find_scans
+        if find_scans is not None and find_scans != varx:
+            continue
+        
+        if m.Ta == 0: m.Ta = 300
+        
+        sampsl = '{0:4.2g}x{1:<4.2g}'.format(m.s5xgap,m.s5ygap)
+        detsl = '{0:4.2g}x{1:<4.2g}'.format(m.s6xgap,m.s6ygap)
+        
+        h = round(m.h*100)//100 + 0.0 # + 0.0 to remove -0 
+        k = round(m.k*100)//100 + 0.0
+        l = round(m.l*100)//100 + 0.0
+        hkl = '({h:1.2g},{k:1.2g},{l:1.2g})'.format(h=h,k=k,l=l)
+        if m.gam>0.0:
+            mode= 'H'
+            pol = 'p'
+        else:
+            mode='V'
+            pol='s'
+        if 'sum' in ks: mode=mode+'Pil'
+        if 'FF' in ks: mode=mode+'Vtx'
+        if 'xmapc' in ks: mode=mode+'xma'
+        if 'APD' in ks:
+            if m.stoke < 45.: 
+                if m.gam>0.0:
+                    pol = pol+'p'
+                else:
+                    pol = pol+'s'
+            else:
+                if m.gam>0.0:
+                    pol = pol+'s'
+                else:
+                    pol = pol+'p'
+            mode = mode+pol
+        
+        if showval is not None:
+            if showval in ks:
+                val = np.mean(getattr(d,showval))
+            elif showval in m.keys():
+                val = getattr(m,showval)
+            else:
+                val = 'No Data'
+            showval_dict['show'] = showval
+            showval_dict['equal'] = '='
+            showval_dict['val'] = val
+        
+        print( fmt.format(nums=m.SRSRUN,date=m.date,mode=mode,ss=sampsl,ds=detsl,energy=m.Energy,temp=m.Ta,hkl=hkl,cmd=m.cmd,**showval_dict) )
+
 def checklog(time=None,mins=2,cmd=False,find=None):
     """Look at experiment log file 
     checklog(time,mins,commands,findstr)
@@ -1136,6 +1162,78 @@ def checklog(time=None,mins=2,cmd=False,find=None):
     
     return
 
+def auto_varx(num):
+    "Determine the scanned variable"
+    
+    "---Load data---"
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    
+    "---Get metadata---"
+    keys = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
+    m = d.metadata
+    cmd = m.cmd # Scan command
+    
+    varx = cmd.split()[1]
+    if varx == 'hkl':
+        if cmd.split()[0] == 'scan':
+            hvar,kvar,lvar=cmd.split()[8:11]
+        elif cmd.split()[0] == 'scancn':
+            hvar,kvar,lvar=cmd.split()[2:5]
+        else:
+            print( 'Error: Wrong type of scan' )
+        hvar = float(re.sub("[^0-9.]", "",hvar))
+        kvar = float(re.sub("[^0-9.]", "",kvar))
+        lvar = float(re.sub("[^0-9.]", "",lvar))
+        if hvar > 0.0:
+            varx = 'h'
+        elif kvar > 0.0:
+            varx = 'k'
+        else:
+            varx = 'l'
+    elif varx == 'sr2':
+        varx = 'phi'
+    elif varx == 'th2th':
+        varx = 'delta'
+        
+    if varx not in keys:
+        varx = keys[0]
+    return varx
+
+def auto_vary(num):
+    "Determine the default scannable"
+    
+    "---Load data---"
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    
+    "---Get metadata---"
+    keys = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
+    m = d.metadata
+    cmd = m.cmd # Scan command
+    
+    vary = cmd.split()[-1]
+    if vary[0:3] == 'roi':
+        vary = vary + '_sum'
+    elif 'pil100k' in cmd:
+        vary = 'sum'
+    elif 'pil2m' in cmd:
+        vary = 'sum'
+    elif 'APD' in keys:
+        vary = 'APD'
+    elif 'xmapc' in keys:
+        vary = 'xmroi2'
+    
+    if vary not in keys:
+        vary = keys[-1]
+    return vary
+
 def scantitle(num):
     "Generate a formatted title for the current scan"
     
@@ -1211,6 +1309,19 @@ def scantitle(num):
         else:
             ttl = '{} #{} {} {} {}{}'.format(etitle,scan_range,HKL,Energy,Temp,pol).strip()
         return ttl
+
+def scanlatt(num):
+    "Displays the lattiec parameters of the chosen scan"
+    
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    m = d.metadata
+    print('---Lattice Parameters #{}---'.format(m.SRSRUN))
+    print('    a = {:7.4f},     b = {:7.4f},      c = {:7.4f}'.format(m.a,m.b,m.c))
+    print('alpha = {:7.2f},  beta = {:7.2f},  gamma = {:7.2f}'.format(m.alpha1,m.alpha2,m.alpha3))
 
 def prend(start=0,end=None):
     "Calculate the end time of a run"
@@ -1571,7 +1682,7 @@ def scanabscor(num=0,u=1,eta_offset=0.0,chi_offset=0.0):
     #mu = np.deg2rad(d.metadata.mu)
     #gam = np.deg2rad(d.metadata.gam)
     
-    return abscor(eta,chi,delta,u)
+    return abscor(eta,chi,delta,u=u)
 
 def metaprint(d1,d2=None):
     """ 
@@ -4241,7 +4352,7 @@ def saveplot(name,dpi=None):
     gcf = plt.gcf()
     savefile = os.path.join(savedir, '{}.png'.format(saveable(name)))
     gcf.savefig(savefile,dpi=dpi)
-    print( 'Saved Figure {} as {}.png'.format(gcf.number,savefile) )
+    print( 'Saved Figure {} as {}'.format(gcf.number,savefile) )
 
 def frange(start,stop=None,step=1):
     "Like np.arange but ends at stop, rather than stop-step"

@@ -56,8 +56,8 @@ OPERATION:
      "Fit Peaks" - On each scan, perform a fitting routine, storing the area, width, centre, etc, 
                    plot the results and save them to a .dat file.
 
-Version 2.3
-Last updated: 14/12/16
+Version 2.4
+Last updated: 18/12/16
 
 Version History:
 07/02/16 0.9    Program created
@@ -75,6 +75,7 @@ Version History:
 07/10/16 2.1    Some minor corrections, addition of parameters window
 17/10/16 2.2    Addition of rem. Bkg for pilatus and pilatus peakregion/ background lines
 14/12/16 2.3    New option menus for exp directories and X,Y variables, other minor improvements
+18/12/16 2.4    Main app now resizes for screensize, Mac option added. Fixes for option menus
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -130,20 +131,24 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 2.3
+Py16GUI_Version = 2.4
 
 # App Fonts
-BF= ("Times", 12)
-SF= ("Times New Roman", 14)
-LF= ("Times", 14)
-HF= ('Courier',12)
+BF= ["Times", 12]
+SF= ["Times New Roman", 14]
+LF= ["Times", 14]
+HF= ['Courier',12]
 # App Figure Sizes
 WINDOWS = {'scan':[6,4], 'pilatus': [6,2.50]}
 LINUX = {'scan':[6,4], 'pilatus': [6,2.90]}
+MAC = {'scan':[5,3], 'pilatus': [5,2]}
 # Window size needs to be different on Linux
 if 'linux' in sys.platform:
     print('Linux Distribution detected - adjusting figure size accordingly')
     NORMAL = LINUX
+elif 'darwin' in sys.platform:
+    print('Mac OS detected - adjusting figure size accordingly')
+    NORMAL = MAC
 else:
     NORMAL = WINDOWS
 
@@ -160,21 +165,21 @@ class I16_Data_Viewer():
         self.root.wm_title('I16 Data Viewer [V{}] by D G Porter [dan.porter@diamond.ac.uk]'.format(Py16GUI_Version))
         self.root.minsize(width=640, height=480)
         self.root.maxsize(width=1920, height=1200)
-        #root.winfo_screenwidth()
-        #root.winfo_screenheight()
+        #self.root.maxsize(width = self.root.winfo_screenwidth(), height = self.root.winfo_screenheight())
+        #print self.root.winfo_screenwidth(), self.root.winfo_screenmmwidth()
+        #print self.root.winfo_screenheight(), self.root.winfo_screenmmheight()
         
         # Get initial parameters
         initial_dir = pp.filedir
-        try:
-            initial_num = pp.latest()
-        except ValueError: 
-            initial_num = '000000'
+        initial_num = '000000'
         initial_pilcen = pp.pil_centre
         initial_ROI = [75,67]
         initial_INT = [0,10]
         
         # Update default save location for exported plots
         plt.rcParams["savefig.directory"] = pp.savedir
+        
+        self.pilatus_scan = 0
         
         frame = tk.Frame(self.root)
         frame.pack(side=tk.LEFT,anchor=tk.N)
@@ -285,25 +290,25 @@ class I16_Data_Viewer():
         btn_plot.pack(side=tk.LEFT,padx=5,pady=5)
         
         # varx box
-        self.varx = tk.StringVar(frm_popt,'')
+        self.varx = tk.StringVar(frm_popt,'Auto')
         lbl_varx = tk.Label(frm_popt, text='X',font=SF)
         lbl_varx.pack(side=tk.LEFT,padx=(5,2),pady=5)
         #ety_varx = tk.Entry(frm_popt, textvariable=self.varx, width=8)
         #ety_varx.bind('<Return>',self.update_plot)
         #ety_varx.pack(side=tk.LEFT,padx=(2,5),pady=5)
-        xlist = ['x']
+        xlist = ['Auto']
         self.opt_varx = tk.OptionMenu(frm_popt, self.varx, *xlist, command=self.f_popt_varx)
         self.opt_varx.config(width=8)
         self.opt_varx.pack(side=tk.LEFT,padx=(2,5),pady=5)
         
         # vary box
-        self.vary = tk.StringVar(frm_popt,'')
+        self.vary = tk.StringVar(frm_popt,'Auto')
         lbl_vary = tk.Label(frm_popt, text='Y',font=SF)
         lbl_vary.pack(side=tk.LEFT,padx=(5,2),pady=5)
         #ety_vary = tk.Entry(frm_popt, textvariable=self.vary, width=20)
         #ety_vary.bind('<Return>',self.update_plot)
         #ety_vary.pack(side=tk.LEFT,padx=(2,3),pady=5)
-        ylist = ['y']
+        ylist = ['Auto']
         self.opt_vary = tk.OptionMenu(frm_popt, self.vary, *ylist,command=self.f_popt_vary)
         self.opt_vary.config(width=10)
         self.opt_vary.pack(side=tk.LEFT,padx=(2,3),pady=5)
@@ -580,7 +585,7 @@ class I16_Data_Viewer():
         canvas.show()
         canvas.get_tk_widget().pack(side=tk.RIGHT, fill=tk.BOTH, anchor=tk.NE, expand=tk.YES)
         #canvas.get_tk_widget().pack()
-        self.update_plot()
+        #self.update_plot()
         
         "----------------------------Pilatus Options-----------------------------"
         # Pilatus option buttons below plot figure
@@ -630,8 +635,8 @@ class I16_Data_Viewer():
         
         btn_peak = tk.Button(frm_pilopt2, text='Find Peak',font=BF,command=self.f_pilopt_peak)
         btn_peak.pack(side=tk.LEFT,padx=2)
-        btn_droi = tk.Button(frm_pilopt2, text='nroi',font=BF,command=self.f_pilopt_nroi)
-        btn_droi.pack(side=tk.LEFT,padx=2)
+        #btn_droi = tk.Button(frm_pilopt2, text='nroi',font=BF,command=self.f_pilopt_nroi)
+        #btn_droi.pack(side=tk.LEFT,padx=2)
         btn_def2 = tk.Button(frm_pilopt2, text='roi2',font=BF,command=self.f_pilopt_def2)
         btn_def2.pack(side=tk.LEFT,padx=2)
         btn_def1 = tk.Button(frm_pilopt2, text='roi1',font=BF,command=self.f_pilopt_def1)
@@ -657,17 +662,17 @@ class I16_Data_Viewer():
         btn_pilpos2 = tk.Button(frm_pilopt3, text='>',font=BF, command=self.f_pilopt_posright)
         btn_pilpos2.pack(side=tk.LEFT,padx=2)
         
-        frm_pilopt3a = tk.Frame(frm_pilopt3)
-        frm_pilopt3a.pack(side=tk.LEFT,fill=tk.X)
+        #frm_pilopt3a = tk.Frame(frm_pilopt3)
+        #frm_pilopt3a.pack(side=tk.LEFT,fill=tk.X)
         
         # Remove background
-        self.rembkg = tk.IntVar(frm_pilopt3a,0)
-        chk_rbkg = tk.Checkbutton(frm_pilopt3a, text='Rem. Bkg',font=('Times',8),borderwidth=0,variable=self.rembkg, command=self.f_pilopt_rembkg)
-        chk_rbkg.pack(side=tk.TOP,padx=0,pady=0)
+        self.rembkg = tk.IntVar(frm_pilopt3,0)
+        #chk_rbkg = tk.Checkbutton(frm_pilopt3a, text='Rem. Bkg',font=('Times',8),borderwidth=0,variable=self.rembkg, command=self.f_pilopt_rembkg)
+        #chk_rbkg.pack(side=tk.TOP,padx=0,pady=0)
         
-        self.remfrm = tk.IntVar(frm_pilopt3a,0)
-        chk_rfrm = tk.Checkbutton(frm_pilopt3a, text='Rem. Frm',font=('Times',8),borderwidth=0,variable=self.remfrm, command=self.f_pilopt_remfrm)
-        chk_rfrm.pack(side=tk.TOP,padx=0,pady=0)
+        self.remfrm = tk.IntVar(frm_pilopt3,0)
+        #chk_rfrm = tk.Checkbutton(frm_pilopt3a, text='Rem. Frm',font=('Times',8),borderwidth=0,variable=self.remfrm, command=self.f_pilopt_remfrm)
+        #chk_rfrm.pack(side=tk.TOP,padx=0,pady=0)
         
         "----------------------------Pilatus Window------------------------------"
         # Figure window 2, below pilatus options buttons
@@ -744,8 +749,26 @@ class I16_Data_Viewer():
         btn_send = tk.Button(frm_fnl2, text='Close All',font=BF, command=self.f_fnl_splotclose)
         btn_send.pack(side=tk.LEFT,padx=2,pady=1)
         
+        
+        # Check widget size vs screen size
+        if self.root.winfo_height() > self.root.winfo_screenheight()-80:
+            print 'Screen Height = ',self.root.winfo_screenheight()
+            print 'App Height = ',self.root.winfo_height()
+            print('Oh... this is a small screen. I\'ll just make the viewer smaller...')
+            # App Fonts
+            BF[1] -= 2
+            SF[1] -= 2
+            LF[1] -= 2
+            HF[1] -= 2
+            # App Figure Sizes
+            NORMAL['scan'] = [NORMAL['scan'][0]*0.9,NORMAL['scan'][1]*0.9]
+            NORMAL['pilatus'] = [NORMAL['pilatus'][0]*0.9,NORMAL['pilatus'][1]*0.9]
+            
+            self.root.destroy()
+            I16_Data_Viewer()
+        
         # Load initial data
-        self.update_details()
+        #self.update_details()
         if not hasattr(sys, 'ps1'):
             # If not in interactive mode, start mainloop
             self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -898,7 +921,7 @@ class I16_Data_Viewer():
     def f_checknum(self):
         "checknum(-N,0)"
         num = self.chknum.get()
-        pp.checkscan(-num,0)
+        pp.checkscans(-num,0)
         self.helper.set('Scan info has been sent to the console, you may need to update the console by pressing Enter')
     
     def f_checklog(self):
@@ -1294,8 +1317,7 @@ class I16_Data_Viewer():
         self.set_files()
         
         d = pp.readscan(self.scanno.get())
-        self.fittype.set('None')
-        self.vary.set('')
+        
         if d is None:
             # Set frame variables
             self.cmd.set('')
@@ -1331,7 +1353,14 @@ class I16_Data_Viewer():
             self.timetaken.set('')
             return
         
-        keys = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
+        keys = ['Auto']+[x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
+        
+        if self.varx.get() not in keys:
+            self.varx.set('Auto')
+        if self.vary.get() not in keys:
+            self.vary.set('Auto')
+            self.fittype.set('None')
+        
         
         # Set varx and vary optionmenu entrys
         self.opt_varx['menu'].delete(0, 'end')
@@ -1419,12 +1448,14 @@ class I16_Data_Viewer():
             ROIsizei = self.roisiz_i.get()
             ROIsizej = self.roisiz_j.get()
             yvar = 'nroi[{},{},{},{}]'.format(ROIceni,ROIcenj,ROIsizei,ROIsizej)
+            self.helper.set('Plotting Region of Interest (ROI): '+yvar)
         elif yvar == 'ROI - bkg':
             ROIceni = self.pilcen_i.get()
             ROIcenj = self.pilcen_j.get()
             ROIsizei = self.roisiz_i.get()
             ROIsizej = self.roisiz_j.get()
             yvar = 'nroi_bkg[{},{},{},{}]'.format(ROIceni,ROIcenj,ROIsizei,ROIsizej)
+            self.helper.set('Plotting Region of Interest (ROI): '+yvar)
         
         
         xvar = self.varx.get()
@@ -1840,7 +1871,7 @@ class I16_Peak_Analysis:
         depvar = self.depvar.get()
         
         # Run checkscans
-        pp.checkscan(scans,showval=depvar)
+        pp.checkscans(scans,showval=depvar)
     
     def f_scan_makefile(self):
         "Create python analysis file"
@@ -2984,7 +3015,7 @@ class I16_Check_Log:
         if len(showval) == 0: showval = None
         
         self.scans_cmd.set(str(scans))
-        pp.checkscan(scans,showval=showval)
+        pp.checkscans(scans,showval=showval)
     
     def f_checklog(self):
         time = self.time.get()
@@ -3175,6 +3206,5 @@ if __name__ == '__main__':
     print( 'See "Py16Notes.txt" or type help(pp) for more info' )
     
     
-    pp.filedir= '/dls/i16/data/2016/'
-    pp.savedir= '/home/i16user/Desktop/'
+    pp.recall_last_exp()
     I16_Data_Viewer()
