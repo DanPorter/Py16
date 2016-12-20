@@ -57,7 +57,7 @@ OPERATION:
                    plot the results and save them to a .dat file.
 
 Version 2.4
-Last updated: 18/12/16
+Last updated: 20/12/16
 
 Version History:
 07/02/16 0.9    Program created
@@ -75,7 +75,7 @@ Version History:
 07/10/16 2.1    Some minor corrections, addition of parameters window
 17/10/16 2.2    Addition of rem. Bkg for pilatus and pilatus peakregion/ background lines
 14/12/16 2.3    New option menus for exp directories and X,Y variables, other minor improvements
-18/12/16 2.4    Main app now resizes for screensize, Mac option added. Fixes for option menus
+20/12/16 2.4    Main app now resizes for screensize, Mac option added. Fixes for option menus. New Check buttons
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -95,15 +95,17 @@ Future Ideas:
 - Checkexp button (opens message box)
 """
 
-import sys,os,datetime,time,subprocess,tempfile
+import sys,os,datetime,time,subprocess,tempfile,glob,re
 import __main__ as main
 import numpy as np
 if sys.version_info[0] < 3:
     import Tkinter as tk
     import tkFileDialog as filedialog
+    import tkMessageBox as messagebox
 else:
     import tkinter as tk
     import filedialog
+    from tkinter import messagebox
 import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
@@ -552,6 +554,10 @@ class I16_Data_Viewer():
         frm_mor.pack(side=tk.BOTTOM,fill=tk.X)
         btn_mor = tk.Button(frm_mor, text='More Check Options',font=BF, command=self.f_chk_mor)
         btn_mor.pack(side=tk.LEFT,padx=5)
+        btn_exp = tk.Button(frm_mor, text='Check Exp',font=BF, command=self.f_chk_exp)
+        btn_exp.pack(side=tk.LEFT,padx=5)
+        btn_lat = tk.Button(frm_mor, text='Check Latt',font=BF, command=self.f_chk_lat)
+        btn_lat.pack(side=tk.LEFT,padx=5)
         
         
         "----------------------------Plotting Window-----------------------------"
@@ -662,17 +668,17 @@ class I16_Data_Viewer():
         btn_pilpos2 = tk.Button(frm_pilopt3, text='>',font=BF, command=self.f_pilopt_posright)
         btn_pilpos2.pack(side=tk.LEFT,padx=2)
         
-        #frm_pilopt3a = tk.Frame(frm_pilopt3)
-        #frm_pilopt3a.pack(side=tk.LEFT,fill=tk.X)
+        frm_pilopt3a = tk.Frame(frm_pilopt3)
+        frm_pilopt3a.pack(side=tk.LEFT,fill=tk.X)
         
         # Remove background
         self.rembkg = tk.IntVar(frm_pilopt3,0)
-        #chk_rbkg = tk.Checkbutton(frm_pilopt3a, text='Rem. Bkg',font=('Times',8),borderwidth=0,variable=self.rembkg, command=self.f_pilopt_rembkg)
-        #chk_rbkg.pack(side=tk.TOP,padx=0,pady=0)
+        chk_rbkg = tk.Checkbutton(frm_pilopt3a, text='Rem. Bkg',font=('Times',8),borderwidth=0,variable=self.rembkg, command=self.f_pilopt_rembkg)
+        chk_rbkg.pack(side=tk.TOP,padx=0,pady=0)
         
         self.remfrm = tk.IntVar(frm_pilopt3,0)
-        #chk_rfrm = tk.Checkbutton(frm_pilopt3a, text='Rem. Frm',font=('Times',8),borderwidth=0,variable=self.remfrm, command=self.f_pilopt_remfrm)
-        #chk_rfrm.pack(side=tk.TOP,padx=0,pady=0)
+        chk_rfrm = tk.Checkbutton(frm_pilopt3a, text='Rem. Frm',font=('Times',8),borderwidth=0,variable=self.remfrm, command=self.f_pilopt_remfrm)
+        chk_rfrm.pack(side=tk.TOP,padx=0,pady=0)
         
         "----------------------------Pilatus Window------------------------------"
         # Figure window 2, below pilatus options buttons
@@ -883,6 +889,7 @@ class I16_Data_Viewer():
     def f_popt_varx(self,x):
         "Get varx and plot current scan"
         self.varx.set(x)
+        self.pilatus_active = False
         self.update_plot()
     
     def f_popt_vary(self,x):
@@ -932,6 +939,71 @@ class I16_Data_Viewer():
     
     def f_chk_mor(self):
         I16_Check_Log(self.scanno.get())
+    
+    def f_chk_exp(self):
+        "Check experiment button - opens a message box"
+        
+        " Code taken fro Py16progs.checkexp"
+        
+        self.set_files()
+        filedir = pp.filedir
+        
+        # Get all data files in folder
+        ls=glob.glob(filedir+os.path.sep+'*.dat')
+        ls = np.sort(ls)
+        
+        if len(ls) < 1:
+            print( "I can't find the directory: {}".format(filedir) )
+            return
+        
+        # First + last run numbers
+        fn = np.int(re.findall('\d+',os.path.split(ls[0])[1])[0])
+        ln = np.int(re.findall('\d+',os.path.split(ls[-1])[1])[0])
+        
+        # Load data
+        fd = pp.readscan(fn)
+        ld = pp.readscan(ln)
+        
+        # Get first and last file creation dates (not reliable)
+        #ft = datetime.datetime.fromtimestamp(os.path.getctime(ls[0]))
+        #lt = datetime.datetime.fromtimestamp(os.path.getctime(ls[-1]))
+        
+        # Use SRSDAT and SRSTIM - because date isn't in every file
+        # Note that SRSDAT stores months and days without 0's, 
+        # so 11 Feb (2015112) and 1 Dec (2015112) look the same! Not sure how to fix this!
+        ft = datetime.datetime.strptime(str(fd.metadata.SRSDAT)+' '+str(fd.metadata.SRSTIM),'%Y%m%d %H%M%S')
+        lt = datetime.datetime.strptime(str(ld.metadata.SRSDAT)+' '+str(ld.metadata.SRSTIM),'%Y%m%d %H%M%S')
+        
+        # Format times
+        ft = ft.strftime('%Y-%m-%d   %H:%M')
+        lt = lt.strftime('%Y-%m-%d   %H:%M')
+        
+        #if 'date' in fd.metadata.keys(): ft = fd.metadata.date
+        #if 'date' in ld.metadata.keys(): lt = ld.metadata.date
+        
+        # Print data to messge box
+        ttl = 'Experiment: '+filedir
+        msg = ' Scans in directory: {}\n'.format(filedir)
+        msg+= ' First scan: #{0}    {1}\n'.format(fn,ft)
+        msg+= '  Last scan: #{0}    {1}\n'.format(ln,lt)
+        msg+= '  No. scans: {}'.format(len(ls))
+        messagebox.showinfo(ttl,msg)
+    
+    def f_chk_lat(self):
+        "Check scan lattice parameters - opens a message box"
+        
+        scanno = self.scanno.get()
+        
+        d = pp.readscan(scanno)
+        if d is None:
+            return
+        
+        m = d.metadata
+        ttl = 'Lattice Parameters #{}'.format(m.SRSRUN)
+        msg = '---Lattice Parameters for scan #{}---\n'.format(m.SRSRUN)
+        msg+= '    a = {:7.4f},     b = {:7.4f},      c = {:7.4f}\n'.format(m.a,m.b,m.c)
+        msg+= 'alpha = {:7.2f},  beta = {:7.2f},  gamma = {:7.2f}'.format(m.alpha1,m.alpha2,m.alpha3)
+        messagebox.showinfo(ttl,msg)
     
     def f_pilopt_plot(self):
         "Plot pilatus images"
@@ -1170,7 +1242,7 @@ class I16_Data_Viewer():
         "Send plotscan command to console, save result and close"
         
         # Get the parameters
-        pself.set_files()
+        self.set_files()
         pp.normby = self.normtype.get()
         scanno = self.scanno.get()
         logplot = self.logplot.get()
@@ -1198,6 +1270,7 @@ class I16_Data_Viewer():
         print( cmdstr.format(scanno,varx,vary,fittype,norm) )
         pp.plotscan(scanno,varx=varx,vary=vary,fit=fittype,norm=norm,save=True,logplot=logplot,diffplot=diffplot)
         plt.close(plt.gcf())
+        pp.savescan(scanno,varx=varx,vary=vary,norm=norm)
         
         self.helper.set('Plot image saved in analysis folder as "S{} ... .png"'.format(scanno))
     
@@ -1442,19 +1515,23 @@ class I16_Data_Viewer():
             norm = True
         
         yvar = self.vary.get()
+        if self.remfrm.get():
+            remfrm = '_sfm'
+        else:
+            remfrm = ''
         if yvar == 'Custom ROI':
             ROIceni = self.pilcen_i.get()
             ROIcenj = self.pilcen_j.get()
             ROIsizei = self.roisiz_i.get()
             ROIsizej = self.roisiz_j.get()
-            yvar = 'nroi[{},{},{},{}]'.format(ROIceni,ROIcenj,ROIsizei,ROIsizej)
+            yvar = 'nroi{}[{},{},{},{}]'.format(remfrm,ROIceni,ROIcenj,ROIsizei,ROIsizej)
             self.helper.set('Plotting Region of Interest (ROI): '+yvar)
         elif yvar == 'ROI - bkg':
             ROIceni = self.pilcen_i.get()
             ROIcenj = self.pilcen_j.get()
             ROIsizei = self.roisiz_i.get()
             ROIsizej = self.roisiz_j.get()
-            yvar = 'nroi_bkg[{},{},{},{}]'.format(ROIceni,ROIcenj,ROIsizei,ROIsizej)
+            yvar = 'nroi_bkg{}[{},{},{},{}]'.format(remfrm,ROIceni,ROIcenj,ROIsizei,ROIsizej)
             self.helper.set('Plotting Region of Interest (ROI): '+yvar)
         
         

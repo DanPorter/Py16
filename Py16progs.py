@@ -73,7 +73,7 @@ Functions:
     
 
 Version 2.4
-Last updated: 19/12/16
+Last updated: 20/12/16
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -91,7 +91,7 @@ Version History:
 07/10/16 2.1    Ordered keys in dataloader, some minor fixes
 17/10/16 2.2    Improved ROI functionality - _sfm to remove first frame
 14/12/16 2.3    Improved multiscan titles, funtions to write + load previous experiment directories for fast access
-19/12/16 2.4    Added checkscans and auto_varx/vary functions, added dont_normalise for none-normalisable values
+20/12/16 2.4    Added checkscans and auto_varx/vary functions, added dont_normalise for none-normalisable values
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -1734,11 +1734,11 @@ def checkpeaks(num,test=1,vary=''):
         rat = ispeak(y,dy,return_rat=True)
         print( '{} {:8.2f} {}'.format(n,rat,rat>test) )
 
-def savescan(num=None,varx='',vary='',abscor=None):
+def savescan(num=None,varx='',vary='',norm=True,abscor=None):
     "Save scan as .dat file"
     
     # load data
-    x,y,dy,varx,vary,ttl,d = getdata(num,varx,vary,abscor)
+    x,y,dy,varx,vary,ttl,d = getdata(num,varx,vary,norm,abscor)
     
     # save data to file
     savefile = os.path.join(savedir, '{}_{}.dat'.format(num,saveable(vary)))
