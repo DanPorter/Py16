@@ -266,7 +266,9 @@ def readscan(num):
         " This little functions finds long strings and rounds them to three dp"
         def caller(match):
             return '{:1.4g}'.format(round(float(match.group(0)),2))
-        d.metadata.cmd=re.sub('[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?',caller,cmd) # find numbers in command and round them to 3dp
+        d.metadata.cmd_short=re.sub('[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?',caller,cmd) # find numbers in command and round them to 3dp
+    else:
+        d.metadata.cmd_short = cmd
     
     " Correct re-assigned values"
     " For some reason, parameter names change occsaionaly, add correction here"
@@ -1304,7 +1306,7 @@ def scantitle(num):
         
         if Temp != last_temp:
             ttl = '{} #{} {} {} {}'.format(etitle,scan_range,HKL,Energy,pol).strip()
-        elif energy != last_energy:
+        elif Energy != last_energy:
             ttl = '{} #{} {} {} {}'.format(etitle,scan_range,HKL,Temp,pol).strip()
         else:
             ttl = '{} #{} {} {} {}{}'.format(etitle,scan_range,HKL,Energy,Temp,pol).strip()
@@ -1534,7 +1536,7 @@ def polenergy(sigsig,sigpi,background=None,vary='',bkg_scale=None,flipping_ratio
     
     " Get metadata"
     m = d2.metadata
-    cmd = m.cmd # Scan command
+    cmd = m.cmd_short # Scan command
     hkl = '({:3.1f},{:3.1f},{:3.1f})'.format(m.h,m.k,m.l)
     T = '{:1.3g}K'.format(m.Ta)
     sampsl = '{0:4.2g}x{1:<4.2g}'.format(m.s5xgap,m.s5ygap)
@@ -2143,7 +2145,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
     
     # Title
     ttl = scantitle(scans)
-    fttl = '{} {}\n{}'.format(ttl,fit_type,d.metadata.cmd)
+    fttl = '{} {}\n{}'.format(ttl,fit_type,d.metadata.cmd_short)
     
     "---Plot individual fits---"
     if show_fits == True:
@@ -2259,7 +2261,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
             plt.errorbar(valstore[:,1],valstore[:,Ndep+6],errstore[:,Ndep+6],fmt='-o',linewidth=2)
             plt.xlabel(depvar[0],fontsize=18)
             plt.ylabel('Integrated Sum('+labvary+')',fontsize=18)
-            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd
+            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd_short
             plt.title(fttl,fontsize=14)
             plt.xlim(xrange)
             plt.ylim([0,max(valstore[:,Ndep+6])*1.1])
@@ -2272,7 +2274,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
             plt.errorbar(valstore[:,1],valstore[:,Ndep+2],errstore[:,Ndep+2],fmt='-o',linewidth=2)
             plt.xlabel(depvar[0],fontsize=18)
             plt.ylabel(labvarx+' Centre',fontsize=18)
-            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd
+            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd_short
             plt.title(fttl,fontsize=14)
             plt.xlim(xrange)
             fig.subplots_adjust(left=0.15)
@@ -2284,7 +2286,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
             plt.errorbar(valstore[:,1],valstore[:,Ndep+3],errstore[:,Ndep+3],fmt='-o',linewidth=2)
             plt.xlabel(depvar[0],fontsize=18)
             plt.ylabel(labvarx+' Width',fontsize=18)
-            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd
+            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd_short
             plt.title(fttl,fontsize=14)
             plt.xlim(xrange)
             fig.subplots_adjust(left=0.15)
@@ -2452,7 +2454,7 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
             plt.errorbar(valstore[:,1],valstore[:,Ndep+6],errstore[:,Ndep+6],fmt='-o',linewidth=2)
             plt.xlabel(depvar[0],fontsize=18)
             plt.ylabel('Integrated Sum('+labvary+')',fontsize=18)
-            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd
+            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd_short
             plt.title(fttl,fontsize=14)
             plt.xlim(xrange)
             plt.ylim([0,max(valstore[:,Ndep+6])*1.1])
@@ -2465,7 +2467,7 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
             plt.errorbar(valstore[:,1],valstore[:,Ndep+2],errstore[:,Ndep+2],fmt='-o',linewidth=2)
             plt.xlabel(depvar[0],fontsize=18)
             plt.ylabel(labvarx+' Centre',fontsize=18)
-            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd
+            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd_short
             plt.title(fttl,fontsize=14)
             plt.xlim(xrange)
             fig.subplots_adjust(left=0.15)
@@ -2477,7 +2479,7 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
             plt.errorbar(valstore[:,1],valstore[:,Ndep+3],errstore[:,Ndep+3],fmt='-o',linewidth=2)
             plt.xlabel(depvar[0],fontsize=18)
             plt.ylabel(labvarx+' Width',fontsize=18)
-            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd
+            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd_short
             plt.title(fttl,fontsize=14)
             plt.xlim(xrange)
             fig.subplots_adjust(left=0.15)
@@ -2620,7 +2622,7 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
     
     " Get metadata"
     m = d.metadata
-    cmd = m.cmd # Scan command
+    cmd = m.cmd_short # Scan command
     sampsl = '{0:4.2g}x{1:<4.2g}'.format(m.s5xgap,m.s5ygap)
     detsl = '{0:4.2g}x{1:<4.2g}'.format(m.s6xgap,m.s6ygap)
     atten1 = '{0:1.0f}'.format(m.Atten)
@@ -2916,7 +2918,7 @@ def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75
     
     " Get scan information"
     Nframe = len(d.path)
-    cmd = d.metadata.cmd
+    cmd = d.metadata.cmd_short
     
     " Subtract one frame from all the others for background subtraction"
     if bkg_img is not None:
@@ -3016,7 +3018,7 @@ def plotdwn(num,save=None):
     # Load data
     d = readscan(num)
     # Get principle variable data
-    cmd = d.metadata.cmd # Scan command
+    cmd = d.metadata.cmd_short # Scan command
     # Get variables
     varx = cmd.split()[1]
     vary = cmd.split()[-1]
@@ -3051,7 +3053,7 @@ def plotscans(scans=[],depvar=None,vary='',varx='',fit=None,norm=True,logplot=Fa
         
         " Get metadata"
         m = d.metadata
-        cmd = m.cmd # Scan command
+        cmd = m.cmd_short # Scan command
         sampsl = '{0:4.2g}x{1:<4.2g}'.format(m.s5xgap,m.s5ygap)
         detsl = '{0:4.2g}x{1:<4.2g}'.format(m.s6xgap,m.s6ygap)
         atten1 = '{0:1.0f}'.format(m.Atten)

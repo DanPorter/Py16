@@ -2153,7 +2153,7 @@ class I16_Advanced_Fitting:
         root = tk.Tk()
         root.wm_title('I16 Advanced Fitting by D G Porter [dan.porter@diamond.ac.uk]')
         root.minsize(width=700, height=600)
-        root.maxsize(width=800, height=700)
+        root.maxsize(width=1200, height=700)
         
         # Initialise active array and masks array
         self.scan_nos = scan_nos
@@ -2203,7 +2203,7 @@ class I16_Advanced_Fitting:
         self.depvar = tk.StringVar(frm_titl,ini_dependent)
         lbl_depv = tk.Label(frm_titl, text='Dependent: ',font=SF)
         lbl_depv.pack(side=tk.LEFT,padx=5,pady=5)
-        ety_depv = tk.Entry(frm_titl, textvariable=self.depvar, width=20)
+        ety_depv = tk.Entry(frm_titl, textvariable=self.depvar, width=10)
         ety_depv.pack(side=tk.LEFT,padx=5,pady=5)
         
         # Plot range
