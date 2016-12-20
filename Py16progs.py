@@ -1295,7 +1295,7 @@ def scantitle(num):
         return ttl
     else:
         "Multiple run title"
-        scan_range = findranges([num]+list(nums))
+        scan_range = numbers2string([num]+list(nums))
         
         " Use last scan to determine what has changed between scans"
         last_title = scantitle(nums[-1]).split()
@@ -2389,7 +2389,7 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
         plot.__iter__; # test if array
     except AttributeError:
         plot = [plot]
-    fttl = '#{} {}'.format(findranges(scans),fit_type)
+    fttl = '#{} {}'.format(numbers2string(scans),fit_type)
     for nplot in plot:
         if nplot is None:
             break
@@ -4428,26 +4428,34 @@ def findranges(scannos,sep=':'):
     
     dif = np.diff(scannos)
     
-    stt,stp = [scannos[0]],[dif[0]]
+    stt,stp,rng = [scannos[0]],[dif[0]],[1]
     for n in range(1,len(dif)):
         if scannos[n+1] != scannos[n]+dif[n-1]:
             stt += [scannos[n]]
             stp += [dif[n]]
+            rng += [1]
+        else:
+            rng[-1] += 1
+        #print(n,stt,stp,rng)
     stt += [scannos[-1]]
+    rng += [1]
     
     out = []
-    for x in range(0,len(stt),2):
-        if stp[x] == 1:
+    x = 0
+    while x < len(stt):
+        if rng[x] == 1:
+            out += ['{}'.format(stt[x])]
+            x += 1
+        elif stp[x] == 1:
             out += ['{}{}{}'.format(stt[x],sep,stt[x+1])]
+            x += 2
         else:
             out += ['{}{}{}{}{}'.format(stt[x],sep,stp[x],sep,stt[x+1])]
+            x += 2
     return ','.join(out)
 
-def numbers2string(scannos,sep=':'):
+def mini_string_range(scannos,sep=':'):
     "Convert a list of numbers to a simple string"
-    
-    if type(scannos) is str or type(scannos) is int or len(scannos) == 1:
-        return str(scannos)
     
     scannos = np.sort(scannos).astype(str)
     
@@ -4462,6 +4470,24 @@ def numbers2string(scannos,sep=':'):
     strc = [i[-(n+1):] for i in scannos]
     liststr = findranges(strc,sep=sep)
     return '{}[{}]'.format(inistr,liststr)
+
+def numbers2string(scannos,sep=':'):
+    "Convert a list of numbers to a simple string"
+    
+    if type(scannos) is str or type(scannos) is int or len(scannos) == 1:
+        return str(scannos)
+    
+    string1 = findranges(scannos,sep)
+    if len(string1) < 40:
+        return string1
+    
+    string2 = mini_string_range(scannos,sep)
+    if len(string2) < 40:
+        return string2
+    
+    scannos = np.sort(scannos).astype(str)
+    string3 = '{}{}{}'.format(scannos[0],sep,scannos[-1])
+    return string3 
 
 def maskvals(x,y,dy,mask_cmd):
     "Returns masked arrays"
