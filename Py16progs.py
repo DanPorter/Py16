@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import print_function
 """
 Module: I16 Data analysis programs "Py16Progs.py"
 
@@ -72,8 +71,8 @@ Functions:
     str = stfm(val,err)
     
 
-Version 2.4
-Last updated: 20/12/16
+Version 2.5
+Last updated: 02/02/17
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -92,6 +91,7 @@ Version History:
 17/10/16 2.2    Improved ROI functionality - _sfm to remove first frame
 14/12/16 2.3    Improved multiscan titles, funtions to write + load previous experiment directories for fast access
 20/12/16 2.4    Added checkscans and auto_varx/vary functions, added dont_normalise for none-normalisable values
+02/02/17 2.5    Added checkhkl and checkwl. Bugs fixed when using DifCalc (psi+azih not recorded)
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -100,14 +100,13 @@ I16, Diamond Light Source
 2016
 """
 
-"""
-Ideas for the future:
- - Pilatus peak finding (2D fitting?) as separate function to dpilroi
- - dataloader contain functions (more pythony...)
- - Refactor fitting routines in new Py16fit module
+#Ideas for the future:
+# - Pilatus peak finding (2D fitting?) as separate function to dpilroi
+# - dataloader contain functions (more pythony...)
+# - Refactor fitting routines in new Py16fit module
 
-"""
 
+from __future__ import print_function
 import sys,os
 import glob # find files
 import re # regular expressions
@@ -277,6 +276,8 @@ def readscan(num):
     if 'energy2' in d.keys(): d.energy = d.energy2
     if 'rc' not in d.keys(): d.rc = exp_ring_current*np.ones(len(d[d.keys()[0]]))
     if 'TimeSec' not in d.keys(): d.TimeSec = np.arange(0,len(d[d.keys()[0]]))
+    if 'azih' not in d.metadata.keys(): d.metadata.azih=0;d.metadata.azik=0;d.metadata.azil=0
+    if 'psi' not in d.metadata.keys(): d.metadata.psi = 0.0
     
     " Correct psi values"
     if d.metadata.psi < -1000: d.metadata.psi = 0.0
@@ -809,7 +810,8 @@ def latest():
         print( "No files in directory: {}".format(filedir) )
         return
     
-    newest = max(ls, key=os.path.getctime)
+    newest = ls[-1] # file with highest number
+    #newest = max(ls, key=os.path.getctime) # file created last
     num = np.int(os.path.split(newest)[-1][:-4])
     return num
 
@@ -1313,7 +1315,7 @@ def scantitle(num):
         return ttl
 
 def scanlatt(num):
-    "Displays the lattiec parameters of the chosen scan"
+    "Displays the lattice parameters of the chosen scan"
     
     try:
         d = readscan(num)
@@ -1324,6 +1326,40 @@ def scanlatt(num):
     print('---Lattice Parameters #{}---'.format(m.SRSRUN))
     print('    a = {:7.4f},     b = {:7.4f},      c = {:7.4f}'.format(m.a,m.b,m.c))
     print('alpha = {:7.2f},  beta = {:7.2f},  gamma = {:7.2f}'.format(m.alpha1,m.alpha2,m.alpha3))
+
+def scanhkl(num):
+    "Returns the initial HKL of the chosen scan as a formatted string"
+    
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    m = d.metadata
+    return '({0:1.3g},{1:1.3g},{2:1.3g})'.format(round(m.h,2)+0.0,round(m.k,2)+0.0,round(m.l,2)+0.0)
+
+def scanwl(num):
+    "Returns the initial wavelength of the given scan in Angstroms"
+    
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    m = d.metadata
+    
+    e = 1.6021733E-19;  # C  electron charge
+    h = 6.62606868E-34; # Js  Plank consant
+    c = 299792458;      # m/s   Speed of light
+    A = 1e-10;          # m Angstrom      
+    
+    # Energy(keV)-Energy(eV):
+    E = m.Energy*1000*e
+    
+    # SI: E = hc/lambda
+    lam = h*c/E
+    wl = lam/A
+    return wl
 
 def prend(start=0,end=None):
     "Calculate the end time of a run"
@@ -1935,8 +1971,10 @@ def recall_last_exp():
     exp_list = exp_list_get()
     sav_list = sav_list_get()
     if len(exp_list) > 0:
-        global filedir, savedir
+        global filedir
         filedir = exp_list[-1]
+    if len(sav_list) > 0:
+        global savedir
         savedir = sav_list[-1]
 
 def clear_prev_exp():
@@ -3445,7 +3483,7 @@ def pvoight(x,height=1,cen=0,FWHM=0.5,LorFrac=0.5,bkg=0):
 
 def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
             Nloop=10,Binit=1e-5,Tinc=2,change_factor=0.5,converge_max = 100,
-            min_change=0.01,interpolate=False,debug=False,disp=False):
+            min_change=0.01,interpolate=False,debug=False,plot=False,disp=False):
     """ General Peak Fitting function to fit a profile to a peak in y = f(x)
     Allows several possible profiles to be used and can try to find the best estimates for 
     fitting parameters using an RMC-based least-squares routine.
@@ -3808,6 +3846,14 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
         print( '      Area = {0:10.3G} +/- {1:10.3G}'.format(ara,dara) )
         print( '     CHI^2 = {0:10.8G}'.format(chi) )
         print( '  CHI^2 per free par = {0:10.3G}'.format(chinfp) )
+    
+    # Plot Results
+    if plot:
+        plt.figure()
+        plt.errorbar(x,y,dy,fmt='b-o',lw=2,label='Data')
+        plt.plot(xfit,yfit,'r-',lw=2,label='Fit')
+        plt.legend()
+        plt.show()
     return output,outerr
 
 def fittest(x,y,dy=None,tryall=False,disp=False):
