@@ -1989,7 +1989,7 @@ class I16_Peak_Analysis:
         scanno = eval(scanstr)
         
         # Get fit options
-        depvar = self.depvar.get()
+        depvar = self.depvar.get().split()[0]
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
@@ -2015,7 +2015,7 @@ class I16_Peak_Analysis:
         scanno = eval(scanstr)
         
         # Get plot options
-        depvar = self.depvar.get()
+        depvar = self.depvar.get().split()[0]
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
@@ -2042,7 +2042,7 @@ class I16_Peak_Analysis:
         scanno = eval(scanstr)
         
         # Get plot options
-        depvar = self.depvar.get()
+        depvar = self.depvar.get().split()[0]
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
@@ -2069,7 +2069,7 @@ class I16_Peak_Analysis:
         scanno = eval(scanstr)
         
         # Get plot options
-        depvar = self.depvar.get()
+        depvar = self.depvar.get().split()[0]
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
@@ -2096,7 +2096,7 @@ class I16_Peak_Analysis:
         scanno = eval(scanstr)
         
         # Get plot options
-        depvar = self.depvar.get()
+        depvar = self.depvar.get().split()[0]
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
@@ -2125,7 +2125,7 @@ class I16_Peak_Analysis:
         scanno = eval(scanstr)
         
         # Get fit options
-        depvar = self.depvar.get()
+        depvar = self.depvar.get().split()
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()

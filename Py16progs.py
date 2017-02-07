@@ -72,7 +72,7 @@ Functions:
     
 
 Version 2.5
-Last updated: 02/02/17
+Last updated: 06/02/17
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -4536,7 +4536,24 @@ def numbers2string(scannos,sep=':'):
     return string3 
 
 def maskvals(x,y,dy,mask_cmd):
-    "Returns masked arrays"
+    """
+    Returns arrays masked by requested rules
+    Allows you to remove regions of a scan easily.
+    e.g. x,y,dy = maskvals(x,y,dy,['x<0'])
+    
+    Masks should be a list of strings
+    Each string should define an evaluatable statement that defines a region of x or y
+    Each defined region will be REMOVED
+    examples: 
+        'x<-1'
+        'x>1'
+        'np.abs(x-34)>0.1']
+        [x<-1.2','x>1.2']
+    """
+    
+    if type(mask_cmd) is str:
+        mask_cmd = [mask_cmd]
+    
     mask = np.ones(len(x),dtype=bool)
     for m in mask_cmd:
         mask[ eval(m) ] = False
