@@ -56,8 +56,8 @@ OPERATION:
      "Fit Peaks" - On each scan, perform a fitting routine, storing the area, width, centre, etc, 
                    plot the results and save them to a .dat file.
 
-Version 2.4
-Last updated: 20/12/16
+Version 2.6
+Last updated: 01/03/17
 
 Version History:
 07/02/16 0.9    Program created
@@ -76,6 +76,8 @@ Version History:
 17/10/16 2.2    Addition of rem. Bkg for pilatus and pilatus peakregion/ background lines
 14/12/16 2.3    New option menus for exp directories and X,Y variables, other minor improvements
 20/12/16 2.4    Main app now resizes for screensize, Mac option added. Fixes for option menus. New Check buttons
+08/02/17 2.5    Log of pilatus images added, other bugs fixed
+25/02/17 2.6    Minor corrections and fixes, including multi-variable advanced fitting and persistence of custom ROIs
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -92,7 +94,6 @@ Future Ideas:
 - add option for temperature reading by different sensor (Tb,Tc,Td)
 - Advanced plot allow different estimates
 - Advanced plot multi peak fitting
-- Checkexp button (opens message box)
 """
 
 import sys,os,datetime,time,subprocess,tempfile,glob,re
@@ -110,6 +111,7 @@ import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
+from matplotlib.colors import Normalize, LogNorm
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 
 """
@@ -133,7 +135,7 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 2.4
+Py16GUI_Version = 2.6
 
 # App Fonts
 BF= ["Times", 12]
@@ -252,7 +254,7 @@ class I16_Data_Viewer():
         
         # Log Plot
         self.logplot = tk.IntVar(frm_fldr,0)
-        chk_log = tk.Checkbutton(frm_fldr, text='Log',font=BF,variable=self.logplot, command=self.update_plot)
+        chk_log = tk.Checkbutton(frm_fldr, text='Log',font=BF,variable=self.logplot, command=self.f_fldr2_log)
         chk_log.pack(side=tk.RIGHT,padx=0)
         
         # Auto Pilatus Plot
@@ -774,7 +776,8 @@ class I16_Data_Viewer():
             I16_Data_Viewer()
         
         # Load initial data
-        #self.update_details()
+        if pp.latest() is not None:
+            self.f_scan_st()
         if not hasattr(sys, 'ps1'):
             # If not in interactive mode, start mainloop
             self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -812,6 +815,18 @@ class I16_Data_Viewer():
         dir = filedialog.askdirectory(initialdir=inidir)
         self.savedir.set(dir)
         self.helper.set('Now click "Last" to load the latest scan, or enter a scan number and press Enter')
+    
+    def f_fldr2_log(self):
+        "Activate log plot"
+        
+        if self.logplot.get():
+            if self.pilint_i.get() < 0.1:
+                self.pilint_i.set(0.1)
+            self.pilim.norm = LogNorm()
+        else:
+            self.pilim.norm = Normalize()
+        self.fig2.canvas.draw()
+        self.update_plot()
     
     def f_params(self):
         "Launch parameters GUI"
@@ -860,9 +875,8 @@ class I16_Data_Viewer():
         
         self.set_files()
         
-        try:
-            num = pp.latest()
-        except ValueError: 
+        num = pp.latest()
+        if num is None:
             num = '000000'
             self.helper.set('There are no scan files in this folder')
         self.scanno.set(num)
@@ -1028,7 +1042,7 @@ class I16_Data_Viewer():
             vary = 'nroi_peak_sfm[{},{}]'.format(ROIsizei,ROIsizej)
         else:
             vary = 'nroi_peak[{},{}]'.format(ROIsizei,ROIsizej)
-        self.vary.set(vary)
+        #self.vary.set(vary)
         
         [ROIceni,ROIcenj],frame = pp.pilpeak(self.vol,disp=True)
         
@@ -1170,6 +1184,23 @@ class I16_Data_Viewer():
             setvarx = ''
             setvary = ''
         
+        if self.remfrm.get():
+            remfrm = '_sfm'
+        else:
+            remfrm = ''
+        if setvary == 'Custom ROI':
+            ROIceni = self.pilcen_i.get()
+            ROIcenj = self.pilcen_j.get()
+            ROIsizei = self.roisiz_i.get()
+            ROIsizej = self.roisiz_j.get()
+            setvary = 'nroi{}[{},{},{},{}]'.format(remfrm,ROIceni,ROIcenj,ROIsizei,ROIsizej)
+        elif setvary == 'ROI - bkg':
+            ROIceni = self.pilcen_i.get()
+            ROIcenj = self.pilcen_j.get()
+            ROIsizei = self.roisiz_i.get()
+            ROIsizej = self.roisiz_j.get()
+            setvary = 'nroi_bkg{}[{},{},{},{}]'.format(remfrm,ROIceni,ROIcenj,ROIsizei,ROIsizej)
+        
         # Send the command
         try:
             x,y,dy,varx,vary,ttl,d = pp.getdata(scanno,vary=setvary,varx=setvarx,norm=norm)
@@ -1205,6 +1236,23 @@ class I16_Data_Viewer():
             setvarx = ''
             setvary = ''
         
+        if self.remfrm.get():
+            remfrm = '_sfm'
+        else:
+            remfrm = ''
+        if setvary == 'Custom ROI':
+            ROIceni = self.pilcen_i.get()
+            ROIcenj = self.pilcen_j.get()
+            ROIsizei = self.roisiz_i.get()
+            ROIsizej = self.roisiz_j.get()
+            setvary = 'nroi{}[{},{},{},{}]'.format(remfrm,ROIceni,ROIcenj,ROIsizei,ROIsizej)
+        elif setvary == 'ROI - bkg':
+            ROIceni = self.pilcen_i.get()
+            ROIcenj = self.pilcen_j.get()
+            ROIsizei = self.roisiz_i.get()
+            ROIsizej = self.roisiz_j.get()
+            setvary = 'nroi_bkg{}[{},{},{},{}]'.format(remfrm,ROIceni,ROIcenj,ROIsizei,ROIsizej)
+        
         fittype = self.fittype.get()
         if fittype == 'None': fittype=None
         
@@ -1221,6 +1269,7 @@ class I16_Data_Viewer():
         self.set_files()
         pp.normby = self.normtype.get()
         scanno = self.scanno.get()
+        LOG = self.logplot.get()
         
         ROIcen = [self.pilcen_i.get(),self.pilcen_j.get()]
         ROIsize = [self.roisiz_i.get(),self.roisiz_j.get()]
@@ -1235,7 +1284,7 @@ class I16_Data_Viewer():
         # Send the command
         cmdstr = 'pp.plotpil({},cax={},imnum={},bkg_img={},ROIcen={},ROIsize={}, show_ROIbkg=ROIbkg)'
         print( cmdstr.format(scanno,cax,imnum,bkg_img,ROIcen,ROIsize,ROIbkg) )
-        pp.plotpil(scanno,cax=cax,imnum=imnum,bkg_img=bkg_img,ROIcen=ROIcen,ROIsize=ROIsize,show_ROIbkg=ROIbkg)
+        pp.plotpil(scanno,cax=cax,imnum=imnum,bkg_img=bkg_img,ROIcen=ROIcen,ROIsize=ROIsize,show_ROIbkg=ROIbkg,log_colors=LOG)
         plt.show()
     
     def f_fnl_splotsave(self):
@@ -1261,6 +1310,23 @@ class I16_Data_Viewer():
         except AttributeError:
             varx = ''
             vary = ''
+        
+        if self.remfrm.get():
+            remfrm = '_sfm'
+        else:
+            remfrm = ''
+        if vary == 'Custom ROI':
+            ROIceni = self.pilcen_i.get()
+            ROIcenj = self.pilcen_j.get()
+            ROIsizei = self.roisiz_i.get()
+            ROIsizej = self.roisiz_j.get()
+            vary = 'nroi{}[{},{},{},{}]'.format(remfrm,ROIceni,ROIcenj,ROIsizei,ROIsizej)
+        elif vary == 'ROI - bkg':
+            ROIceni = self.pilcen_i.get()
+            ROIcenj = self.pilcen_j.get()
+            ROIsizei = self.roisiz_i.get()
+            ROIsizej = self.roisiz_j.get()
+            setvary = 'nroi_bkg{}[{},{},{},{}]'.format(remfrm,ROIceni,ROIcenj,ROIsizei,ROIsizej)
         
         fittype = self.fittype.get()
         if fittype == 'None': fittype=None
@@ -1298,6 +1364,23 @@ class I16_Data_Viewer():
         except AttributeError:
             setvarx = ''
             setvary = ''
+        
+        if self.remfrm.get():
+            remfrm = '_sfm'
+        else:
+            remfrm = ''
+        if setvary == 'Custom ROI':
+            ROIceni = self.pilcen_i.get()
+            ROIcenj = self.pilcen_j.get()
+            ROIsizei = self.roisiz_i.get()
+            ROIsizej = self.roisiz_j.get()
+            setvary = 'nroi{}[{},{},{},{}]'.format(remfrm,ROIceni,ROIcenj,ROIsizei,ROIsizej)
+        elif setvary == 'ROI - bkg':
+            ROIceni = self.pilcen_i.get()
+            ROIcenj = self.pilcen_j.get()
+            ROIsizei = self.roisiz_i.get()
+            ROIsizej = self.roisiz_j.get()
+            setvary = 'nroi_bkg{}[{},{},{},{}]'.format(remfrm,ROIceni,ROIcenj,ROIsizei,ROIsizej)
         
         fittype = self.fittype.get()
         if fittype == 'None': fittype=None
@@ -1426,36 +1509,38 @@ class I16_Data_Viewer():
             self.timetaken.set('')
             return
         
-        keys = ['Auto']+[x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
+        keys = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
+        keysx = ['Auto']+keys
         
-        if self.varx.get() not in keys:
+        # Add Cutsom ROI to keys for image files
+        if hasattr(d,'path'):
+            keysy = ['Auto','Custom ROI','ROI - bkg']+keys[::-1]
+        else:
+            keysy = ['Auto']+keys[::-1]
+        
+        if self.varx.get() not in keysx:
             self.varx.set('Auto')
-        if self.vary.get() not in keys:
+        if self.vary.get() not in keysy:
             self.vary.set('Auto')
             self.fittype.set('None')
         
-        
         # Set varx and vary optionmenu entrys
         self.opt_varx['menu'].delete(0, 'end')
-        for key in keys:
+        for key in keysx:
             #self.opt_varx['menu'].add_command(label=key, command=tk._setit(self.varx, key))
             self.opt_varx['menu'].add_command(label=key, command=lambda k=key: self.f_popt_varx(k))
         
-        if hasattr(d,'path'):
-            keys += ['ROI - bkg']
-            keys += ['Custom ROI']
-        keys.reverse()
         self.opt_vary['menu'].delete(0, 'end')
-        for key in keys:
+        for key in keysy:
             #self.opt_vary['menu'].add_command(label=key, command=tk._setit(self.vary, key))
             self.opt_vary['menu'].add_command(label=key, command=lambda k=key: self.f_popt_vary(k))
         
         m = d.metadata
         
         # Initilise frame variables
-        self.cmd.set(m.cmd)
+        self.cmd.set(m.cmd_short)
         self.N.set(str(len(d[d.keys()[0]])))
-        self.HKL.set('({0},{1},{2})'.format(m.h,m.k,m.l))
+        self.HKL.set('({0},{1},{2})'.format(m.h+0.0,m.k+0.0,m.l+0.0))
         self.ENG.set('{} keV'.format(m.Energy))
         self.T.set('{} K'.format(m.Ta))
         
@@ -1647,6 +1732,13 @@ class I16_Data_Viewer():
             if cmax <= 0: cmax = 1
             self.pilint_i.set(0)
             self.pilint_j.set(int(cmax))
+            
+            if self.logplot.get():
+                self.pilim.norm = LogNorm()
+                self.pilint_i.set(0.1)
+                self.pilint_j.set(mx)
+            else:
+                self.pilim.norm = Normalize()
             
             # Update pilatus image
             self.pilim.set_data(self.vol[:,:,imgno])
@@ -1964,7 +2056,7 @@ class I16_Peak_Analysis:
         scanno = eval(scanstr)
         
         # Get fit options
-        depvar = self.depvar.get()
+        depvar = self.depvar.get().split()
         yvar = self.vary.get()
         xvar = self.varx.get()
         save = self.saveopt.get()
@@ -1989,7 +2081,7 @@ class I16_Peak_Analysis:
         scanno = eval(scanstr)
         
         # Get fit options
-        depvar = self.depvar.get().split()[0]
+        depvar = self.depvar.get().split()
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
@@ -2148,12 +2240,15 @@ class I16_Advanced_Fitting:
     "------------------------------------------------------------------------"
     "--------------------------GUI Initilisation-----------------------------"
     "------------------------------------------------------------------------"
-    def __init__(self,scan_nos=[],ini_dependent='Ta',ini_X='',ini_Y='',ini_fit='pVoight',ini_Isig=1,ini_save=0):
+    def __init__(self,scan_nos=[],ini_dependent=['Ta'],ini_X='',ini_Y='',ini_fit='pVoight',ini_Isig=1,ini_save=0):
         # Create Tk inter instance
         root = tk.Tk()
         root.wm_title('I16 Advanced Fitting by D G Porter [dan.porter@diamond.ac.uk]')
         root.minsize(width=700, height=600)
         root.maxsize(width=1200, height=700)
+        
+        if type(ini_dependent) is str:
+            ini_dependent = [ini_dependent]
         
         # Initialise active array and masks array
         self.scan_nos = scan_nos
@@ -2166,7 +2261,12 @@ class I16_Advanced_Fitting:
             if d is None:
                 self.depvals += [np.nan]
             else:
-                self.depvals += [getattr(d.metadata,ini_dependent)]
+                if ini_dependent[0] in d.metadata.keys():
+                    self.depvals += [getattr(d.metadata,ini_dependent[0])]
+                elif ini_dependent[0] in d.keys():
+                    self.depvals += [np.mean(getattr(d,ini_dependent[0]))]
+                else:
+                    self.depvals += [n]
         
         # Update default save location for exported plots
         plt.rcParams["savefig.directory"] = pp.savedir
@@ -2200,7 +2300,7 @@ class I16_Advanced_Fitting:
         ety_titl.pack(side=tk.LEFT,padx=5,pady=5)
         
         # Dependent variable
-        self.depvar = tk.StringVar(frm_titl,ini_dependent)
+        self.depvar = tk.StringVar(frm_titl,' '.join(ini_dependent))
         lbl_depv = tk.Label(frm_titl, text='Dependent: ',font=SF)
         lbl_depv.pack(side=tk.LEFT,padx=5,pady=5)
         ety_depv = tk.Entry(frm_titl, textvariable=self.depvar, width=10)
@@ -2327,7 +2427,7 @@ class I16_Advanced_Fitting:
         # Eval box with scroll bar
         frm_scan = tk.Frame(frame)
         frm_scan.pack(side=tk.LEFT,pady=[5,20])
-        lbl_or = tk.Label(frm_scan, text='Scan No | {:10s} | Active | Masks '.format(ini_dependent),font=SF)
+        lbl_or = tk.Label(frm_scan, text='Scan No | {:10s} | Active | Masks '.format(ini_dependent[0]),font=SF)
         lbl_or.pack(side=tk.TOP,anchor=tk.NW,padx=2,pady=[5,1])
         
         scl_scanx = tk.Scrollbar(frm_scan,orient=tk.HORIZONTAL)
@@ -2403,7 +2503,7 @@ class I16_Advanced_Fitting:
         frm_val.pack(side=tk.TOP, fill=tk.X)
         
         # Dependent value
-        self.depval = tk.StringVar(frm_val,'{} = --'.format(ini_dependent))
+        self.depval = tk.StringVar(frm_val,'{} = --'.format(ini_dependent[0]))
         lbl_depval = tk.Label(frm_val,textvariable=self.depval, font=SF)
         lbl_depval.pack(side=tk.LEFT)
         
@@ -2476,6 +2576,9 @@ class I16_Advanced_Fitting:
         
         btn_remove = tk.Button(frm_maskA, text='Remove Masks', font=BF, command=self.f_mask_remove)
         btn_remove.pack()
+        
+        btn_print = tk.Button(frm_maskA, text='Print Masks', font=BF, command=self.f_mask_print)
+        btn_print.pack()
         
         # RIGHT
         # x < val, x>val
@@ -2614,6 +2717,22 @@ class I16_Advanced_Fitting:
         
         self.update_mask(mask)
     
+    def f_mask_print(self):
+        "Print scans and masks"
+        
+        # Masks
+        masks = np.array(self.Masks)
+        masks = masks[np.where(self.Active)]
+        mask_str = str(list(masks))
+        
+        # Run the Fit
+        scannos = np.array(self.scan_nos)
+        scannos = scannos[np.where(self.Active)]
+        scan_str = str(list(scannos))
+        
+        print('scans = {}'.format(scan_str))
+        print('masks = {}'.format(mask_str))
+    
     def f_start(self):
         "Begin the fit"
         
@@ -2624,7 +2743,7 @@ class I16_Advanced_Fitting:
         xvar = self.varx.get()
         
         # Set Dependent value
-        dependent = self.depvar.get()
+        dependent = self.depvar.get().split()
         
         # Get Fitting values
         fit_type = self.fittype.get()
@@ -2674,7 +2793,7 @@ class I16_Advanced_Fitting:
         masks = masks[np.where(self.Active)]
         
         # Get fit options
-        depvar = self.depvar.get()
+        depvar = self.depvar.get().split()
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
@@ -2736,7 +2855,7 @@ class I16_Advanced_Fitting:
         "Generate the plot, run a test fit and display the results"
         
         # Get the folders, titles etc.
-        dependent = self.depvar.get()
+        dependent = self.depvar.get().split()[0]
         pp.normby = self.normtype.get()
         
         current = self.lst_scan.curselection()[0]
@@ -2769,7 +2888,7 @@ class I16_Advanced_Fitting:
         elif dependent in d.metadata.keys():
             depval = getattr(d.metadata,dependent)
         else:
-            depval = ''
+            depval = 0
         self.depval.set('{:s} = {:1.4g}'.format(dependent,depval))
         
         # Set I/Sig value

@@ -71,8 +71,8 @@ Functions:
     str = stfm(val,err)
     
 
-Version 2.5
-Last updated: 06/02/17
+Version 2.6
+Last updated: 01/03/17
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -92,6 +92,7 @@ Version History:
 14/12/16 2.3    Improved multiscan titles, funtions to write + load previous experiment directories for fast access
 20/12/16 2.4    Added checkscans and auto_varx/vary functions, added dont_normalise for none-normalisable values
 02/02/17 2.5    Added checkhkl and checkwl. Bugs fixed when using DifCalc (psi+azih not recorded)
+22/02/17 2.6    Added dead pixel mask for pilatus for experiments in Feb 2017
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -104,6 +105,7 @@ I16, Diamond Light Source
 # - Pilatus peak finding (2D fitting?) as separate function to dpilroi
 # - dataloader contain functions (more pythony...)
 # - Refactor fitting routines in new Py16fit module
+# - Create dead_pixel files for detectors, load based on which detector used
 
 
 from __future__ import print_function
@@ -116,6 +118,7 @@ import numpy as np
 #import scisoftpy as dnp # Make sure this is in your python path
 import matplotlib.pyplot as plt # Plotting
 import matplotlib.ticker as mtick # formatting of tick labels
+from matplotlib.colors import LogNorm # logarithmic colormaps
 from mpl_toolkits.mplot3d import Axes3D # 3D plotting
 from scipy.optimize import curve_fit # Peak fitting
 from scipy import misc # read pilatus images
@@ -132,7 +135,7 @@ from collections import OrderedDict
 # Variable filedir is called from the namespace and can be changed at any 
 # time,even once the module has been imported, if you change it in the current namespace
 
-filedir = '/dls/i16/data/2016' 
+filedir = '/dls/i16/data/2017' 
 savedir = '/home/i16user/Desktop'
 
 "-----------------------Error Estimation Parameters-----------------------"
@@ -146,10 +149,29 @@ normby = 'rc' # Incident beam normalisation option: 'rc','ic1' or 'none'
 dont_normalise = ['Ta','Tb','Tc','Td','ic1monitor','rc']
 
 "----------------------------Pilatus Parameters---------------------------"
-pil_centre = [103,244] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
+#pil_centre = [103,244] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
+pil_centre = [105,205] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
 hot_pixel = 2**20-100 # Pixels on the pilatus greater than this are set to the intensity chosen by dead_pixel_func
 peakregion=[7,153,186,332] # Search for peaks within this area of the detector [min_y,min_x,max_y,max_x]
 dead_pixel_func = np.median # Define how to choose the replaced intensity for hot/broken pixels 
+pilatus_dead_pixels = np.array([[101, 244],
+       [102, 242],
+       [102, 243],
+       [102, 244],
+       [103, 242],
+       [103, 243],
+       [103, 244],
+       [104, 241],
+       [104, 242],
+       [104, 243],
+       [104, 244],
+       [105, 240],
+       [105, 242],
+       [105, 243],
+       [105, 244],
+       [106, 240],
+       [107, 242],
+       [107, 243]]) # Dead pixels at centre of pilatus ***Feb 2017***
 
 "----------------------------Plotting Parameters--------------------------"
 plot_colors = ['b','g','m','c','y','k','r'] # change the default colours of plotscan 
@@ -539,7 +561,7 @@ def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,abscor=None,save=
         x,z,dz,out_varx,out_varz,ttl,d = getdata(num,varx=varx,vary=varz,norm=norm,abscor=abscor)
         scn_points = len(x)
         n_scans = len(nums)
-        ini_cmd = d.metadata.cmd
+        ini_cmd = d.metadata.cmd_short
         
         " Assign storage arrays"
         storex = np.zeros([scn_points,n_scans])
@@ -699,6 +721,8 @@ def getvol(num,ROIcen=None,ROIsize=None):
         " Assign hot pixels to median intensity, or zero for bad image (all hot)"
         im[im>hot_pixel] = dead_pixel_func(im)
         im[im>hot_pixel] = 0
+        " Mask dead pixels ***Feb 2017***"
+        im[pilatus_dead_pixels[:,0],pilatus_dead_pixels[:,1]] = 0
         " Add to 3D array"
         vol[:,:,n] = im
     
@@ -1082,7 +1106,7 @@ def checkscans(num1=None,num2=None,showval=None,find_scans=None):
             showval_dict['equal'] = '='
             showval_dict['val'] = val
         
-        print( fmt.format(nums=m.SRSRUN,date=m.date,mode=mode,ss=sampsl,ds=detsl,energy=m.Energy,temp=m.Ta,hkl=hkl,cmd=m.cmd,**showval_dict) )
+        print( fmt.format(nums=m.SRSRUN,date=m.date,mode=mode,ss=sampsl,ds=detsl,energy=m.Energy,temp=m.Ta,hkl=hkl,cmd=m.cmd_short,**showval_dict) )
 
 def checklog(time=None,mins=2,cmd=False,find=None):
     """Look at experiment log file 
@@ -1386,7 +1410,7 @@ def prend(start=0,end=None):
             scan_start = float(cmd[2])
             scan_end = float(cmd[3])
             scan_step = float(cmd[4])
-            scanlen = len(np.range(scan_start,scan_end,scan_step))
+            scanlen = len(np.arange(scan_start,scan_end,scan_step))
         
         nrem = scanlen-Ncomplete
         
@@ -1780,7 +1804,7 @@ def savescan(num=None,varx='',vary='',norm=True,abscor=None):
     
     # save data to file
     savefile = os.path.join(savedir, '{}_{}.dat'.format(num,saveable(vary)))
-    head = '{}\n{}\n{}, {}, {}'.format(ttl,d.metadata.cmd,varx,vary,'error_'+vary)
+    head = '{}\n{}\n{}, {}, {}'.format(ttl,d.metadata.cmd_short,varx,vary,'error_'+vary)
     np.savetxt(savefile,(x,y,dy),header=head)
     print( 'Scan #{} has been saved as {}'.format(num,savefile) )
 
@@ -1820,21 +1844,32 @@ def create_analysis_file(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',
                   abscor=None,plot='all',show_fits=True,mask_cmd=None,estvals=None,xrange=None,sortdep=True,
                   Nloop=10, Binit=1e-5, Tinc=2, change_factor=0.5, converge_max=100, min_change=0.01,
                   savePLOT=False,saveFIT=False):
-    "Creates a new python analysis script in the anaysis folder"
+    """
+    Creates a new python analysis script in the anaysis folder
+    The script will contain all the python code to call the Py16progs module, load the scan data and
+    run an automated fit routine.
+    Inputs: - See fit_scans for a description of the inputs
+    """
+    
+    # Turn depvar into a list (encase of multiple depvar values)
+    if type(depvar) is str:
+        depvar = [depvar]
+    Ndep = len(depvar)
     
     ttl = saveable(exp_title)
-    filename = savedir + '/I16_Analysis_{}_{}.py'.format(ttl,depvar)
+    filename = savedir + '/I16_Analysis_{}_{}.py'.format(ttl,depvar[0])
     
+    # Check file doesn't already exist, if it does, create new file name
     n = 1
     while os.path.isfile(filename):
         n += 1
-        filename = savedir + '/I16_Analysis_{}_{}_{}.py'.format(ttl,depvar,n)
+        filename = savedir + '/I16_Analysis_{}_{}_{}.py'.format(ttl,depvar[0],n)
     
     with open(filename,'w') as f:
         # Write comments at top
         f.write('# Diamond I16 Analysis Script\n')
         f.write('# {}\n'.format(exp_title))
-        f.write('# Analysis of {} dependence\n'.format(depvar))
+        f.write('# Analysis of {} dependence\n'.format(' '.join(depvar)))
         f.write('# \n')
         f.write('# By User\n')
         f.write('# {}\n\n'.format(datetime.datetime.strftime(datetime.datetime.now(),'%d/%m/%Y')))
@@ -1873,7 +1908,7 @@ def create_analysis_file(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',
         f.write('# Scan numbers\n')
         try:
             if np.max(np.diff(np.diff(scans))) == 0:
-                f.write('scans = range({},{},{})\n\n'.format(scans[0],scans[-1],scans[1]-scans[0]))
+                f.write('scans = range({},{},{})\n\n'.format(scans[0],scans[-1]+1,scans[1]-scans[0]))
             else:
                 f.write('scans = {} \n\n'.format(str(list(scans))))
         except:
@@ -1889,14 +1924,14 @@ def create_analysis_file(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',
         f.write('# Fitting\n')
         f.write('mask_cmd = {}\n'.format(mask_cmd))
         f.write('estvals = {}\n'.format(str(estvals)))
-        f.write('fitopt = dict(depvar=\'{}\',vary=\'{}\',varx=\'{}\',fit_type = \'{}\',bkg_type=\'{}\',peaktest={},\n'.format(depvar,vary,varx,fit_type,bkg_type,peaktest))
+        f.write('fitopt = dict(depvar={},vary=\'{}\',varx=\'{}\',fit_type = \'{}\',bkg_type=\'{}\',peaktest={},\n'.format(depvar,vary,varx,fit_type,bkg_type,peaktest))
         f.write('              abscor={},plot=\'{}\',show_fits={},mask_cmd=mask_cmd,estvals=estvals,xrange={},sortdep={},\n'.format(abscor,plot,show_fits,xrange,sortdep))
         f.write('              Nloop={}, Binit={}, Tinc={}, change_factor={}, converge_max={}, min_change={},\n'.format(Nloop,Binit,Tinc,change_factor,converge_max,min_change))
         f.write('              savePLOT={},saveFIT={})\n\n'.format(savePLOT,saveFIT))
         f.write('fit,err = dp.fit_scans(scans,**fitopt)\n\n')
         # Load
         f.write('# Load fitted data:\n')
-        f.write('#fit,err = dp.load_fits([{},{}],depvar=\'{}\',fit_type=\'{}\')\n\n'.format(scans[0],scans[-1],depvar,fit_type))
+        f.write('#fit,err = dp.load_fits([{},{}],depvar={},fit_type=\'{}\')\n\n'.format(scans[0],scans[-1],depvar,fit_type))
     
     print( 'New Analysis file written to ',filename )
 
@@ -1972,9 +2007,11 @@ def recall_last_exp():
     sav_list = sav_list_get()
     if len(exp_list) > 0:
         global filedir
+        print('Recalling previous experiment folder: {}'.format(exp_list[-1]))
         filedir = exp_list[-1]
     if len(sav_list) > 0:
         global savedir
+        print('Recalling previous analysis folder: {}'.format(sav_list[-1]))
         savedir = sav_list[-1]
 
 def clear_prev_exp():
@@ -2925,7 +2962,7 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
             saveplot(ttl)
     return
 
-def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75,67],show_ROIbkg=False,show_peakregion=False,save=False):
+def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75,67],show_ROIbkg=False,show_peakregion=False,log_colors=False,save=False):
     """
     Pilatus image viewer, plotpil(#)
     Displays pilatus image with a slider to looks throught the whole scan
@@ -2970,17 +3007,23 @@ def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75
     
     " Default colour thresholds"
     if cax is None:
-        md = np.median(vol[:,:,imnum])
-        mx = np.max(vol[:,:,imnum])
-        cmax = md + 10**(0.7*np.log10(mx-md))
-        if cmax <= 0: cmax = 1
-        cax = [0,cmax]
+        if log_colors:
+            cax = [1,vol.max()]
+        else:
+            md = np.median(vol[:,:,imnum])
+            mx = np.max(vol[:,:,imnum])
+            cmax = md + 10**(0.7*np.log10(mx-md))
+            if cmax <= 0: cmax = 1
+            cax = [0,cmax]
         print( 'caxis set at [{0:1.3g},{1:1.3g}]'.format(cax[0],cax[1]) )
     
     " Create figure & plot 1st image"
     fig = plt.figure(figsize=[10,6])
     ax = fig.add_subplot(111)
-    p = plt.imshow(vol[:,:,imnum])
+    if log_colors:
+        p = plt.imshow(vol[:,:,imnum]+1,norm=LogNorm())
+    else:
+        p = plt.imshow(vol[:,:,imnum])
     p.set_clim(cax)
     ttl = ttl+'\n'+cmd
     ax.set_title(ttl, fontsize=20)
@@ -3038,9 +3081,9 @@ def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75
     def update(val):
         "Update function for pilatus image"
         imgno = round(sldr.val)
-        p.set_data(vol[:,:,imgno-1])
+        p.set_data(vol[:,:,imgno-1]+log_colors)
         txt.set_text('{0} = {1}'.format(varx,x[imgno-1]))
-        p.set_clim(cax)
+        #p.set_clim(cax)
         plt.draw()
         #fig.canvas.draw()
     sldr.on_changed(update)
