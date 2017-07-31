@@ -71,8 +71,8 @@ Functions:
     str = stfm(val,err)
     
 
-Version 2.6
-Last updated: 01/03/17
+Version 2.8
+Last updated: 24/07/17
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -93,6 +93,8 @@ Version History:
 20/12/16 2.4    Added checkscans and auto_varx/vary functions, added dont_normalise for none-normalisable values
 02/02/17 2.5    Added checkhkl and checkwl. Bugs fixed when using DifCalc (psi+azih not recorded)
 22/02/17 2.6    Added dead pixel mask for pilatus for experiments in Feb 2017
+13/06/17 2.7    Added getmeta() function
+24/07/17 2.8    Added d.metadata.hkl_str, fixing incorrect position bug. Various other fixes.
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -106,6 +108,8 @@ I16, Diamond Light Source
 # - dataloader contain functions (more pythony...)
 # - Refactor fitting routines in new Py16fit module
 # - Create dead_pixel files for detectors, load based on which detector used
+# - Better naming convention of fit files, including HKL
+# - save parameters per experiment
 
 
 from __future__ import print_function
@@ -138,8 +142,12 @@ from collections import OrderedDict
 filedir = '/dls/i16/data/2017' 
 savedir = '/home/i16user/Desktop'
 
+"-----------------------------Data file format----------------------------"
+datfile_format = '%i.dat'
+
 "-----------------------Error Estimation Parameters-----------------------"
 error_func = lambda x: np.sqrt(np.abs(x)+0.1) # Define how the error on each intensity is estimated
+#error_func = rolling_fun
 # error_func = lambda x: 0*x + 1 # Switch errors off
 
 "-------------------------Normalisation Parameters------------------------"
@@ -147,31 +155,33 @@ exp_ring_current = 300.0 # Standard ring current for current experiment for norm
 exp_monitor = 800.0 # Standard ic1monitor value for current experiment for normalisation
 normby = 'rc' # Incident beam normalisation option: 'rc','ic1' or 'none'
 dont_normalise = ['Ta','Tb','Tc','Td','ic1monitor','rc']
+detectors = ['APD','sum','maxval'] # error bars are only calculated for counting detectors
 
 "----------------------------Pilatus Parameters---------------------------"
 #pil_centre = [103,244] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
-pil_centre = [105,205] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
+pil_centre = [104,205] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
 hot_pixel = 2**20-100 # Pixels on the pilatus greater than this are set to the intensity chosen by dead_pixel_func
 peakregion=[7,153,186,332] # Search for peaks within this area of the detector [min_y,min_x,max_y,max_x]
 dead_pixel_func = np.median # Define how to choose the replaced intensity for hot/broken pixels 
-pilatus_dead_pixels = np.array([[101, 244],
-       [102, 242],
-       [102, 243],
-       [102, 244],
-       [103, 242],
-       [103, 243],
-       [103, 244],
-       [104, 241],
-       [104, 242],
-       [104, 243],
-       [104, 244],
-       [105, 240],
-       [105, 242],
-       [105, 243],
-       [105, 244],
-       [106, 240],
-       [107, 242],
-       [107, 243]]) # Dead pixels at centre of pilatus ***Feb 2017***
+# pilatus_dead_pixels = np.array([[101, 244],
+#        [102, 242],
+#        [102, 243],
+#        [102, 244],
+#        [103, 242],
+#        [103, 243],
+#        [103, 244],
+#        [104, 241],
+#        [104, 242],
+#        [104, 243],
+#        [104, 244],
+#        [105, 240],
+#        [105, 242],
+#        [105, 243],
+#        [105, 244],
+#        [106, 240],
+#        [107, 242],
+#        [107, 243]]) # Dead pixels at centre of pilatus ***Feb 2017***
+pilatus_dead_pixels = np.zeros(shape=(0,2),dtype=int) # Blank
 
 "----------------------------Plotting Parameters--------------------------"
 plot_colors = ['b','g','m','c','y','k','r'] # change the default colours of plotscan 
@@ -268,12 +278,13 @@ def readscan(num):
         if latest() is None: return None
         num = latest()+num
     
-    file = os.path.join(filedir, '%i.dat' %num)
+    file = os.path.join(filedir, datfile_format %num)
+    #print(file)
     try:
         d = read_dat_file(file)
         #d = dnp.io.load(file,warn=False) # from SciSoftPi
     except:
-        print( "Scan {} doesn't exist".format(num) )
+        print( "Scan {} doesn't exist or can't be read".format(num) )
         return None
     
     " Shorten the scan command if it is very long to help with titles etc."
@@ -294,13 +305,22 @@ def readscan(num):
     " Correct re-assigned values"
     " For some reason, parameter names change occsaionaly, add correction here"
     if 'en' in d.metadata.keys(): d.metadata.Energy = d.metadata.en
+    if 'pgm_energy' in d.metadata.keys(): d.metadata.Energy = d.metadata.pgm_energy
     if 'count_time' in d.keys(): d.t = d.count_time
     if 'energy2' in d.keys(): d.energy = d.energy2
     if 'rc' not in d.keys(): d.rc = exp_ring_current*np.ones(len(d[d.keys()[0]]))
     if 'TimeSec' not in d.keys(): d.TimeSec = np.arange(0,len(d[d.keys()[0]]))
     if 'azih' not in d.metadata.keys(): d.metadata.azih=0;d.metadata.azik=0;d.metadata.azil=0
     if 'psi' not in d.metadata.keys(): d.metadata.psi = 0.0
+    if 'h' not in d.metadata.keys(): d.metadata.h = 0.0
+    if 'k' not in d.metadata.keys(): d.metadata.k = 0.0
+    if 'l' not in d.metadata.keys(): d.metadata.l = 0.0
+    if 'Ta' not in d.metadata.keys(): d.metadata.Ta = 300.0
     
+    " Add the scan time value"
+    d.ScanTime = d.TimeSec - d.TimeSec[0]
+    " Add a hkl string"
+    d.metadata.hkl_str = scanhkl(d)
     " Correct psi values"
     if d.metadata.psi < -1000: d.metadata.psi = 0.0
     if d.metadata.psi == 'Unavailable': d.metadata.psi = 0.0
@@ -362,8 +382,9 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
         print( "This may be a 2D Scan - I'm afraid this isn't implemented yet!" )
     """
     
+    """
     " Use scan command to determine variables of scan and title"
-    HKL = '({0:1.3g},{1:1.3g},{2:1.3g})'.format(round(m.h,2)+0.0,round(m.k,2)+0.0,round(m.l,2)+0.0)
+    HKL = m.hkl_str
     Energy = '{0:1.4g}keV'.format(m.Energy)
     Temp = '{0:1.3g}K'.format(m.Ta)
     if Temp == '0K': Temp = '300K'
@@ -382,15 +403,19 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
     
     "---exp_title---"
     if exp_title is '':
-        etitle = os.path.basename(filedir)
+        etitle = os.path.basename(filedir.strip('\\/'))
     else:
         etitle = exp_title
     
     "---Generate title---"
     ttl = '{} #{} {} {} {}{}'.format(etitle,m.SRSRUN,HKL,Energy,Temp,pol).strip()
+    """
+    ttl = scantitle(d)
     
     "---Determine scan variables from scan command---"
     if varx not in keys:
+        varx = auto_varx(d)
+        """
         " Determine dependent variable from scan command - should be the second word"
         varx = cmd.split()[1]
         if varx == 'hkl':
@@ -416,7 +441,8 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
             
         if varx not in keys:
             varx = keys[0]
-        
+        """
+    
     "***Get x values***"
     x = getattr(d,varx)
     
@@ -465,7 +491,10 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
             dy = np.sqrt( dy**2 + error_func(ROI_bkg)**2 )
         
     else:
+        
         if vary not in keys:
+            vary = auto_vary(d)
+            """
             " Determine indepdendent variable from scan command - should be the last word"
             vary = cmd.split()[-1]
             if vary[0:3] == 'roi':
@@ -481,10 +510,16 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
             
             if vary not in keys:
                 vary = keys[-1]
+            """
         
         " y values from data file"
         y = getattr(d,vary)
-        dy = error_func(y)
+        
+        " Only apply errors to counting detectors"
+        if 'roi' in vary or vary in detectors:
+            dy = error_func(y)
+        else:
+            dy = 0*y
         
     
     "---Get count time---"
@@ -522,6 +557,83 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
         print( 'Not done yet!' )
 
     return x,y,dy,varx,vary,ttl,d
+
+def getmeta(nums=None,field='Energy'):
+    """
+    Get metadata from multiple scans and return array of values
+    Usage: A = getmeta( [nums], 'field')
+        [nums] = list of scan numbers
+        field = name of metadata field
+        A = array of values from each scan with same length as nums
+            Any scans that do not contain field are returned 0
+    """
+    
+    # Prepare output array
+    metavals = np.zeros(len(nums))
+    
+    for n,num in enumerate(nums):
+        d = readscan(num)
+        if d is None: continue
+        
+        # Get values from dat file
+        if field in d.keys():
+            val = np.mean(getattr(d,field))
+        elif field in d.metadata.keys():
+            val = getattr(d.metadata,field)
+        else:
+            print( 'ERROR: Scan ',num,' contains no ',field,' data' )
+            continue
+        
+        metavals[n] = val
+    return metavals
+
+def getmetas(nums=[0],fields=['Energy']):
+    """
+    Get several metadata values from multiple scans and return list of values
+    Usage: A = getmetas( [nums], 'field')
+        [nums] = list of scan numbers / or nums=12345
+        fields = name or list of metadata field/ fields
+        A = list of values from each scan with same length as nums
+            Any scans that do not contain field are returned NaN
+    """
+    
+    " Multiple nums given as input"
+    try:
+        nums = nums[0:]
+    except TypeError:
+        nums=[nums]
+    
+    " single field given"
+    if type(fields) is str:
+        fields = [fields]
+    
+    "Loop over scans"
+    metavals = []
+    for n,num in enumerate(nums):
+        " scan object given as input"
+        try:
+            d = readscan(num)
+        except TypeError:
+            d = num
+        if d is None: continue
+        
+        fieldvals = []
+        for field in fields:
+            # Get values from dat file
+            if field.lower() == 'hkl':
+                val = scanhkl(d)
+            elif field in d.keys():
+                val = np.mean(getattr(d,field))
+            elif field in d.metadata.keys():
+                val = getattr(d.metadata,field)
+            else:
+                val = np.NaN
+                print( 'ERROR: Scan ',num,' contains no ',field,' data' )
+            
+            fieldvals += [val]
+        
+        metavals += [fieldvals]
+    return metavals
 
 def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,abscor=None,save=False):
     """
@@ -580,6 +692,10 @@ def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,abscor=None,save=
                 y = getattr(d,vary)
             elif vary in d.metadata.keys():
                 yval = getattr(d.metadata,vary)
+                print(n,num,yval)
+                if vary == 'psi' and yval < 0:
+                    yval = yval+360.0
+                print(yval)
                 y = np.ones(scn_points)*yval
             else:
                 print( 'ERROR: Scan ',num,' contains no ',vary,' data' )
@@ -836,7 +952,8 @@ def latest():
     
     newest = ls[-1] # file with highest number
     #newest = max(ls, key=os.path.getctime) # file created last
-    num = np.int(os.path.split(newest)[-1][:-4])
+    #num = np.int(os.path.split(newest)[-1][:-4])
+    num = np.abs(np.int(os.path.split(newest)[-1][-10:-4])) # handles i10-#####.dat and ######.dat
     return num
 
 def checkexp():
@@ -1064,14 +1181,12 @@ def checkscans(num1=None,num2=None,showval=None,find_scans=None):
         if find_scans is not None and find_scans != varx:
             continue
         
-        if m.Ta == 0: m.Ta = 300
-        
         sampsl = '{0:4.2g}x{1:<4.2g}'.format(m.s5xgap,m.s5ygap)
         detsl = '{0:4.2g}x{1:<4.2g}'.format(m.s6xgap,m.s6ygap)
         
-        h = round(m.h*100)//100 + 0.0 # + 0.0 to remove -0 
-        k = round(m.k*100)//100 + 0.0
-        l = round(m.l*100)//100 + 0.0
+        h = round(m.h*10)/10.0 + 0.0 # + 0.0 to remove -0 
+        k = round(m.k*10)/10.0 + 0.0
+        l = round(m.l*10)/10.0 + 0.0
         hkl = '({h:1.2g},{k:1.2g},{l:1.2g})'.format(h=h,k=k,l=l)
         if m.gam>0.0:
             mode= 'H'
@@ -1096,7 +1211,11 @@ def checkscans(num1=None,num2=None,showval=None,find_scans=None):
             mode = mode+pol
         
         if showval is not None:
-            if showval in ks:
+            if type(showval) is list:
+                blibblab
+            if showval == 'hkl':
+                val = scanhkl(m.SRSRUN)
+            elif showval in ks:
                 val = np.mean(getattr(d,showval))
             elif showval in m.keys():
                 val = getattr(m,showval)
@@ -1276,6 +1395,7 @@ def scantitle(num):
         num = num[0]
     else:
         nums = []
+        num = num[0]
     
     "---Load data---"
     try:
@@ -1287,15 +1407,14 @@ def scantitle(num):
         return 'No Scan'
     
     "---Get metadata---"
-    keys = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
+    #keys = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
     m = d.metadata
     cmd = m.cmd # Scan command
     
     " Use scan command to determine variables of scan and title"
-    HKL = '({0:1.3g},{1:1.3g},{2:1.3g})'.format(round(m.h,2)+0.0,round(m.k,2)+0.0,round(m.l,2)+0.0)
-    Energy = '{0:1.4g}keV'.format(m.Energy)
-    Temp = '{0:1.3g}K'.format(m.Ta)
-    if Temp == '0K': Temp = '300K'
+    HKL = m.hkl_str
+    Energy = scanenergy(d)
+    Temp = scantemp(d)
     pol = ''
     if m.delta_axis_offset < 1 and m.thp > 10:
         if m.gam > 0.:
@@ -1352,7 +1471,7 @@ def scanlatt(num):
     print('alpha = {:7.2f},  beta = {:7.2f},  gamma = {:7.2f}'.format(m.alpha1,m.alpha2,m.alpha3))
 
 def scanhkl(num):
-    "Returns the initial HKL of the chosen scan as a formatted string"
+    "Returns the average HKL of the chosen scan as a formatted string"
     
     try:
         d = readscan(num)
@@ -1360,7 +1479,58 @@ def scanhkl(num):
         d = num
     
     m = d.metadata
-    return '({0:1.3g},{1:1.3g},{2:1.3g})'.format(round(m.h,2)+0.0,round(m.k,2)+0.0,round(m.l,2)+0.0)
+    if 'h' in d.keys():
+        h = np.mean(d.h)
+    else:
+        h = m.h
+    
+    if 'k' in d.keys():
+        k = np.mean(d.k)
+    else:
+        k = m.k
+    
+    if 'l' in d.keys():
+        l = np.mean(d.l)
+    else:
+        l = m.l
+    
+    return '({0:1.3g},{1:1.3g},{2:1.3g})'.format(round(h,2)+0.0,round(k,2)+0.0,round(l,2)+0.0)
+
+def scantemp(num,sensor='Ta'):
+    "Returns the average temperature of the chosen scan as a formatted string"
+    
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    m = d.metadata
+    if sensor in d.keys():
+        T = np.mean(getattr(d,sensor))
+    else:
+        T = getattr(m,sensor)
+    
+    # temperature given as 0 if lakeshore not connected
+    if T < 0.1:
+        T = 300
+    
+    return '{:1.3g}K'.format(T)
+
+def scanenergy(num):
+    "Returns the average energy of the chosen scan as a formatted string"
+    
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    m = d.metadata
+    if 'Energy' in d.keys():
+        E = np.mean(d.Energy)
+    else:
+        E = m.Energy
+    
+    return '{:1.4g}keV'.format(E)
 
 def scanwl(num):
     "Returns the initial wavelength of the given scan in Angstroms"
@@ -1592,7 +1762,10 @@ def polenergy(sigsig,sigpi,background=None,vary='',bkg_scale=None,flipping_ratio
     x1,y1,dy1,varx1,vary1,ttl1,d1 = getdata(sigsig,vary=vary) # scan 1
     x2,y2,dy2,varx2,vary2,ttl2,d2 = getdata(sigpi,vary=vary) # scan 2
     " Get the background data - measured away from the Bragg peak in sp"
-    xb,yb,dyb,varxb,varyb,ttlb,db = getdata(background,vary=vary) # Background  
+    if background is None:
+        xb,yb,dyb=1*x1,0*x1,0*x1
+    else:
+        xb,yb,dyb,varxb,varyb,ttlb,db = getdata(background,vary=vary) # Background  
     
     " Get metadata"
     m = d2.metadata
@@ -1731,13 +1904,13 @@ def scanabscor(num=0,u=1,eta_offset=0.0,chi_offset=0.0):
      A = abscor(num,u)
     """
     
-    " Get data"
+    # Get data
     try: 
         d = readscan(num)
     except:
         d = num
     
-    " Get angles"
+    # Get angles
     eta = d.metadata.eta - eta_offset
     chi = d.metadata.chi - chi_offset
     delta = d.metadata.delta
@@ -1829,7 +2002,7 @@ def loadscan(num,vary=None):
     # Get Header Data
     with open(filename,'r') as ff:
         # Line 1 = title
-        ttl = ff.readline().strip('# ').stip('\n')
+        ttl = ff.readline().strip('# ').strip('\n')
         # Line 2 = scan command
         cmd = ff.readline().strip('# ')
         # Line 3 = variable names
@@ -2441,8 +2614,12 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
         efile = os.path.join(savedir,scans+'_errors.dat')
     
     if file is None:
-        file = os.path.join(savedir, '{0} ScansFIT {1:1.0f}-{2:1.0f} {3}.dat'.format(' '.join(depvar),scans[0],scans[-1],fit_type))
-        efile = os.path.join(savedir, '{0} ScansFIT {1:1.0f}-{2:1.0f} {3}_errors.dat'.format(' '.join(depvar),scans[0],scans[-1],fit_type))
+        fname = '{0} ScansFIT {1:1.0f}-{2:1.0f} {3}.dat'.format(' '.join(depvar),scans[0],scans[-1],fit_type)
+        ename = '{0} ScansFIT {1:1.0f}-{2:1.0f} {3}_errors.dat'.format(' '.join(depvar),scans[0],scans[-1],fit_type)
+        file = os.path.join(savedir, fname)
+        efile = os.path.join(savedir, ename)
+        print(file)
+        print(efile)
     
     valstore = np.loadtxt(file)
     errstore = np.loadtxt(efile)
@@ -2705,10 +2882,17 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
         lbl = str(m.SRSRUN)
         if len(varys)>0: lbl=vary
     else:
+        if type(labels) is not str:
+            labels = labels[0]
+        
         if labels in m.keys():
             lbl = '{}, {} = {}'.format(str(m.SRSRUN),labels,getattr(m,labels))
         elif labels in d.keys():
             lbl = '{}, {} = {}'.format(str(m.SRSRUN),labels,np.mean(getattr(d,labels)))
+        elif labels is 'hkl':
+            lbl = '{}, {}'.format(str(m.SRSRUN),scanhkl(d))
+        else:
+            lbl = str(m.SRSRUN)
     
     " Get data" 
     x,y,dy,varx,varynew,ttl = getdata(d,vary=vary,varx=varx,norm=norm)[:6]
@@ -2828,8 +3012,10 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
                     lab_val = np.mean(getattr(dn,labels))
                 elif labels in mn.keys():
                     lab_val = getattr(mn,labels)
+                elif labels is 'hkl':
+                    lab_val = scanhkl(dn)
                 else:
-                    labval = '?'
+                    lab_val = '?'
                 lbl = '{}, {} = {}'.format(str(mn.SRSRUN),labels,lab_val)
             
             " Subtract ROIs"
@@ -3276,7 +3462,7 @@ def plotscans2D(scans,depvar='Ta',vary='',varx='',logplot=False,save=False):
     fig = plt.figure(figsize=[14,12])
     ax = plt.subplot(1,1,1)
     plt.pcolor(x,y,z)
-    plt.axis('tight')
+    plt.axis('image')
     cb = plt.colorbar()
     # Axis labels
     ax.set_xlabel(varx, fontsize=18)
@@ -3395,7 +3581,23 @@ def straightline(x,grad=1.0,inter=0.0):
     return grad*x + inter
 
 def linefit(x,y,dy=None,disp=False):
-    "Fit a line to data, y = mx + c"
+    """
+    Fit a line to data, y = mx + c
+    
+    fit,err = linefit(x,y,dy,disp=False)
+    x,y = arrays of data to fit
+    dy = error bars on each y value (or leave as None)
+    disp = True/False display results
+    
+    fit/err = dicts of results with entries:
+        'Gradient'    - the gradient of the line (m)
+        'Intercept'   - the intercept (c)
+        'x'           - x values, same as x
+        'y'           - the fitted y values for each x
+    
+    Note: a matching line can be generated with:
+        y = straightline(x,grad=fit['Gradient'],inter=fit['Intercept'])
+    """
     
     # Set dy to 1 if not given
     if dy is None: dy=np.ones(len(y))
@@ -3441,6 +3643,14 @@ def linefit(x,y,dy=None,disp=False):
     dof = len(y) - 2 # Number of degrees of freedom (Nobs-Npar)
     chinfp = chi/dof
     
+    fit,err = {},{}
+    fit['Gradient'] = grad
+    fit['Intercept'] = inter
+    fit['x'] = xold
+    fit['y'] = yfit
+    err['Gradient'] = dgrad
+    err['Intercept'] = dinter
+    
     # Print Results
     if disp:
         print( ' ------Line Fit:----- ' )
@@ -3448,7 +3658,7 @@ def linefit(x,y,dy=None,disp=False):
         print( ' Intercept = {0:10.3G} +/- {1:10.3G}'.format(inter,dinter) )
         print( '     CHI^2 = {0:10.3G}'.format(chi) )
         print( '  CHI^2 per free par = {0:10.3G}'.format(chinfp) )
-    return grad,inter,dgrad,dinter,yfit
+    return fit,err
 
 def simpplt(x,height=1,cen=0,FWHM=0.5,bkg=0):
     "Plot an Illustration of simpfit"
@@ -4160,6 +4370,40 @@ def pilpeak(vol,disp=False):
         print( 'Peak found at [{0},{1}], frame #{2}, in region [{3},{4},{5},{6}]'.format(ROIcen[0],ROIcen[1],pos[2],peakregion[0],peakregion[1],peakregion[2],peakregion[3]) )
     return ROIcen,pos[2]
 
+def pilpeaks(vol,rebin_step=[4,4,2],peakheight=100,disp=False):
+    """
+    Find peak in pilatus detector, within peakregion
+     [pk_i,pk_j],frame = pilpeak(vol)
+     
+    Currently uses a very basic search that rebins the volume into courser bins,
+    averaging the intensities then finding the position of the max bin.
+    """
+    
+    background = np.median(vol)
+    bvol = rebin(vol,rebin_step) # rebin the volume and average the values (removing some noise)
+    pki=peakregion[0:4:2]
+    pkj=peakregion[1:4:2]
+    volpeak = bvol[pki[0]//rebin_step[0]:pki[1]//rebin_step[1],pkj[0]//rebin_step[0]:pkj[1]//rebin_step[1],:]
+    
+    volpeak_bkg = volpeak-background # background subtraction
+    idx = volpeak_bkg > peakheight # find peaks
+    pos_volpeak = np.array(np.where(idx)).T # gen array positions of peaks in the volpeak array
+    peak_inten=volpeak_bkg[pos_volpeak[:,0],pos_volpeak[:,1],pos_volpeak[:,2]] # get intensity values
+    
+    # Remove neighboring pixels
+    # Take the largest pposition
+    peak_sep = np.sum(np.abs(np.diff(pos_volpeak,axis=0)),axis=1) # compare peak positions
+    peak_sep = np.insert(peak_sep,0,100) # add first value
+    
+    
+    # Recover original intensities
+    pos_vol = np.multiply(pos_volpeak,rebin_step) + np.array(rebin_step)//2 # gen array positions of peaks in the vol array, recoving unbinned index
+    ROIcen = [pos_vol[:,0]+peakregion[0],pos_vol[:,1]+peakregion[1]]
+    if disp:
+        for n in range(pos_vol.shape[0]):
+            print( 'Peak found at [{:3.0f},{:3.0f}], frame #{:3.0f}, with intensity {:1.0f}'.format(ROIcen[0][n],ROIcen[1][n],pos_vol[n,2],peak_inten[n]) )
+    return ROIcen,pos_vol[:,2],peak_inten
+
 def peakfind(Y,cutoff=0.01):
     "Finds peaks in the given 1D spectrum"
     " Doesn't really work at the moment and needs testing"
@@ -4250,7 +4494,33 @@ def scanfile(num):
 def abscor(eta=0,chi=90,delta=0,mu=0,gamma=0,u=1.0,disp=False,plot=False):
     """
     Calculate absorption correction
-     A = abscor(num,u)
+     A = abscor(eta,chi,delta,mu,gamma,u, disp, plot)
+         eta/chi/delta/mu/gamma = diffractometer angles
+         u = absoprtion coefficient
+         disp = True/False - display information
+         plot = True/False - plot diffractometer/sample orientation
+    
+    Usage:
+        scans = range(584448,584481,1)
+        eta = getmeta(scans,'eta')
+        delta = getmeta(scans,'delta')
+        chi = getmeta(scans,'chi')
+        A=np.zeros(len(eta))
+        for n in range(len(eta)): 
+            A[n] = abscor(eta[n]-4.41, chi[n]+2.43, delta[n],disp=True)
+        Icorrected = Iexp/A
+    
+     From: IT-C Secion 6.3.3 Absorption corrections
+     Table 6.3.3.1. (1) Reflection from a crystal slab with negligible transmission
+          A = sin(theta - phi) / mu( sin(theta-phi) + sin(theta+phi) )
+     
+     A = Transmission coefficient. (Absorption correction A*=1/A) 
+         "The reduction in the intensity of an x-ray reflection" 
+             Iobs = A*Iorig
+             Icorrected = Iobs/A
+     theta = Bragg angle
+     phi = "the crystal planes are inclined at an angle phi to the extended face and the normal in the plane of the incidnend and diffracted beams"
+     mu = absorption coefficient
     """
         
     " Convert angles"
@@ -4293,7 +4563,7 @@ def abscor(eta=0,chi=90,delta=0,mu=0,gamma=0,u=1.0,disp=False,plot=False):
     phi = np.arccos( np.dot(Q,N) /(mQ*mN) )
     
     " Calcualte the absorption correction"
-    A = np.sin(theta-phi) / (u*( np.sin(theta-phi) + np.sin(theta+phi) )) # IT-C Table 6.3.3.1
+    A = np.sin(theta-phi) / (u*( np.sin(theta-phi) + np.sin(theta+phi) )) # IT-C Table 6.3.3.1. A = Transmission coefficient. "The reduction in the intensity of an x-ray reflection" Iobs = A*Iorig, Icorrected = Iobs/A
     #print( np.round(np.rad2deg(eta),2),np.round(np.rad2deg(chi),2),np.round(np.rad2deg(delta),2),np.round(Q,3),np.round(N,3),' phi = ',round(np.rad2deg(phi),1),' A = ',np.round(A,3) )
     
     if disp:
@@ -4509,6 +4779,19 @@ def saveable(string):
     for char in '*$�!':
         string = string.replace(char,'') 
     return string
+
+def rolling_fun(Y,fun=np.std):
+    """
+    Performs a rolling verions of the given function across and array
+      rolling_fun(Y,fun)
+       Y = array, e.g. [1,2,3,4]
+       fun = array function, e.g. np.mean or np.std
+    Returns an array, of the same length as Y, with function fun performed across every 3 items
+    """
+    
+    s=[fun(Y[n-1:n+2]) for n in range(1,len(Y)-1)]
+    s=[s[0]]+s+[s[-1]] # add first and last values
+    return np.asarray(s)
 
 def findranges(scannos,sep=':'):
     "Convert a list of numbers to a simple string"

@@ -56,8 +56,8 @@ OPERATION:
      "Fit Peaks" - On each scan, perform a fitting routine, storing the area, width, centre, etc, 
                    plot the results and save them to a .dat file.
 
-Version 2.6
-Last updated: 01/03/17
+Version 2.8
+Last updated: 24/07/17
 
 Version History:
 07/02/16 0.9    Program created
@@ -78,6 +78,8 @@ Version History:
 20/12/16 2.4    Main app now resizes for screensize, Mac option added. Fixes for option menus. New Check buttons
 08/02/17 2.5    Log of pilatus images added, other bugs fixed
 25/02/17 2.6    Minor corrections and fixes, including multi-variable advanced fitting and persistence of custom ROIs
+11/07/17 2.7    Added scan selector
+24/07/17 2.8    Added colour_cutoffs and other bug fixes
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -135,7 +137,7 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 2.6
+Py16GUI_Version = 2.8
 
 # App Fonts
 BF= ["Times", 12]
@@ -272,6 +274,7 @@ class I16_Data_Viewer():
         lbl_scan.pack(side=tk.LEFT,padx=5,pady=5)
         ety_scan = tk.Entry(frm_scan, textvariable=self.scanno, width=10)
         ety_scan.bind('<Return>',self.update)
+        ety_scan.bind('<KP_Enter>',self.update)
         ety_scan.pack(side=tk.LEFT,padx=1,pady=5)
         btn_scan_dn = tk.Button(frm_scan, text='<', font=BF, command=self.f_scan_dn)
         btn_scan_dn.pack(side=tk.LEFT)
@@ -299,6 +302,7 @@ class I16_Data_Viewer():
         lbl_varx.pack(side=tk.LEFT,padx=(5,2),pady=5)
         #ety_varx = tk.Entry(frm_popt, textvariable=self.varx, width=8)
         #ety_varx.bind('<Return>',self.update_plot)
+        #ety_varx.bind('<KP_Enter>',self.update_plot)
         #ety_varx.pack(side=tk.LEFT,padx=(2,5),pady=5)
         xlist = ['Auto']
         self.opt_varx = tk.OptionMenu(frm_popt, self.varx, *xlist, command=self.f_popt_varx)
@@ -311,6 +315,7 @@ class I16_Data_Viewer():
         lbl_vary.pack(side=tk.LEFT,padx=(5,2),pady=5)
         #ety_vary = tk.Entry(frm_popt, textvariable=self.vary, width=20)
         #ety_vary.bind('<Return>',self.update_plot)
+        #ety_vary.bind('<KP_Enter>',self.update_plot)
         #ety_vary.pack(side=tk.LEFT,padx=(2,3),pady=5)
         ylist = ['Auto']
         self.opt_vary = tk.OptionMenu(frm_popt, self.vary, *ylist,command=self.f_popt_vary)
@@ -561,6 +566,16 @@ class I16_Data_Viewer():
         btn_lat = tk.Button(frm_mor, text='Check Latt',font=BF, command=self.f_chk_lat)
         btn_lat.pack(side=tk.LEFT,padx=5)
         
+        # Scan Selector
+        self.scan_selector_showval=''
+        frm_ssl = tk.Frame(frm_detl,relief=tk.RAISED)
+        frm_ssl.pack(side=tk.BOTTOM,fill=tk.X)
+        btn_ssl = tk.Button(frm_ssl, text='Last scans window',font=BF, command=self.f_scn_sel)
+        btn_ssl.pack(side=tk.LEFT,fill=tk.X,padx=5)
+        self.select_all_scans = tk.IntVar(frm_ssl,0)
+        chk_ssl = tk.Checkbutton(frm_ssl, text='All scans (slow)?',variable=self.select_all_scans)
+        chk_ssl.pack(side=tk.LEFT)
+        
         
         "----------------------------Plotting Window-----------------------------"
         # Create frame on right hand side
@@ -627,18 +642,22 @@ class I16_Data_Viewer():
         lbl_pilcen.pack(side=tk.LEFT,padx=1)
         ety_pilcen_i = tk.Entry(frm_pilopt2, textvariable=self.pilcen_i, width=4)
         ety_pilcen_i.bind('<Return>',self.update_pilatus)
+        ety_pilcen_i.bind('<KP_Enter>',self.update_pilatus)
         ety_pilcen_i.pack(side=tk.LEFT,padx=1)
         ety_pilcen_j = tk.Entry(frm_pilopt2, textvariable=self.pilcen_j, width=4)
         ety_pilcen_j.bind('<Return>',self.update_pilatus)
+        ety_pilcen_j.bind('<KP_Enter>',self.update_pilatus)
         ety_pilcen_j.pack(side=tk.LEFT,padx=1)
         
         lbl_roisiz = tk.Label(frm_pilopt2, text='ROI:',font=SF,width=5)
         lbl_roisiz.pack(side=tk.LEFT,padx=1)
         ety_roisiz_i = tk.Entry(frm_pilopt2, textvariable=self.roisiz_i, width=4)
         ety_roisiz_i.bind('<Return>',self.update_pilatus)
+        ety_roisiz_i.bind('<KP_Enter>',self.update_pilatus)
         ety_roisiz_i.pack(side=tk.LEFT,padx=1)
         ety_roisiz_j = tk.Entry(frm_pilopt2, textvariable=self.roisiz_j, width=4)
         ety_roisiz_j.bind('<Return>',self.update_pilatus)
+        ety_roisiz_j.bind('<KP_Enter>',self.update_pilatus)
         ety_roisiz_j.pack(side=tk.LEFT,padx=1)
         
         btn_peak = tk.Button(frm_pilopt2, text='Find Peak',font=BF,command=self.f_pilopt_peak)
@@ -658,9 +677,11 @@ class I16_Data_Viewer():
         lbl_pilint.pack(side=tk.LEFT,padx=1)
         ety_pilint_i = tk.Entry(frm_pilopt3, textvariable=self.pilint_i, width=4)
         ety_pilint_i.bind('<Return>',self.update_pilatus)
+        ety_pilint_i.bind('<KP_Enter>',self.update_pilatus)
         ety_pilint_i.pack(side=tk.LEFT,padx=1)
         ety_pilint_j = tk.Entry(frm_pilopt3, textvariable=self.pilint_j, width=6)
         ety_pilint_j.bind('<Return>',self.update_pilatus)
+        ety_pilint_j.bind('<KP_Enter>',self.update_pilatus)
         ety_pilint_j.pack(side=tk.LEFT,padx=1)
         
         lbl_pilpos = tk.Label(frm_pilopt3, textvariable=self.pilstr,font=SF,width=14)
@@ -950,6 +971,17 @@ class I16_Data_Viewer():
         num = self.logmins.get()
         pp.checklog(mins=num)
         self.helper.set('Log info has been sent to the console, you may need to update the console by pressing Enter')
+    
+    def f_scn_sel(self):
+        " Scan selector button launches scan selector"
+        allscans = self.select_all_scans.get()
+        showval = self.scan_selector_showval
+        if allscans:
+            scannos = pp.get_all_scannos()
+        else:
+            scannos = range(pp.latest()-100,pp.latest()+1)
+        
+        I16_Scan_Selector(self,scannos,showval)
     
     def f_chk_mor(self):
         I16_Check_Log(self.scanno.get())
@@ -1540,7 +1572,7 @@ class I16_Data_Viewer():
         # Initilise frame variables
         self.cmd.set(m.cmd_short)
         self.N.set(str(len(d[d.keys()[0]])))
-        self.HKL.set('({0},{1},{2})'.format(m.h+0.0,m.k+0.0,m.l+0.0))
+        self.HKL.set(m.hkl_str)
         self.ENG.set('{} keV'.format(m.Energy))
         self.T.set('{} K'.format(m.Ta))
         
@@ -1790,6 +1822,122 @@ class I16_Data_Viewer():
         self.plt2.set_ydata(ylim)
         self.fig1.canvas.draw()
 
+
+"------------------------------------------------------------------------"
+"--------------------------I16_Scan_Selector-----------------------------"
+"------------------------------------------------------------------------"
+class I16_Scan_Selector:
+    "------------------------------------------------------------------------"
+    "--------------------------GUI Initilisation-----------------------------"
+    "------------------------------------------------------------------------"
+    def __init__(self,parent,scanrange,showval=''):
+        # Create new window based on main window instance
+        self.parent = parent
+        self.root = tk.Toplevel(parent.root)
+        self.root.wm_title('I16 Scan Selector by D G Porter [dan.porter@diamond.ac.uk]')
+        viewerheight=parent.root.winfo_height()
+        def_width = 200
+        self.root.minsize(width=def_width, height=viewerheight)
+        self.root.maxsize(width=800, height=viewerheight)
+        
+        # parent.root.winfo_geometry()
+        #mainx = parent.root.winfo_x()
+        #mainy = parent.root.winfo_y()
+        geom = parent.root.geometry()
+        mainx,mainy = [int(x) for x in geom.split('+')[1:]]
+        self.root.geometry('%dx%d+%d+%d' % (def_width,viewerheight,mainx-def_width,mainy))
+        
+        frame = tk.Frame(self.root)
+        frame.pack(fill=tk.BOTH,expand=tk.YES)
+        
+        # Create scan info
+        self.scan_nos = scanrange[::-1]
+        #self.scan_nos = pp.get_all_scannos()
+        #fmt = '{cmd} | {date} | {mode:4s} {ss} {ds} {energy:5.3g}keV {temp:5.3g}K {hkl:17s} {show}{equal}{val} | {cmd}'
+        if showval is None or len(showval) == 0:
+            fmt = '{:6.0f}: {}'
+        else:
+            fmt = '{:6.0f}:  {}  {}'
+        
+        "-----------------------------Scan ListBox---------------------------"
+        # Eval box with scroll bar
+        frm_scan = tk.Frame(frame)
+        frm_scan.pack(side=tk.TOP,fill=tk.BOTH,expand=tk.YES)
+        
+        scl_scanx = tk.Scrollbar(frm_scan,orient=tk.HORIZONTAL)
+        scl_scanx.pack(side=tk.BOTTOM, fill=tk.BOTH)
+        
+        scl_scany = tk.Scrollbar(frm_scan)
+        scl_scany.pack(side=tk.RIGHT, fill=tk.BOTH)
+        
+        self.lst_scan = tk.Listbox(frm_scan, font=HF, selectmode=tk.SINGLE,#width=40,height=30,
+                                xscrollcommand=scl_scanx.set,yscrollcommand=scl_scany.set)
+        self.lst_scan.configure(exportselection=False)
+        
+        # Populate list box
+        for scanno in self.scan_nos:
+            d = pp.readscan(scanno)
+            if d is None:
+                continue
+            if showval is None or len(showval) == 0:
+                strval = fmt.format(scanno,d.metadata.cmd_short)
+            else:
+                if showval == 'hkl':
+                    val = pp.scanhkl(scanno)
+                elif showval in d.keys():
+                    val = np.mean(getattr(d,showval))
+                elif showval in d.metadata.keys():
+                    val = getattr(d.metadata,showval)
+                else:
+                    val = 'N/A'
+                strval = fmt.format(scanno,val,d.metadata.cmd_short)
+            self.lst_scan.insert(tk.END,strval)
+        
+        self.lst_scan.pack(side=tk.LEFT,fill=tk.BOTH,expand=tk.YES)
+        self.lst_scan.select_set(0)
+        self.lst_scan.bind("<<ListboxSelect>>", self.f_scan_select)
+        #print( self.lst_scan.curselection()[0] )
+        
+        scl_scanx.config(command=self.lst_scan.xview)
+        scl_scany.config(command=self.lst_scan.yview)
+        
+        #self.txt_scan.config(xscrollcommand=scl_scanx.set,yscrollcommand=scl_scany.set)
+        
+        "----------------------------Showval entry---------------------------"
+        frm_show = tk.Frame(frame)
+        frm_show.pack()
+        
+        lbl_show = tk.Label(frm_show,text='Show:')
+        lbl_show.pack(side=tk.LEFT)
+        
+        self.new_showval = tk.StringVar(frm_show,showval)
+        ety_show = tk.Entry(frm_show,textvariable=self.new_showval, width=8)
+        ety_show.pack(side=tk.LEFT,fill=tk.X,expand=tk.YES)
+        
+        "----------------------------Reload Button---------------------------"
+        frm_btn = tk.Frame(frame)
+        frm_btn.pack()
+        
+        btn_reld = tk.Button(frm_btn,text='Reload',font=BF, command=self.f_reload)
+        btn_reld.pack()
+        
+    "------------------------------------------------------------------------"
+    "--------------------------General Functions-----------------------------"
+    "------------------------------------------------------------------------"
+    def f_scan_select(self,event):
+        "Select scan number from list box and send plot command to main window"
+        
+        current = self.lst_scan.curselection()[0]
+        scanno = self.scan_nos[current]
+        
+        self.parent.scanno.set(scanno)
+        self.parent.update()
+    
+    def f_reload(self):
+        "Closes the current selector window and reloads it"
+        self.parent.scan_selector_showval = self.new_showval.get()
+        self.root.destroy()
+        self.parent.f_scn_sel()
 
 "------------------------------------------------------------------------"
 "--------------------------I16_Peak_Analysis-----------------------------"
@@ -3300,6 +3448,20 @@ class I16_Params:
         ety_mon = tk.Entry(frame1b,textvariable=self.exp_monitor, width=20)
         ety_mon.pack(side=tk.LEFT,padx=5,pady=5)
         
+        # Line 1c
+        frame1c = tk.Frame(frame1)
+        frame1c.pack()
+        
+        # Errors
+        erroropts = ['sqrt(n)','std(N)','none']
+        self.errortype = tk.StringVar(frame1, erroropts[0])
+        lbl_err = tk.Label(frame1c,text='Errors:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_err.pack(side=tk.LEFT,padx=5,pady=5)
+        opt_nrm = tk.OptionMenu(frame1c, self.errortype, *erroropts)
+        opt_nrm.config(width=dwid)
+        opt_nrm.pack(side=tk.LEFT,padx=0,pady=5)
+        
+        
         "---------------------------Pilatus Params-----------------------------"
         #Frame 2
         frame2 = tk.Frame(frame,borderwidth=2,relief=tk.RIDGE)
@@ -3389,9 +3551,148 @@ class I16_Params:
         pp.plot_colors = eval(self.plot_colors.get())
         pp.exp_title = self.exp_title.get()
         
+        # Errors
+        ch_error = self.errortype.get()
+        if ch_error == 'sqrt(n)':
+            pp.error_func = lambda x: np.sqrt(np.abs(x)+0.1)
+        elif ch_error == 'std(N)':
+            pp.error_func = pp.rolling_fun
+        else:
+            pp.error_func = lambda x: 0*x
+        
         # Close window
         self.root.destroy()
 
+"------------------------------------------------------------------------"
+"----------------------------------cutoffs-------------------------------"
+"------------------------------------------------------------------------"
+class colour_cutoffs:
+    "------------------------------------------------------------------------"
+    "--------------------------GUI Initilisation-----------------------------"
+    "------------------------------------------------------------------------"
+    def __init__(self):
+        # Create Tk inter instance
+        self.root = tk.Tk()
+        self.root.wm_title('Change clim')
+        #self.root.minsize(width=300, height=200)
+        #self.root.maxsize(width=400, height=500)
+        
+        ini_vmin, ini_vmax = plt.gci().get_clim()
+        
+        #Frame
+        frame = tk.Frame(self.root)
+        frame.pack(side=tk.LEFT,anchor=tk.N)
+        
+        # GCF button
+        frm_btn = tk.Button(frame, text='Get Current Figure', font=BF, command=self.f_gcf)
+        frm_btn.pack(fill=tk.X)
+        
+        # increment setting
+        f_inc = tk.Frame(frame)
+        f_inc.pack(fill=tk.X)
+        
+        inc_btn1 = tk.Button(f_inc, text='1', font=BF, command=self.f_but1)
+        inc_btn1.pack(side=tk.LEFT)
+        
+        inc_btn2 = tk.Button(f_inc, text='100', font=BF, command=self.f_but2)
+        inc_btn2.pack(side=tk.LEFT)
+        
+        inc_btn3 = tk.Button(f_inc, text='1000', font=BF, command=self.f_but3)
+        inc_btn3.pack(side=tk.LEFT)
+        
+        self.increment = tk.DoubleVar(f_inc,1.0)
+        inc_ety = tk.Entry(f_inc, textvariable=self.increment, width=6)
+        inc_ety.pack(side=tk.LEFT)
+        
+        # Upper clim
+        f_upper = tk.Frame(frame)
+        f_upper.pack(fill=tk.X)
+        
+        up_left = tk.Button(f_upper, text='<', font=BF, command=self.f_upper_left)
+        up_left.pack(side=tk.LEFT)
+        
+        self.vmin = tk.DoubleVar(f_upper,ini_vmin)
+        up_edit = tk.Entry(f_upper, textvariable=self.vmin, width=12)
+        up_edit.bind('<Return>',self.update)
+        up_edit.bind('<KP_Enter>',self.update)
+        up_edit.pack(side=tk.LEFT,expand=tk.YES)
+        
+        up_right = tk.Button(f_upper, text='>', font=BF, command=self.f_upper_right)
+        up_right.pack(side=tk.LEFT)
+        
+        # Lower clim
+        f_lower = tk.Frame(frame)
+        f_lower.pack(fill=tk.X)
+        
+        lw_left = tk.Button(f_lower, text='<', font=BF, command=self.f_lower_left)
+        lw_left.pack(side=tk.LEFT)
+        
+        self.vmax = tk.DoubleVar(f_lower,ini_vmax)
+        lw_edit = tk.Entry(f_lower, textvariable=self.vmax, width=12)
+        lw_edit.bind('<Return>',self.update)
+        lw_edit.bind('<KP_Enter>',self.update)
+        lw_edit.pack(side=tk.LEFT,expand=tk.YES)
+        
+        lw_right = tk.Button(f_lower, text='>', font=BF, command=self.f_lower_right)
+        lw_right.pack(side=tk.LEFT)
+        
+        # Update button
+        frm_btn = tk.Button(frame, text='Update', font=BF, command=self.update)
+        frm_btn.pack(fill=tk.X)
+        
+        
+    "------------------------------------------------------------------------"
+    "---------------------------Button Functions-----------------------------"
+    "------------------------------------------------------------------------"
+    def f_gcf(self):
+        #fig = plt.gcf()
+        #fig.canvas.manager.window.raise_()
+        
+        new_vmin, new_vmax = plt.gci().get_clim()
+        self.vmin.set(new_vmin)
+        self.vmax.set(new_vmax)
+    
+    def f_but1(self):
+        self.increment.set(1.0)
+    
+    def f_but2(self):
+        self.increment.set(100)
+    
+    def f_but3(self):
+        self.increment.set(1e3)
+    
+    def f_upper_left(self):
+        inc = self.increment.get()
+        cur_vmin = self.vmin.get()
+        self.vmin.set( cur_vmin - inc)
+        self.update()
+    
+    def f_upper_right(self):
+        inc = self.increment.get()
+        cur_vmin = self.vmin.get()
+        self.vmin.set( cur_vmin + inc)
+        self.update()
+    
+    def f_lower_left(self):
+        inc = self.increment.get()
+        cur_vmax = self.vmax.get()
+        self.vmax.set( cur_vmax - inc)
+        self.update()
+    
+    def f_lower_right(self):
+        inc = self.increment.get()
+        cur_vmax = self.vmax.get()
+        self.vmax.set( cur_vmax + inc)
+        self.update()
+    
+    def update(self,event=None):
+        cur_vmin = self.vmin.get()
+        cur_vmax = self.vmax.get()
+        
+        #fig = plt.gcf()
+        #fig.canvas.manager.window.raise_()
+        plt.clim(cur_vmin,cur_vmax)
+        plt.show()
 
 
 if __name__ == '__main__':
@@ -3404,3 +3705,5 @@ if __name__ == '__main__':
     
     pp.recall_last_exp()
     I16_Data_Viewer()
+    #colour_cutoffs()
+    
