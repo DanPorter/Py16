@@ -56,8 +56,8 @@ OPERATION:
      "Fit Peaks" - On each scan, perform a fitting routine, storing the area, width, centre, etc, 
                    plot the results and save them to a .dat file.
 
-Version 2.8
-Last updated: 24/07/17
+Version 2.9
+Last updated: 01/08/17
 
 Version History:
 07/02/16 0.9    Program created
@@ -80,6 +80,7 @@ Version History:
 25/02/17 2.6    Minor corrections and fixes, including multi-variable advanced fitting and persistence of custom ROIs
 11/07/17 2.7    Added scan selector
 24/07/17 2.8    Added colour_cutoffs and other bug fixes
+01/08/17 2.9    Added check for large pilatus arrays, parameter "max array" in parameters window
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -137,7 +138,7 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 2.8
+Py16GUI_Version = 2.9
 
 # App Fonts
 BF= ["Times", 12]
@@ -1737,6 +1738,12 @@ class I16_Data_Viewer():
                 self.helper.set('This isnt a pilatus scan!')
                 return
             
+            # Check volume size
+            pil_size = self.vol.shape
+            if pil_size[0]*pil_size[1]*len(x) > pp.pil_max_size:
+                self.helper.set('The array size is too large! Returning only the first image')
+                x = x[:1]
+            
             # Subtract first frame from all images
             if self.remfrm.get():
                 bkgcut = self.vol[:,:,0].copy()
@@ -1786,7 +1793,6 @@ class I16_Data_Viewer():
         ROIcen = [self.pilcen_i.get(),self.pilcen_j.get()]
         ROIsize = [self.roisiz_i.get(),self.roisiz_j.get()]
         pil_centre = [self.pilcen_i.get(),self.pilcen_j.get()]
-        pil_size = self.vol.shape[:2]
         idxi = np.array([ROIcen[0]-ROIsize[0]//2,ROIcen[0]+ROIsize[0]//2+1])
         idxj = np.array([ROIcen[1]-ROIsize[1]//2,ROIcen[1]+ROIsize[1]//2+1])
         
@@ -3493,11 +3499,22 @@ class I16_Params:
         frame2c = tk.Frame(frame2)
         frame2c.pack(fill=tk.X)
         
+        # Max pilatus array size
+        self.pil_max_size = tk.StringVar(frame2,'%1.3g'%pp.pil_max_size)
+        lbl_max = tk.Label(frame2c,text='Max array size:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_max.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_max = tk.Entry(frame2c,textvariable=self.pil_max_size, width=20)
+        ety_max.pack(side=tk.LEFT,padx=5,pady=5)
+        
+        # Line 2d
+        frame2d = tk.Frame(frame2)
+        frame2d.pack(fill=tk.X)
+        
         # Peak Region
         self.peakregion = tk.StringVar(frame2,str(pp.peakregion))
-        lbl_pkrg = tk.Label(frame2c,text='Peak Region: [>y,>x,<Y,<X]',font=SF, justify=tk.RIGHT, width=dwid, wraplength=200)
+        lbl_pkrg = tk.Label(frame2d,text='Peak Region: [>y,>x,<Y,<X]',font=SF, justify=tk.RIGHT, width=dwid, wraplength=200)
         lbl_pkrg.pack(side=tk.LEFT,padx=5,pady=5)
-        ety_pkrg = tk.Entry(frame2c,textvariable=self.peakregion, width=20)
+        ety_pkrg = tk.Entry(frame2d,textvariable=self.peakregion, width=20)
         ety_pkrg.pack(side=tk.LEFT,padx=5,pady=5)
         
         
@@ -3547,6 +3564,7 @@ class I16_Params:
         pp.exp_monitor = self.exp_monitor.get()
         pp.pil_centre = eval(self.pil_centre.get())
         pp.hot_pixel = eval(self.hot_pixel.get())
+        pp.pil_max_size = eval(self.pil_max_size.get())
         pp.peakregion = eval(self.peakregion.get())
         pp.plot_colors = eval(self.plot_colors.get())
         pp.exp_title = self.exp_title.get()

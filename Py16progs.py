@@ -71,8 +71,8 @@ Functions:
     str = stfm(val,err)
     
 
-Version 2.8
-Last updated: 24/07/17
+Version 2.9
+Last updated: 01/08/17
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -95,6 +95,7 @@ Version History:
 22/02/17 2.6    Added dead pixel mask for pilatus for experiments in Feb 2017
 13/06/17 2.7    Added getmeta() function
 24/07/17 2.8    Added d.metadata.hkl_str, fixing incorrect position bug. Various other fixes.
+01/08/17 2.9    Added check for large pilatus arrays.
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -116,6 +117,7 @@ from __future__ import print_function
 import sys,os
 import glob # find files
 import re # regular expressions
+import psutil # get RAM available
 import datetime # Dates and times
 import tempfile # Find system temp directory
 import numpy as np
@@ -163,6 +165,7 @@ pil_centre = [104,205] # Centre of pilatus images [y,x], find the current value 
 hot_pixel = 2**20-100 # Pixels on the pilatus greater than this are set to the intensity chosen by dead_pixel_func
 peakregion=[7,153,186,332] # Search for peaks within this area of the detector [min_y,min_x,max_y,max_x]
 dead_pixel_func = np.median # Define how to choose the replaced intensity for hot/broken pixels 
+pil_max_size = psutil.virtual_memory()[1]*0.5 # Maximum volume size that will be loaded. 1e8~1679*1475*41 -> 41 points of pil2M, ~ 800MB
 # pilatus_dead_pixels = np.array([[101, 244],
 #        [102, 242],
 #        [102, 243],
@@ -812,8 +815,13 @@ def getvol(num,ROIcen=None,ROIsize=None):
         return
     """
     
-    "Load each image into a single volume"
+    "Check volume size - don't load large volumes as it is too slow"
     numimag = len(d.path)
+    if pil_size[0]*pil_size[1]*numimag > pil_max_size:
+        print('The array size is too large! Returning only the first image')
+        numimag = 1
+    
+    "Load each image into a single volume"
     vol = np.zeros([pil_size[0],pil_size[1],numimag]) # [195,487,~31]
     for n in range(numimag):
         " Prepare file name"
