@@ -56,8 +56,8 @@ OPERATION:
      "Fit Peaks" - On each scan, perform a fitting routine, storing the area, width, centre, etc, 
                    plot the results and save them to a .dat file.
 
-Version 2.9
-Last updated: 01/08/17
+Version 3.0
+Last updated: 06/10/17
 
 Version History:
 07/02/16 0.9    Program created
@@ -81,6 +81,8 @@ Version History:
 11/07/17 2.7    Added scan selector
 24/07/17 2.8    Added colour_cutoffs and other bug fixes
 01/08/17 2.9    Added check for large pilatus arrays, parameter "max array" in parameters window
+02/10/17 2.9    Added ability to turn off normalisation in multi-plots
+06/10/17 3.0    Added log plot to multiplots, plus other fixes
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -138,7 +140,7 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 2.9
+Py16GUI_Version = 3.0
 
 # App Fonts
 BF= ["Times", 12]
@@ -1303,6 +1305,7 @@ class I16_Data_Viewer():
         pp.normby = self.normtype.get()
         scanno = self.scanno.get()
         LOG = self.logplot.get()
+        setvarx = self.varx.get()
         
         ROIcen = [self.pilcen_i.get(),self.pilcen_j.get()]
         ROIsize = [self.roisiz_i.get(),self.roisiz_j.get()]
@@ -1315,9 +1318,9 @@ class I16_Data_Viewer():
             bkg_img=None
         
         # Send the command
-        cmdstr = 'pp.plotpil({},cax={},imnum={},bkg_img={},ROIcen={},ROIsize={}, show_ROIbkg=ROIbkg)'
-        print( cmdstr.format(scanno,cax,imnum,bkg_img,ROIcen,ROIsize,ROIbkg) )
-        pp.plotpil(scanno,cax=cax,imnum=imnum,bkg_img=bkg_img,ROIcen=ROIcen,ROIsize=ROIsize,show_ROIbkg=ROIbkg,log_colors=LOG)
+        cmdstr = 'pp.plotpil({},cax={},varx={},imnum={},bkg_img={},ROIcen={},ROIsize={}, show_ROIbkg=ROIbkg)'
+        print( cmdstr.format(scanno,cax,setvarx,imnum,bkg_img,ROIcen,ROIsize,ROIbkg) )
+        pp.plotpil(scanno,cax=cax,varx=setvarx,imnum=imnum,bkg_img=bkg_img,ROIcen=ROIcen,ROIsize=ROIsize,show_ROIbkg=ROIbkg,log_colors=LOG)
         plt.show()
     
     def f_fnl_splotsave(self):
@@ -1796,6 +1799,7 @@ class I16_Data_Viewer():
         idxi = np.array([ROIcen[0]-ROIsize[0]//2,ROIcen[0]+ROIsize[0]//2+1])
         idxj = np.array([ROIcen[1]-ROIsize[1]//2,ROIcen[1]+ROIsize[1]//2+1])
         
+        pil_size = self.vol.shape
         self.pilp1.set_xdata(idxj[[0,1,1,0,0]])
         self.pilp1.set_ydata(idxi[[0,0,1,1,0]])
         self.pilp2.set_xdata([pil_centre[1],pil_centre[1]])
@@ -1999,7 +2003,7 @@ class I16_Peak_Analysis:
         self.title = tk.StringVar(frm_titl,'')
         lbl_titl = tk.Label(frm_titl, text='Title: ',font=SF)
         lbl_titl.pack(side=tk.LEFT,padx=5,pady=5)
-        ety_titl = tk.Entry(frm_titl, textvariable=self.title, width=47)
+        ety_titl = tk.Entry(frm_titl, textvariable=self.title, width=35)
         ety_titl.pack(side=tk.LEFT,padx=5,pady=5)
         
         # Dependent variable
@@ -2008,6 +2012,16 @@ class I16_Peak_Analysis:
         lbl_depv.pack(side=tk.LEFT,padx=5,pady=5)
         ety_depv = tk.Entry(frm_titl, textvariable=self.depvar, width=20)
         ety_depv.pack(side=tk.LEFT,padx=5,pady=5)
+        
+        # Differentiate Plot
+        self.diffplot = tk.IntVar(frm_titl,0)
+        chk_diff = tk.Checkbutton(frm_titl, text='Diff.',font=BF,variable=self.diffplot)
+        chk_diff.pack(side=tk.RIGHT,padx=0)
+        
+        # Log Plot
+        self.logplot = tk.IntVar(frm_titl,0)
+        chk_log = tk.Checkbutton(frm_titl, text='Log',font=BF,variable=self.logplot)
+        chk_log.pack(side=tk.RIGHT,padx=0)
         
         frm_opt = tk.Frame(frame)
         frm_opt.pack(fill=tk.X)
@@ -2187,9 +2201,14 @@ class I16_Peak_Analysis:
         
         # Seet scan numbers
         first = self.first.get()
-        last = self.last.get()
+        last = eval(self.last.get())
         step = self.step.get()
-        scans = range(first,last,step)
+        
+        if last > pp.latest(): 
+            last = pp.latest()
+            self.last.set(last)
+        
+        scans = range(first,last+1,step)
         
         depvar = self.depvar.get()
         
@@ -2217,9 +2236,14 @@ class I16_Peak_Analysis:
         fit = self.fittype.get()
         test = self.peaktest.get()
         
+        if pp.normby == 'none':
+            norm = False
+        else:
+            norm = True
+        
         if save == 0: save = None
         
-        pp.create_analysis_file(scanno, depvar=depvar, varx=xvar, vary=yvar, fit_type = fit,peaktest=test,savePLOT=save)
+        pp.create_analysis_file(scanno, depvar=depvar, varx=xvar, vary=yvar, fit_type = fit, peaktest=test, norm=norm, savePLOT=save)
     
     def f_adv_fit(self):
         "Start Advanced Fitting GUI"
@@ -2265,13 +2289,15 @@ class I16_Peak_Analysis:
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
+        log = self.logplot.get()
+        dif = self.diffplot.get()
         
         if pp.normby == 'none':
             norm = False
         else:
             norm = True
         
-        pp.plotscan(scanno,varx=xvar,vary=yvar,norm=norm,labels=depvar,save=save)
+        pp.plotscan(scanno,varx=xvar,vary=yvar,norm=norm,logplot=log,diffplot=dif,labels=depvar,save=save)
         plt.show()
     
     def f_btn_3D(self):
@@ -2292,13 +2318,14 @@ class I16_Peak_Analysis:
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
+        log = self.logplot.get()
         
         if pp.normby == 'none':
             norm = False
         else:
             norm = True
         
-        pp.plotscans3D(scanno,varx=xvar,vary=yvar,depvar=depvar,save=save)
+        pp.plotscans3D(scanno,varx=xvar,vary=yvar,depvar=depvar,norm=norm,logplot=log,save=save)
         plt.show()
     
     def f_btn_2D(self):
@@ -2319,13 +2346,14 @@ class I16_Peak_Analysis:
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
+        log = self.logplot.get()
         
         if pp.normby == 'none':
             norm = False
         else:
             norm = True
         
-        pp.plotscans2D(scanno,varx=xvar,vary=yvar,depvar=depvar,save=save)
+        pp.plotscans2D(scanno,varx=xvar,vary=yvar,depvar=depvar,norm=norm,logplot=log,save=save)
         plt.show()
     
     def f_btn_surf(self):
@@ -2346,13 +2374,14 @@ class I16_Peak_Analysis:
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
+        log = self.logplot.get()
         
         if pp.normby == 'none':
             norm = False
         else:
             norm = True
         
-        pp.plotscansSURF(scanno,varx=xvar,vary=yvar,depvar=depvar,save=save)
+        pp.plotscansSURF(scanno,varx=xvar,vary=yvar,depvar=depvar,logplot=log,norm=norm,save=save)
         plt.show()
     
     def f_btn_fit(self):
@@ -2378,11 +2407,16 @@ class I16_Peak_Analysis:
         fit = self.fittype.get()
         test = self.peaktest.get()
         
+        if pp.normby == 'none':
+            norm = False
+        else:
+            norm = True
+        
         if save == 0: save = None
         
-        print( 'fit,err = pp.fit_scans(scannos,vary={},depvar={},peaktest={},fit_type={},saveFIT={},savePLOT={})'.format(yvar,depvar,test,fit,save,save) )
+        print( 'fit,err = pp.fit_scans(scannos,vary={},depvar={},peaktest={},fit_type={},norm={},saveFIT={},savePLOT={})'.format(yvar,depvar,test,fit,norm,save,save) )
         fit,err = pp.fit_scans(scanno,varx=xvar,vary=yvar,depvar=depvar,
-                               peaktest=test,fit_type=fit,
+                               peaktest=test,fit_type=fit,norm=norm,
                                saveFIT=save,savePLOT=save)
         plt.show()
 
@@ -2923,10 +2957,15 @@ class I16_Advanced_Fitting:
         scannos = np.array(self.scan_nos)
         scannos = scannos[np.where(self.Active)]
         
+        if pp.normby == 'none':
+            norm = False
+        else:
+            norm = True
+        
         for n in range(len(scannos)):
             print( n,scannos[n],masks[n] )
         
-        pp.fit_scans(scannos,dependent,yvar,xvar,fit_type,bkg_type,peaktest,abscor=None,plot='all',show_fits=True,
+        pp.fit_scans(scannos,dependent,yvar,xvar,fit_type,bkg_type,peaktest,abscor=None,norm=norm,plot='all',show_fits=True,
                      mask_cmd=self.Masks,estvals=None,xrange=xrange,sortdep=True,Nloop=Nloop, Binit=Binit, Tinc=Tinc, 
                      change_factor=Change, converge_max=Converge, min_change=0.01,savePLOT=save,saveFIT=save)
         plt.show()
@@ -2969,9 +3008,14 @@ class I16_Advanced_Fitting:
         Converge = self.Converge.get()
         Debug = self.Debug.get()
         
+        if pp.normby == 'none':
+            norm = False
+        else:
+            norm = True
+        
         if save == 0: save = None
         
-        pp.create_analysis_file(scannos,depvar,yvar,xvar,fit_type,bkg_type,peaktest,abscor=None,plot='all',show_fits=True,
+        pp.create_analysis_file(scannos,depvar,yvar,xvar,fit_type,bkg_type,peaktest,abscor=None,norm=norm,plot='all',show_fits=True,
                                 mask_cmd=masks,estvals=None,xrange=xrange,sortdep=True,Nloop=Nloop, Binit=Binit, Tinc=Tinc, 
                                 change_factor=Change, converge_max=Converge, min_change=0.01,savePLOT=save,saveFIT=save)
     

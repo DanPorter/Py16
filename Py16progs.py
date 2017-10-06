@@ -71,8 +71,8 @@ Functions:
     str = stfm(val,err)
     
 
-Version 2.9
-Last updated: 01/08/17
+Version 3.0
+Last updated: 06/10/17
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -96,6 +96,8 @@ Version History:
 13/06/17 2.7    Added getmeta() function
 24/07/17 2.8    Added d.metadata.hkl_str, fixing incorrect position bug. Various other fixes.
 01/08/17 2.9    Added check for large pilatus arrays.
+02/10/17 2.9    Added various misc functions, other bugs fixed
+06/10/17 3.0    Added pixel2hkl functions, incluing plots, other bug fixes
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -119,6 +121,7 @@ import glob # find files
 import re # regular expressions
 import psutil # get RAM available
 import datetime # Dates and times
+import time # For timing
 import tempfile # Find system temp directory
 import numpy as np
 #import scisoftpy as dnp # Make sure this is in your python path
@@ -156,14 +159,16 @@ error_func = lambda x: np.sqrt(np.abs(x)+0.1) # Define how the error on each int
 exp_ring_current = 300.0 # Standard ring current for current experiment for normalisation
 exp_monitor = 800.0 # Standard ic1monitor value for current experiment for normalisation
 normby = 'rc' # Incident beam normalisation option: 'rc','ic1' or 'none'
-dont_normalise = ['Ta','Tb','Tc','Td','ic1monitor','rc']
+dont_normalise = ['Ta','Tb','Tc','Td','ic1monitor','rc','Cmes','Vmes','Rmes']
 detectors = ['APD','sum','maxval'] # error bars are only calculated for counting detectors
+default_sensor = 'Ta'
 
 "----------------------------Pilatus Parameters---------------------------"
 #pil_centre = [103,244] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
 pil_centre = [104,205] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
 hot_pixel = 2**20-100 # Pixels on the pilatus greater than this are set to the intensity chosen by dead_pixel_func
 peakregion=[7,153,186,332] # Search for peaks within this area of the detector [min_y,min_x,max_y,max_x]
+pilpara=[119.536,1904.17,44.4698,0.106948,-0.738038,412.19,-0.175,-0.175] # pilatus position parameters for pixel2hkl
 dead_pixel_func = np.median # Define how to choose the replaced intensity for hot/broken pixels 
 pil_max_size = psutil.virtual_memory()[1]*0.5 # Maximum volume size that will be loaded. 1e8~1679*1475*41 -> 41 points of pil2M, ~ 800MB
 # pilatus_dead_pixels = np.array([[101, 244],
@@ -324,9 +329,13 @@ def readscan(num):
     d.ScanTime = d.TimeSec - d.TimeSec[0]
     " Add a hkl string"
     d.metadata.hkl_str = scanhkl(d)
+    " Add a temperature string"
+    d.metadata.temperature = scantemp(d,default_sensor)
     " Correct psi values"
     if d.metadata.psi < -1000: d.metadata.psi = 0.0
     if d.metadata.psi == 'Unavailable': d.metadata.psi = 0.0
+    " Array items"
+    d.scannables = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
     " Update keys"
     d.update(d.__dict__)
     d.metadata.update(d.metadata.__dict__)
@@ -571,6 +580,9 @@ def getmeta(nums=None,field='Energy'):
             Any scans that do not contain field are returned 0
     """
     
+    if type(nums) is int:
+        nums = [nums]
+    
     # Prepare output array
     metavals = np.zeros(len(nums))
     
@@ -588,6 +600,8 @@ def getmeta(nums=None,field='Energy'):
             continue
         
         metavals[n] = val
+    if len(metavals) == 1:
+        metavals = metavals[0]
     return metavals
 
 def getmetas(nums=[0],fields=['Energy']):
@@ -695,10 +709,8 @@ def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,abscor=None,save=
                 y = getattr(d,vary)
             elif vary in d.metadata.keys():
                 yval = getattr(d.metadata,vary)
-                print(n,num,yval)
                 if vary == 'psi' and yval < 0:
                     yval = yval+360.0
-                print(yval)
                 y = np.ones(scn_points)*yval
             else:
                 print( 'ERROR: Scan ',num,' contains no ',vary,' data' )
@@ -939,6 +951,285 @@ def pilroi(vol,ROIcen=None,ROIsize=[31,31],disp=False):
     
     return ROI_sum,ROI_maxval,ROI_bkg
 
+def pixel2hkl(num,detdim=[195,487],UB=None):
+    """
+    Generate hkl coordinates of detector pixel positions
+      HHH,KKK,LLL = pixel2hkl(#/d, detdim,UB)
+      
+      detdim = detector dimesions def=[195,487] (Pilatus 100K)
+      UB = orientation matrix, def=None (uses UB stored in metadata)
+    
+    Uses the pilatus parameters local:"pilpara" to define detector distance, centre etc.
+        pilpara=[119.536,1904.17,44.4698,0.106948,-0.738038,412.19,-0.175,-0.175]
+    
+    Code copied and adapted from Alessandro's readpil.hklmatrix()
+    
+    Only works on delta, gam, eta, chi, phi scans - not energy or hkl scans!
+    """
+    
+    "---Handle inputs---"
+    if num is None:
+        num = latest()
+    
+    "---Load data---"
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    varx = auto_varx(d)
+    numimag = len(d.path)
+    m = d.metadata
+    scan_arrays = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
+    pi=np.pi
+    t1=time.clock()
+    
+    if varx not in ['delta','gam','eta','mu','chi','phi']:
+        print("Doesnt work on this type of scan!")
+        return
+    
+    # Rotation functions
+    def R_x_r(alpha):
+       "right rotation about x"
+       alpha = np.float(alpha)
+       ALPHA=np.matrix([[1.0, 0.0, 0.0],[0.0, np.cos(alpha),-np.sin(alpha)], [0.0, np.sin(alpha), np.cos(alpha)]])
+       return ALPHA
+    
+    def R_y_r(alpha):
+       "right rotation about y"
+       alpha = np.float(alpha)
+       ALPHA=np.matrix([[np.cos(alpha),0.0, np.sin(alpha)],[0.0, 1.0, 0.0], [-np.sin(alpha), 0.0, np.cos(alpha)]])
+       return ALPHA
+    
+    def R_z_l(alpha):
+       "left rotation about z"
+       alpha = np.float(alpha)
+       ALPHA=np.matrix([[np.cos(alpha),np.sin(alpha), 0.0],[-np.sin(alpha), np.cos(alpha), 0.0], [0.0, 0.0, 1.0]])
+       return ALPHA
+    
+    # detector  and energy initialization
+    #indipendent from the scan type
+    temp=np.ones((numimag,1))
+    H=np.ones([numimag, detdim[0], detdim[1]])
+    K=np.ones([numimag, detdim[0], detdim[1]])
+    L=np.ones([numimag, detdim[0], detdim[1]])
+    
+    wl=12.39842/m.Energy
+    
+    ni=pilpara[0] 
+    nj=pilpara[1] 
+    delp=pilpara[2] 
+    gamp=pilpara[3] 
+    pSi=pilpara[4] 
+    ndist=pilpara[5]
+    x_pixel=pilpara[6] 
+    y_pixel=pilpara[7]
+    
+    x=np.matrix([1,0,0]).transpose()
+    y=np.matrix([0,1,0]).transpose()
+    z=np.matrix([0,0,1]).transpose()
+    
+    rotgammaprime=R_x_r(gamp*pi/180)
+    rotdeltaprime=R_z_l(delp*pi/180)
+    
+    
+    n0=rotgammaprime*rotdeltaprime*y*ndist
+    n0=n0.transpose()
+    
+    #UB initialization 
+    if UB==None:
+        UB=np.matrix([[m.UB11,m.UB12,m.UB13],[m.UB21,m.UB22,m.UB23],[m.UB31,m.UB32,m.UB33]])
+        invUB=UB.I
+    else:
+        invUB=np.linalg.inv(UB)
+    
+    
+    Ex=np.cross(x.transpose(),n0)/np.linalg.linalg.norm(np.cross(x.transpose(),n0))*x_pixel;
+    Ey=np.cross(n0,Ex)/np.linalg.linalg.norm(np.cross(n0,Ex))*y_pixel;  
+    
+    Dx0=Ex*np.cos(pSi*pi/180)-Ey*np.sin(pSi*pi/180);
+    Dy0=Ex*np.sin(pSi*pi/180)+Ey*np.cos(pSi*pi/180);
+    
+    #initialization HHH,KKK,LLL matrices
+    
+    HHH=np.arange(0,detdim[0]*detdim[1]*numimag,1,float).reshape(detdim[0],detdim[1],numimag)
+    KKK=np.arange(0,detdim[0]*detdim[1]*numimag,1,float).reshape(detdim[0],detdim[1],numimag)
+    LLL=np.arange(0,detdim[0]*detdim[1]*numimag,1,float).reshape(detdim[0],detdim[1],numimag)
+    
+    #inizialization of arrays in the single image
+    #~ PiPj=np.arange(0,detdim[0]*detdim[1],1,float).reshape(detdim[0],detdim[1])
+    Pjg,Pig=np.meshgrid(range(0,detdim[1],1),range(0,detdim[0],1))
+    
+    normP=np.arange(0,detdim[0]*detdim[1],1,float).reshape(detdim[0],detdim[1])
+    nval=np.arange(0,detdim[0]*detdim[1],1,float).reshape(detdim[0],detdim[1])
+    values=np.arange(0,detdim[0]*detdim[1]*3,1,float).reshape(detdim[0],detdim[1],3)
+    khat=np.arange(0,detdim[0]*detdim[1]*3,1,float).reshape(detdim[0],detdim[1],3)
+    k=np.arange(0,detdim[0]*detdim[1]*3,1,float).reshape(detdim[0],detdim[1],3)    
+    
+    #######################################
+    ##Rotation Matrices - pre-calculation##
+    #######################################
+    floatsdet=False
+    floatschiphi=False
+    
+    rotdelta=R_z_l((m.delta-abs(m.delta_axis_offset))*pi/180)
+    rotgamma=R_x_r(m.gam*pi/180)
+    roteta=R_z_l(m.eta*pi/180)
+    rotmu=R_x_r(m.mu*pi/180)
+    rotchi=R_y_r(m.chi*pi/180)
+    rotphi=R_z_l(m.phi*pi/180)
+    rotchiphi=rotchi*rotphi
+    
+    # Not chi or phi scan
+    if 'chi' not in scan_arrays and 'phi' not in scan_arrays:
+        floatschiphi=True
+    
+    # Not delta or gam scan - pre-calculate matrices for speed
+    if 'delta' not in scan_arrays and 'gam' not in scan_arrays:
+        # Calculate the final wavevector, k
+        floatsdet=True
+        n=rotgamma*rotdelta*n0.transpose();
+        Dx=rotgamma*rotdelta*Dx0.transpose();
+        Dy=rotgamma*rotdelta*Dy0.transpose();
+        
+        nt=n.transpose()
+        Dxt=Dx.transpose()
+        Dyt=Dy.transpose()
+        
+        temp1=((Pig-ni).reshape(detdim[0],detdim[1]).repeat(3)).reshape(detdim[0],detdim[1],3)*np.array(Dxt)
+        temp2=(Pjg-nj).repeat(3).reshape(detdim[0],detdim[1],3)*np.array(Dyt)+np.array(nt)
+        values=temp1+temp2
+        
+        nval=np.sqrt(values[:,:,0]**2+values[:,:,1]**2+values[:,:,2]**2)
+        
+        for indice in [0,1,2]:
+            values[:,:,indice]=values[:,:,indice]/nval;
+        
+        Phat_m_y=-values
+        Phat_m_y[:,:,1]=Phat_m_y[:,:,1]+1
+        normP=np.sqrt(Phat_m_y[:,:,0]**2+Phat_m_y[:,:,1]**2+Phat_m_y[:,:,2]**2)
+        
+        for indice in [0,1,2]:
+            khat[:,:,indice]=Phat_m_y[:,:,indice]/normP
+        
+        for indice in [0,1,2]:
+            k[:,:,indice]=-khat[:,:,1]*2/wl*khat[:,:,indice]
+    
+    ############################
+    ##Rotation Matrices - Scan##
+    ############################
+    for index_r in range(numimag):
+        # delta or gam move:
+        if 'gam' in scan_arrays: 
+            rotgamma=R_x_r(d.gam[index_r]*pi/180)
+        if 'delta' in scan_arrays: 
+            rotdelta=R_z_l((d.delta[index_r]-abs(d.delta_axis_offset[index_r]))*pi/180) 
+        if floatsdet is False:
+            # This is identical to the part above, except rotdelta or rotgamma changes on each iteration
+            # Calculate the final wavevector, k
+            n=rotgamma*rotdelta*n0.transpose();
+            Dx=rotgamma*rotdelta*Dx0.transpose();
+            Dy=rotgamma*rotdelta*Dy0.transpose();
+            
+            nt=n.transpose()
+            Dxt=Dx.transpose()
+            Dyt=Dy.transpose()
+            
+            temp1=((Pig-ni).reshape(detdim[0],detdim[1]).repeat(3)).reshape(detdim[0],detdim[1],3)*np.array(Dxt)
+            temp2=(Pjg-nj).repeat(3).reshape(detdim[0],detdim[1],3)*np.array(Dyt)+np.array(nt)
+            values=temp1+temp2
+            
+            nval=np.sqrt(values[:,:,0]**2+values[:,:,1]**2+values[:,:,2]**2)
+            
+            for indice in [0,1,2]:
+                values[:,:,indice]=values[:,:,indice]/nval
+            
+            Phat_m_y=-values
+            Phat_m_y[:,:,1]=Phat_m_y[:,:,1]+1;
+            normP=np.sqrt(Phat_m_y[:,:,0]**2+Phat_m_y[:,:,1]**2+Phat_m_y[:,:,2]**2)
+            
+            for indice in [0,1,2]:
+                khat[:,:,indice]=Phat_m_y[:,:,indice]/normP
+            
+            for indice in [0,1,2]:
+                k[:,:,indice]=-khat[:,:,1]*2/wl*khat[:,:,indice]
+        
+        # change the rotation matrices for the current scan
+        if 'eta' in scan_arrays:
+            roteta=R_z_l(d.eta[index_r]*pi/180) 
+        if 'mu' in scan_arrays: 
+            rotmu=R_x_r(d.mu[index_r]*pi/180)
+        if 'phi' in scan_arrays: 
+            rotphi=R_z_l(d.phi[index_r]*pi/180)
+        if 'chi' in scan_arrays: 
+            rotchi=R_y_r(d.chi[index_r]*pi/180)
+        if floatschiphi is not True:
+            rotchiphi=rotchi*rotphi
+        
+        # Generate the general rotation matrix, then calculate the hkl mesh
+        Z=rotmu*(roteta*(rotchiphi))
+        invUBinvZ=invUB*Z.I;
+        HHH[:,:,index_r]=invUBinvZ[0,0]*k[:,:,0] + invUBinvZ[0,1]*k[:,:,1] + invUBinvZ[0,2]*k[:,:,2]
+        KKK[:,:,index_r]=invUBinvZ[1,0]*k[:,:,0] + invUBinvZ[1,1]*k[:,:,1] + invUBinvZ[1,2]*k[:,:,2];
+        LLL[:,:,index_r]=invUBinvZ[2,0]*k[:,:,0] + invUBinvZ[2,1]*k[:,:,1] + invUBinvZ[2,2]*k[:,:,2];
+    
+    t2=time.clock()
+    print("time spent generating hkl positions={}".format(t2-t1))
+    return HHH,KKK,LLL
+
+def pixel2xyz(num,detdim=[195,487]):
+    """
+    Generate cartesian coordinates of detector pixel positions, in A-1
+      XXX,YYY,ZZZ = pixel2xyz(#/d, detdim)
+      
+      detdim = detector dimesions def=[195,487] (Pilatus 100K)
+    
+    Uses the pilatus parameters local:"pilpara" to define detector distance, centre etc.
+        pilpara=[119.536,1904.17,44.4698,0.106948,-0.738038,412.19,-0.175,-0.175]
+    
+    Code copied and adapted from Alessandro's readpil.hklmatrix()
+    
+    Only works on delta, gam, eta, chi, phi scans - not energy or hkl scans!
+    """
+    
+    UB = np.eye(3)/(2*np.pi) # B matrix if a/b/c=2pi
+    XXX,YYY,ZZZ = pixel2hkl(num,detdim,UB)
+    return XXX,YYY,ZZZ
+
+def pixel2tth(num,detdim=[195,487],centre_only=False):
+    """
+    Generate two-theta coordinates of detector pixel positions
+      TTH,INT = pixel2hkl(#/d, detdim)
+      
+      detdim = detector dimesions def=[195,487] (Pilatus 100K)
+    
+    Uses the pilatus parameters local:"pilpara" to define detector distance, centre etc.
+        pilpara=[119.536,1904.17,44.4698,0.106948,-0.738038,412.19,-0.175,-0.175]
+    
+    To bin the data, use: 
+        bin_tth,bint_int = bindata(TTH,INT,0.01) 
+    
+    Only works on delta, gam, eta, chi, phi scans - not energy or hkl scans!
+    """
+    
+    XXX,YYY,ZZZ = pixel2xyz(num,detdim)
+    Qmag = np.sqrt(XXX**2 + YYY**2 + ZZZ**2)
+    
+    TTH = q2tth(Qmag,getmeta(num,'Energy'))
+    vol = getvol(num)
+    
+    if centre_only:
+        cen = pil_centre[0]
+        TTH = TTH[cen-10:cen+10,:,:]
+        vol = vol[cen-10:cen+10,:,:]
+    
+    TTH = TTH.flatten()
+    vol = vol.flatten()
+    sortindex = np.argsort(TTH)
+    TTH = TTH[sortindex]
+    vol = vol[sortindex]
+    
+    return TTH,vol
 
 "------------------------Experiment Check Functions-----------------------"
 
@@ -1563,6 +1854,20 @@ def scanwl(num):
     wl = lam/A
     return wl
 
+def scanfile(num):
+    "Returns the full file name of scan #num"
+    
+    if os.path.isdir(filedir) == False: 
+        print( "I can't find the directory: {}".format(filedir) )
+        return None
+    
+    if num < 1: 
+        if latest() is None: return None
+        num = latest()+num
+    
+    file = os.path.join(filedir, '%i.dat' %num)
+    return file
+
 def prend(start=0,end=None):
     "Calculate the end time of a run"
     
@@ -2022,7 +2327,7 @@ def loadscan(num,vary=None):
     return x,y,dy,varx,vary,ttl
 
 def create_analysis_file(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='flat',peaktest=1,
-                  abscor=None,plot='all',show_fits=True,mask_cmd=None,estvals=None,xrange=None,sortdep=True,
+                  norm=True,abscor=None,plot='all',show_fits=True,mask_cmd=None,estvals=None,xrange=None,sortdep=True,
                   Nloop=10, Binit=1e-5, Tinc=2, change_factor=0.5, converge_max=100, min_change=0.01,
                   savePLOT=False,saveFIT=False):
     """
@@ -2083,6 +2388,7 @@ def create_analysis_file(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',
         f.write('dp.exp_monitor = {}\n'.format(exp_monitor))
         f.write('dp.normby = \'{}\'\n'.format(normby))
         f.write('dp.pil_centre = {}\n'.format(pil_centre))
+        f.write('dp.peakregion = {}\n'.format(peakregion))
         f.write('dp.exp_title = \'{}\'\n\n'.format(exp_title))
         
         # Scan numbers
@@ -2106,7 +2412,7 @@ def create_analysis_file(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',
         f.write('mask_cmd = {}\n'.format(mask_cmd))
         f.write('estvals = {}\n'.format(str(estvals)))
         f.write('fitopt = dict(depvar={},vary=\'{}\',varx=\'{}\',fit_type = \'{}\',bkg_type=\'{}\',peaktest={},\n'.format(depvar,vary,varx,fit_type,bkg_type,peaktest))
-        f.write('              abscor={},plot=\'{}\',show_fits={},mask_cmd=mask_cmd,estvals=estvals,xrange={},sortdep={},\n'.format(abscor,plot,show_fits,xrange,sortdep))
+        f.write('              norm={},abscor={},plot=\'{}\',show_fits={},mask_cmd=mask_cmd,estvals=estvals,xrange={},sortdep={},\n'.format(norm,abscor,plot,show_fits,xrange,sortdep))
         f.write('              Nloop={}, Binit={}, Tinc={}, change_factor={}, converge_max={}, min_change={},\n'.format(Nloop,Binit,Tinc,change_factor,converge_max,min_change))
         f.write('              savePLOT={},saveFIT={})\n\n'.format(savePLOT,saveFIT))
         f.write('fit,err = dp.fit_scans(scans,**fitopt)\n\n')
@@ -2209,7 +2515,7 @@ def clear_prev_exp():
 
 
 def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='flat',peaktest=1,
-                  abscor=None,plot='all',show_fits=True,mask_cmd=None,estvals=None,xrange=None,sortdep=True,
+                  norm=True,abscor=None,plot='all',show_fits=True,mask_cmd=None,estvals=None,xrange=None,sortdep=True,
                   Nloop=10, Binit=1e-5, Tinc=2, change_factor=0.5, converge_max=100, min_change=0.01,
                   savePLOT=False,saveFIT=False):
     """ 
@@ -2333,7 +2639,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
     for n,run in enumerate(scans):
         d = readscan(run)
         if d is None: print( 'File for run #{} does not exist!'.format(run) ); return
-        x,y,dy,labvarx,labvary,ttl = getdata(d,vary=vary,abscor=abscor)[:6]
+        x,y,dy,labvarx,labvary,ttl = getdata(d,vary=vary,norm=norm,abscor=abscor)[:6]
         
         if mask_cmd is not None: x,y,dy = maskvals(x,y,dy,mask_cmd[n])
             
@@ -3087,7 +3393,7 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
                  verticalalignment   = 'top',
                  multialignment      = 'left')
             
-        plt.legend(loc='best')
+        plt.legend(loc='best', frameon=False)
         #plt.legend(loc='upper left')
         #plt.legend(loc='upper right')
         
@@ -3145,7 +3451,7 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
                  verticalalignment   = 'top',
                  multialignment      = 'left')
         
-        plt.legend(loc='best')
+        plt.legend(loc='best', frameon=False)
         #plt.legend(loc='upper left')
         #plt.legend(loc='upper right')
     
@@ -3408,7 +3714,7 @@ def plotscans(scans=[],depvar=None,vary='',varx='',fit=None,norm=True,logplot=Fa
             saveplot(ttl)
     return
 
-def plotscans3D(scans,depvar='Ta',vary='',varx='',logplot=False,save=False):
+def plotscans3D(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=False):
     " Plot 3D eta scans of energy or temp dependence"
     
     "---Create Figure---"
@@ -3425,13 +3731,13 @@ def plotscans3D(scans,depvar='Ta',vary='',varx='',logplot=False,save=False):
             depvar = cmds[1]
         if varx not in d.keys():
             varx = cmds[5]
-        x,y,dy,labvarx,labvary,ttl,d = getdata(scans,varx=varx,vary=vary)
-        z,y2,dy2,labvarx2,labvary2,ttl2,d2 = getdata(scans,varx=depvar,vary=vary)
+        x,y,dy,labvarx,labvary,ttl,d = getdata(scans,varx=varx,vary=vary,norm=norm)
+        z,y2,dy2,labvarx2,labvary2,ttl2,d2 = getdata(scans,varx=depvar,vary=vary,norm=norm)
         ax.plot(z,x,y)
         scans = [scans]
     else:
         for n,run in enumerate(scans):
-            x,y,dy,labvarx,labvary,ttl,d = getdata(scans[n],vary=vary,varx=varx)
+            x,y,dy,labvarx,labvary,ttl,d = getdata(scans[n],vary=vary,varx=varx,norm=norm)
             if logplot==True: 
                 y = np.log10(y)
                 labvary='log10('+labvary+')'
@@ -3460,17 +3766,22 @@ def plotscans3D(scans,depvar='Ta',vary='',varx='',logplot=False,save=False):
         else:
             saveplot('{0} Scans {1:1.0f}-{2:1.0f} 3D'.format(depvar,scans[0],scans[-1]))
 
-def plotscans2D(scans,depvar='Ta',vary='',varx='',logplot=False,save=False):
+def plotscans2D(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=False):
     " Plot pcolor of multiple scans"
     
     "-----Loading-----"
-    x,y,z,varx,vary,varz,ttl = joindata(scans,varx,depvar,vary)
+    x,y,z,varx,vary,varz,ttl = joindata(scans,varx,depvar,vary,norm)
     
     # Create Plot
     fig = plt.figure(figsize=[14,12])
     ax = plt.subplot(1,1,1)
-    plt.pcolor(x,y,z)
-    plt.axis('image')
+    if logplot:
+        plt.pcolor(x,y,np.log10(z))
+        varz='log10('+varz+')'
+    else:
+        plt.pcolor(x,y,z)
+    #plt.axis('image')
+    plt.axis('tight')
     cb = plt.colorbar()
     # Axis labels
     ax.set_xlabel(varx, fontsize=18)
@@ -3485,16 +3796,20 @@ def plotscans2D(scans,depvar='Ta',vary='',varx='',logplot=False,save=False):
         else:
             saveplot('{0} Scans {1:1.0f}-{2:1.0f} 2D'.format(depvar,scans[0],scans[-1]))
     
-def plotscansSURF(scans,depvar='Ta',vary='',varx='',logplot=False,save=False):
+def plotscansSURF(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=False):
     " Plot surface of multiple scans"
     
     "-----Loading-----"
-    x,y,z,varx,vary,varz,ttl = joindata(scans,varx,depvar,vary)
+    x,y,z,varx,vary,varz,ttl = joindata(scans,varx,depvar,vary,norm)
     
     # Create Plot
     fig = plt.figure(figsize=[14,12])
     ax = plt.subplot(1,1,1,projection='3d')
-    surf = ax.plot_surface(y,x,z,rstride=1,cstride=1, cmap=plt.cm.jet)
+    if logplot:
+        surf = ax.plot_surface(y,x,np.log10(z),rstride=1,cstride=1, cmap=plt.cm.jet)
+        varz='log10('+varz+')'
+    else:
+        surf = ax.plot_surface(y,x,z,rstride=1,cstride=1, cmap=plt.cm.jet)
     #cmap=plt.cm.ScalarMappable(cmap=plt.cm.jet)
     #cmap.set_array(slice)
     plt.axis('tight')
@@ -3551,6 +3866,102 @@ def plotpilSURF(num,varx='',ROIcen=None,wid=10,save=False):
             saveplot(save)
         else:
             saveplot('{0} PILSURF'.format(num))
+
+def plotpilhkl(num):
+    """
+    Plot pilatus frames as 3D surface in reciprocal space
+       plotpilhkl(num)
+    
+    pixel2hkl used to generate reciprocal space coordinates, using UB matrix stored
+    in metadata. Detector position calibration defined by locals: pilpara
+    
+    The images are rebinned to allow fast plotting.
+    """
+    
+    # Load hkl matrices
+    hhh,kkk,lll = pixel2hkl(num)
+    
+    # Load pilatus volume
+    vol = getvol(num)
+    vol = rebin(vol,[2,2,1])
+    
+    cm = plt.get_cmap('jet')
+    nframes = vol.shape[2]
+    slice_h = hhh[::2,::2,nframes//2]
+    slice_k = kkk[::2,::2,nframes//2]
+    slice_l = lll[::2,::2,nframes//2]
+    slice_v = vol[:,:,nframes//2]
+    slice_c = cm(slice_v)
+    
+    # Create Plot
+    fig = plt.figure(figsize=[14,12])
+    ax = plt.subplot(1,1,1,projection='3d')
+    surf = ax.plot_surface(slice_h,slice_k,slice_l,rstride=2,cstride=2, facecolors=slice_c)
+    #cmap=plt.cm.ScalarMappable(cmap=plt.cm.jet)
+    #cmap.set_array(slice)
+    plt.axis('tight')
+    ax.view_init(30, 60) # elev, azim
+    #cb = plt.colorbar()
+    
+    ttl = scantitle(num)
+    labels(ttl,'h','k','l',size='normal')
+
+def plotpilxyz(num):
+    """
+    Plot pilatus frames as 3D surface in wavevector-transfer space
+       plotpilxyz(num)
+    
+    pixel2xyz used to generate reciprocal space coordinates, using UB matrix stored
+    in metadata. Detector position calibration defined by locals: pilpara
+    
+    The images are rebinned to allow fast plotting.
+    """
+    
+    # Load hkl matrices
+    xxx,yyy,zzz = pixel2xyz(num)
+    
+    # Load pilatus volume
+    vol = getvol(num)
+    vol = rebin(vol,[2,2,1])
+    
+    cm = plt.get_cmap('jet')
+    nframes = vol.shape[2]
+    slice_x = xxx[::2,::2,nframes//2]
+    slice_y = yyy[::2,::2,nframes//2]
+    slice_z = zzz[::2,::2,nframes//2]
+    slice_v = vol[:,:,nframes//2]
+    slice_c = cm(slice_v)
+    
+    # Create Plot
+    fig = plt.figure(figsize=[14,12])
+    ax = plt.subplot(1,1,1,projection='3d')
+    surf = ax.plot_surface(slice_x,slice_y,slice_z,rstride=2,cstride=2, facecolors=slice_c)
+    #cmap=plt.cm.ScalarMappable(cmap=plt.cm.jet)
+    #cmap.set_array(slice)
+    plt.axis('tight')
+    ax.view_init(30, 60) # elev, azim
+    #cb = plt.colorbar()
+    
+    ttl = scantitle(num)
+    labels(ttl,'Q$_x$ [$\AA^{-1}$]','Q$_y$ [$\AA^{-1}$]','Q$_z$ [$\AA^{-1}$]',size='normal')
+
+def plotpiltth(num,binsep=0.1,centre_only=False):
+    """
+    Plot binned two-theta representation of pilatus frames
+       plotpiltth(num)
+    
+    pixel2tth used to generate reciprocal space coordinates, using UB matrix stored
+    in metadata. Detector position calibration defined by locals: pilpara
+    """
+    
+    # Load hkl matrices
+    tth,ival = pixel2tth(num,centre_only=centre_only)
+    tth,ival = bindata(tth,ival,binsep)
+    
+    plt.figure(figsize=[10,8])
+    plt.plot(tth,ival,'-o',lw=2,ms=12)
+    ttl = scantitle(num)
+    labels(ttl,'Two-Theta [Deg]','Pilatus Intensity',size='normal')
 
 
 "-----------------------Peak Fitting Functions----------------------------"
@@ -4485,20 +4896,6 @@ def ispeak(Y,dY=None,test = 1,disp=False,return_rat=False):
 
 "----------------------------Misc Functions-------------------------------"
 
-def scanfile(num):
-    "Returns the full file name of scan #num"
-    
-    if os.path.isdir(filedir) == False: 
-        print( "I can't find the directory: {}".format(filedir) )
-        return None
-    
-    if num < 1: 
-        if latest() is None: return None
-        num = latest()+num
-    
-    file = os.path.join(filedir, '%i.dat' %num)
-    return file
-
 def abscor(eta=0,chi=90,delta=0,mu=0,gamma=0,u=1.0,disp=False,plot=False):
     """
     Calculate absorption correction
@@ -4708,9 +5105,127 @@ def labels(ttl=None,xvar=None,yvar=None,zvar=None,size='Normal'):
         plt.gca().set_ylabel(yvar,fontsize=lab)
     
     if zvar != None:
-        # Don't think this works, use ax.set_zaxis
-        plt.gca().set_xlabel(zvar,fontsize=lab)
+        for t in plt.gca().zaxis.get_major_ticks(): t.label.set_fontsize(tik)
+        plt.gca().set_zlabel(zvar,fontsize=lab)
     return
+
+def tth2d(tth,energy_kev):
+    "Converts two-theta array in degrees to d-spacing in A"
+    
+    e = 1.6021733E-19;  # C  electron charge
+    h = 6.62606868E-34; # Js  Plank consant
+    c = 299792458;      # m/s   Speed of light
+    A = 1e-10;          # m Angstrom      
+    pi = np.pi          # mmmm tasty Pi
+        
+    th = tth*pi/360 # theta in radians
+    # Calculate |Q|
+    Qmag = np.sin(th)*(1000*energy_kev)*e*4*pi/ (h*c*1e10)
+    dspace = 2*pi/Qmag
+    return dspace
+
+def tth2q(tth,energy_kev):
+    "Converts two-theta array in degrees to wavevector transfer, Q in A-1"
+    
+    e = 1.6021733E-19;  # C  electron charge
+    h = 6.62606868E-34; # Js  Plank consant
+    c = 299792458;      # m/s   Speed of light
+    A = 1e-10;          # m Angstrom      
+    pi = np.pi          # mmmm tasty Pi
+        
+    th = tth*pi/360 # theta in radians
+    # Calculate |Q|
+    Qmag = np.sin(th)*(1000*energy_kev)*e*4*pi/ (h*c*1e10)
+    return Qmag
+
+def d2tth(dspace,energy_kev):
+    "Converts array of d-spacings in A to two-theta in degrees"
+    
+    e = 1.6021733E-19;  # C  electron charge
+    h = 6.62606868E-34; # Js  Plank consant
+    c = 299792458;      # m/s   Speed of light
+    A = 1e-10;          # m Angstrom      
+    pi = np.pi          # mmmm tasty Pi
+    
+    Qmag = 2*pi/dspace
+    th = np.arcsin( Qmag*h*c*1e10 / (1000*energy_kev*e*4*pi) )
+    tth = 360*th/pi # 2-theta in radians
+    return tth
+
+def q2tth(qmag,energy_kev):
+    "Converts array of wavevector transfers in A-1 to two-theta in degrees"
+    
+    e = 1.6021733E-19;  # C  electron charge
+    h = 6.62606868E-34; # Js  Plank consant
+    c = 299792458;      # m/s   Speed of light
+    A = 1e-10;          # m Angstrom      
+    pi = np.pi          # mmmm tasty Pi
+    
+    th = np.arcsin( qmag*h*c*1e10 / (1000*energy_kev*e*4*pi) )
+    tth = 360*th/pi # 2-theta in radians
+    return tth
+
+def c2th(HKL=[0,0,1],scan=0):
+    "Calculate the 2-theta value of a reflection at the given scan's energy"
+    
+    d = readscan(scan)
+    m = d.metadata
+    a, b, c = m.a, m.b, m.c
+    alpha, beta, gam = m.alpha1, m.alpha2, m.alpha3
+    h,k,l = HKL
+    sina2 = np.sin(np.deg2rad(alpha))**2
+    sinb2 = np.sin(np.deg2rad(beta))**2
+    sing2 = np.sin(np.deg2rad(gam))**2
+    cosa = np.cos(np.deg2rad(alpha))
+    cosb = np.cos(np.deg2rad(beta))
+    cosg = np.cos(np.deg2rad(gam))
+    sin, cos = np.sin, np.cos
+    
+    x1 = h**2/(a**2*sina2)
+    x2 = 2*k*l*(cosb*cosg-cosa)/(b*c)
+    x3 = k**2/(b**2*sinb2)
+    x4 = 2*h*l*(cosa*cosg-cosb)/(a*c)
+    x5 = l**2/(c**2*sing2)
+    x6 = 2*h*k*(cosa*cosb-cosg)/(a*b)
+    x7 = 1 - cosa**2 - cosb**2 - cosg**2 + 2*cosa*cosb*cosg
+    # 1/d*2
+    dd = (x1+x2+x3+x4+x5+x6)/x7
+    # d
+    d = 1/np.sqrt(dd)
+    return d2tth(d,m.Energy)
+
+def bindata(X,Y,binsep=0.01):
+        """
+        Bins the data into bins separated by binsep. Values within the bin are summed 
+          CEN,INT = bindata(X,Y,binsep=0.01)
+        """
+        
+        t0 = time.clock()
+        
+        mxdata = np.max(X)
+        mndata = np.min(X)
+        
+        bin_edge = np.arange(mndata,mxdata+binsep,binsep)
+        bin_cen = bin_edge - binsep/2.0
+        bin_cen = bin_cen[1:] # remove unused bin
+        bin_int = np.zeros(bin_cen.shape)
+        #bin_var = np.zeros(bin_cen.shape)
+        
+        # Histogram the th values
+        bin_pos = np.digitize(X,bin_edge) - 1 # digitize indexes values from bin_edege[i-1] to bin_edge[i], hence the - 1
+        t1 = time.clock()
+        print('Digitise took {} s'.format(t1-t0))
+        
+        # Loop over binned angles and average the intensities
+        for n in range(len(bin_cen)):
+            inbin = bin_pos == n
+            bin_int[n] = np.mean(Y[inbin]) # mean
+            #bin_var[n] = np.var(Y[inbin])
+        
+        t2 = time.clock()
+        print('Bin average took {} s'.format(t2-t1))
+        
+        return bin_cen,bin_int
 
 def saveplot(name,dpi=None):
     "Saves current figure as a png in the savedir directory"
