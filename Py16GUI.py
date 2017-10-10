@@ -56,8 +56,8 @@ OPERATION:
      "Fit Peaks" - On each scan, perform a fitting routine, storing the area, width, centre, etc, 
                    plot the results and save them to a .dat file.
 
-Version 3.0
-Last updated: 06/10/17
+Version 3.1
+Last updated: 10/10/17
 
 Version History:
 07/02/16 0.9    Program created
@@ -83,6 +83,7 @@ Version History:
 01/08/17 2.9    Added check for large pilatus arrays, parameter "max array" in parameters window
 02/10/17 2.9    Added ability to turn off normalisation in multi-plots
 06/10/17 3.0    Added log plot to multiplots, plus other fixes
+10/10/17 3.1    Added I16_Meta_Display
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -140,7 +141,7 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 3.0
+Py16GUI_Version = 3.1
 
 # App Fonts
 BF= ["Times", 12]
@@ -189,6 +190,7 @@ class I16_Data_Viewer():
         plt.rcParams["savefig.directory"] = pp.savedir
         
         self.pilatus_scan = 0
+        self.extra_scannos = [] # scan numbers for multiplots
         
         frame = tk.Frame(self.root)
         frame.pack(side=tk.LEFT,anchor=tk.N)
@@ -593,9 +595,10 @@ class I16_Data_Viewer():
         self.ax1 = self.fig1.add_subplot(111)
         self.ax1.set_autoscaley_on(True)
         self.ax1.set_autoscalex_on(True)
-        self.plt1, = self.ax1.plot([1,2,3,4,5,6,7,8],[5,6,1,3,8,9,3,5],'bo-',linewidth=2)
+        self.plt1, = self.ax1.plot([1,2,3,4,5,6,7,8],[5,6,1,3,8,9,3,5],'o-',c=pp.plot_colors[0],linewidth=2)
         self.plt2, = self.ax1.plot([],[],'g:') # marker point for pilatus
-        self.pfit, = self.ax1.plot([],[],'r-',linewidth=2) # fit line
+        self.pfit, = self.ax1.plot([],[],'-',c=pp.plot_colors[-1],linewidth=2) # fit line
+        self.extra_plots = [] 
         self.ax1.set_xlabel('varx')
         self.ax1.set_ylabel('vary')
         self.ax1.set_title('Scan number',fontsize=16)
@@ -917,8 +920,8 @@ class I16_Data_Viewer():
         self.set_files()
         scanno = self.scanno.get()
         
-        self.helper.set('Scan metadata is displayed on the console (you may need to hit Enter)')
-        pp.metaprint(scanno)
+        self.helper.set('Displaying metadata in new window')
+        I16_Meta_Display(scanno)
     
     def f_popt_plot(self):
         "Plot current scan"
@@ -1505,6 +1508,7 @@ class I16_Data_Viewer():
         "Load metadata for current scan"
         
         self.pilatus_active = False
+        self.extra_scannos = []
         
         self.set_files()
         
@@ -1624,6 +1628,10 @@ class I16_Data_Viewer():
     def update_plot(self,event=None):
         "Plot metadata for current scan"
         
+        for eplt in self.extra_plots:
+            eplt.remove()
+        self.extra_plots = []
+        
         self.set_files()
         pp.normby = self.normtype.get()
         d = pp.readscan(self.scanno.get())
@@ -1681,6 +1689,21 @@ class I16_Data_Viewer():
         self.ax1.set_xlabel(varx)
         self.ax1.set_ylabel(vary)
         self.ax1.set_title('#{}'.format(self.scanno.get()),fontsize=16)
+        
+        # Multiplots
+        for n,enum in enumerate(self.extra_scannos):
+            try:
+                ex,ey,edy,evarx,evary,ettl,ed = pp.getdata(enum,varx=xvar,vary=yvar,norm=norm)
+            except AttributeError:
+                ex,ey,edy,evarx,evary,ettl,ed = pp.getdata(enum,varx='',vary='',norm=norm)
+            
+            if self.diffplot.get():
+                ey = np.abs(np.gradient(ey))
+            if self.logplot.get():
+                ey = np.log(ey)
+            col = pp.plot_colors[(n+1) %len(pp.plot_colors)]
+            epl, = self.ax1.plot(ex,ey,'-o',c=col,lw=2)
+            self.extra_plots += [epl]
         
         # Reset pilatus plot
         if self.autopilplot.get():
@@ -1861,7 +1884,7 @@ class I16_Scan_Selector:
         frame.pack(fill=tk.BOTH,expand=tk.YES)
         
         # Create scan info
-        self.scan_nos = scanrange[::-1]
+        self.scan_nos = np.array(scanrange[::-1],dtype=int)
         #self.scan_nos = pp.get_all_scannos()
         #fmt = '{cmd} | {date} | {mode:4s} {ss} {ds} {energy:5.3g}keV {temp:5.3g}K {hkl:17s} {show}{equal}{val} | {cmd}'
         if showval is None or len(showval) == 0:
@@ -1880,7 +1903,7 @@ class I16_Scan_Selector:
         scl_scany = tk.Scrollbar(frm_scan)
         scl_scany.pack(side=tk.RIGHT, fill=tk.BOTH)
         
-        self.lst_scan = tk.Listbox(frm_scan, font=HF, selectmode=tk.SINGLE,#width=40,height=30,
+        self.lst_scan = tk.Listbox(frm_scan, font=HF, selectmode=tk.EXTENDED,#tk.SINGLE,#width=40,height=30,
                                 xscrollcommand=scl_scanx.set,yscrollcommand=scl_scany.set)
         self.lst_scan.configure(exportselection=False)
         
@@ -1937,17 +1960,98 @@ class I16_Scan_Selector:
     def f_scan_select(self,event):
         "Select scan number from list box and send plot command to main window"
         
-        current = self.lst_scan.curselection()[0]
+        current = list(self.lst_scan.curselection())
         scanno = self.scan_nos[current]
         
-        self.parent.scanno.set(scanno)
+        self.parent.scanno.set(scanno[0])
         self.parent.update()
+        if len(scanno) > 1:
+            # Multi-plots
+            self.parent.extra_scannos = scanno[1:]
+            self.parent.update_plot()
+            
+            # Try to color the highlighted scans the same colors as the plot *doesn't work*
+            #col_conv={'k':"black", 'r':"red", 'g': "green", 'b':"blue", 'c':"cyan", 'y':"yellow", 'm':"magenta"}
+            #for n in range(len(current)):
+                #col=pp.plot_colors[n%len(pp.plot_colors)]
+                #self.lst_scan.config(highlightbackground=col_conv[col])
+                #self.lst_scan.itemconfig(current[n],bg=col_conv[col])
     
     def f_reload(self):
         "Closes the current selector window and reloads it"
         self.parent.scan_selector_showval = self.new_showval.get()
         self.root.destroy()
         self.parent.f_scn_sel()
+
+
+"------------------------------------------------------------------------"
+"--------------------------I16_Meta_Display------------------------------"
+"------------------------------------------------------------------------"
+class I16_Meta_Display:
+    "------------------------------------------------------------------------"
+    "--------------------------GUI Initilisation-----------------------------"
+    "------------------------------------------------------------------------"
+    def __init__(self,scanno=0):
+        # Create scan info
+        self.d = pp.readscan(scanno)
+        scanno = self.d.metadata.SRSRUN
+        
+        # Create Tk inter instance
+        self.root = tk.Tk()
+        self.root.wm_title('Metadata: #{}'.format(scanno))
+        self.root.minsize(width=300, height=400)
+        self.root.maxsize(width=800, height=800)
+        
+        #Frame
+        frame = tk.Frame(self.root)
+        frame.pack(side=tk.LEFT,anchor=tk.N)
+        
+        "---------------------------Metadata ListBox---------------------------"
+        # Eval box with scroll bar
+        frm_meta = tk.Frame(frame)
+        frm_meta.pack(side=tk.TOP,fill=tk.BOTH,expand=tk.YES)
+        
+        scl_metax = tk.Scrollbar(frm_meta,orient=tk.HORIZONTAL)
+        scl_metax.pack(side=tk.BOTTOM, fill=tk.BOTH)
+        
+        scl_metay = tk.Scrollbar(frm_meta)
+        scl_metay.pack(side=tk.RIGHT, fill=tk.BOTH)
+        
+        self.lst_meta = tk.Listbox(frm_meta, font=HF, selectmode=tk.SINGLE,width=40,height=40,
+                                xscrollcommand=scl_metax.set,yscrollcommand=scl_metay.set)
+        self.lst_meta.configure(exportselection=True)
+        
+        # Populate list box
+        for k in self.d.metadata.keys():
+            if k[0] == '_': continue # Omit _OrderedDict__root/map
+            strval = '{:>20} : {:<20}'.format(k,self.d.metadata[k])
+            self.lst_meta.insert(tk.END,strval)
+        
+        self.lst_meta.pack(side=tk.LEFT,fill=tk.BOTH,expand=tk.YES)
+        #self.lst_meta.select_set(0)
+        #self.lst_meta.bind("<<ListboxSelect>>", self.f_meta_select)
+        #print( self.lst_meta.curselection()[0] )
+        
+        scl_metax.config(command=self.lst_meta.xview)
+        scl_metay.config(command=self.lst_meta.yview)
+        
+        #self.txt_meta.config(xscrollcommand=scl_metax.set,yscrollcommand=scl_metay.set)
+        
+        "----------------------------Exit Button------------------------------"
+        frm_btn = tk.Frame(frame)
+        frm_btn.pack()
+        
+        btn_exit = tk.Button(frm_btn,text='Exit',font=BF, command=self.f_exit)
+        btn_exit.pack()
+        
+    "------------------------------------------------------------------------"
+    "--------------------------General Functions-----------------------------"
+    "------------------------------------------------------------------------"
+    
+    def f_exit(self):
+        "Closes the current metadata window"
+        self.root.destroy()
+
 
 "------------------------------------------------------------------------"
 "--------------------------I16_Peak_Analysis-----------------------------"
