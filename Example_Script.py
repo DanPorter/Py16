@@ -3,7 +3,7 @@
 # [Script Description]
 # 
 # By [User]
-# 18/08/2016
+# 23/10/2017
 
 
 "--------------Import Stuff-------------"
@@ -58,7 +58,7 @@ dp.plotscans3D(scans)
 dp.plotscansSURF(scans)
 
 # Automatic Peak Fitting & Integration
-fit,err = dp.fit_scans(scans,vary='roi1_sum',depvar='Ta',peaktest=60,fit_type='pVoight',saveFIT=None,savePLOT=None)
+fit,err = dp.fit_scans(scans,vary='roi1_sum',depvar='Ta',peaktest=1,fit_type='pVoight',plot=['all','int'],saveFIT=None,savePLOT=None)
 
 # Load fitted data:
 #fit,err = dp.load_fits(scans,depvar='Ta',fit_type='pVoight')

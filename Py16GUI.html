@@ -1,0 +1,577 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html><head><title>Python: module Py16GUI</title>
+<meta charset="utf-8">
+</head><body bgcolor="#f0f0f8">
+
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="heading">
+<tr bgcolor="#7799ee">
+<td valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial">&nbsp;<br><big><big><strong>Py16GUI</strong></big></big></font></td
+><td align=right valign=bottom
+><font color="#ffffff" face="helvetica, arial"><a href=".">index</a><br><a href="file:///C:/users/grp66007/dropbox/python/i16/py16/py16gui.py">c:\users\grp66007\dropbox\python\i16\py16\py16gui.py</a></font></td></tr></table>
+    <p><tt>Selection&nbsp;of&nbsp;graphical&nbsp;user&nbsp;interfaces&nbsp;(GUIs)&nbsp;that&nbsp;allow&nbsp;fast&nbsp;viewing&nbsp;and&nbsp;analysis&nbsp;of&nbsp;data&nbsp;<br>
+on&nbsp;the&nbsp;beamline&nbsp;I16&nbsp;at&nbsp;Diamond&nbsp;Light&nbsp;Source&nbsp;Ltd.<br>
+&nbsp;<br>
+By&nbsp;Dan&nbsp;Porter,&nbsp;PhD<br>
+Diamond<br>
+2016<br>
+&nbsp;<br>
+Usage:&nbsp;<br>
+On&nbsp;an&nbsp;I16&nbsp;workstation&nbsp;(as&nbsp;I16user)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Double&nbsp;click&nbsp;the&nbsp;shortcut&nbsp;on&nbsp;the&nbsp;desktop&nbsp;"<a href="#I16_Data_Viewer">I16_Data_Viewer</a>"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Select&nbsp;"Run&nbsp;in&nbsp;Console"<br>
+&nbsp;<br>
+On&nbsp;another&nbsp;Diamond&nbsp;workstation,&nbsp;the&nbsp;Diamond&nbsp;NX&nbsp;server&nbsp;or&nbsp;when&nbsp;remotely&nbsp;connecting:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Open&nbsp;a&nbsp;terminal<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Type:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;&nbsp;cd&nbsp;/dls_sw/i16/software/python/Py16/<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;&nbsp;module&nbsp;load&nbsp;python/ana<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;&nbsp;ipython&nbsp;-i&nbsp;--matplotlib&nbsp;tk&nbsp;Py16GUI.py<br>
+&nbsp;<br>
+On&nbsp;another&nbsp;system<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Open&nbsp;a&nbsp;terminal/&nbsp;console/&nbsp;command&nbsp;prompt<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Type:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;&nbsp;cd&nbsp;/direcotry&nbsp;of&nbsp;Py16GUI.py<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&gt;&gt;&nbsp;ipython&nbsp;-i&nbsp;--matplotlib&nbsp;tk&nbsp;Py16GUI.py<br>
+&nbsp;<br>
+Operation:<br>
+1.&nbsp;On&nbsp;running&nbsp;the&nbsp;program,&nbsp;the&nbsp;main&nbsp;GUI&nbsp;(<a href="#I16_Data_Viewer">I16_Data_Viewer</a>)&nbsp;will&nbsp;appear<br>
+2.&nbsp;Browse&nbsp;for&nbsp;the&nbsp;experimental&nbsp;and&nbsp;analysis&nbsp;directories&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;the&nbsp;experimental&nbsp;directory&nbsp;is&nbsp;where&nbsp;the&nbsp;scan&nbsp;data&nbsp;is&nbsp;stored<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;the&nbsp;analysis&nbsp;directory&nbsp;is&nbsp;where&nbsp;you&nbsp;wish&nbsp;to&nbsp;store&nbsp;any&nbsp;data&nbsp;you&nbsp;save&nbsp;or&nbsp;scripts&nbsp;you&nbsp;create<br>
+3.&nbsp;Click&nbsp;"Last"&nbsp;to&nbsp;load&nbsp;the&nbsp;latest&nbsp;data&nbsp;with&nbsp;automaticaly&nbsp;choosen&nbsp;axes<br>
+&nbsp;<br>
+More&nbsp;Operations:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Click&nbsp;"Update&nbsp;Pilatus&nbsp;Plot"&nbsp;to&nbsp;load&nbsp;the&nbsp;images&nbsp;from&nbsp;any&nbsp;area&nbsp;detector<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Click&nbsp;"Last&nbsp;Scans"&nbsp;to&nbsp;see&nbsp;a&nbsp;list&nbsp;of&nbsp;the&nbsp;last&nbsp;100&nbsp;scans&nbsp;that&nbsp;are&nbsp;selectable&nbsp;to&nbsp;plot<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Select&nbsp;a&nbsp;function&nbsp;from&nbsp;the&nbsp;"Fit"&nbsp;dropdown&nbsp;menu&nbsp;to&nbsp;apply&nbsp;a&nbsp;fit&nbsp;the&nbsp;current&nbsp;plot<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Click&nbsp;"Multiplot/&nbsp;Peak&nbsp;Analysis"&nbsp;to&nbsp;open&nbsp;the&nbsp;<a href="#I16_Peak_Analysis">I16_Peak_Analysis</a>&nbsp;GUI<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Click&nbsp;"Export&nbsp;Plot"&nbsp;to&nbsp;generate&nbsp;an&nbsp;figure&nbsp;of&nbsp;the&nbsp;current&nbsp;scan<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Click&nbsp;"Print&nbsp;Current&nbsp;Scan"&nbsp;to&nbsp;send&nbsp;an&nbsp;image&nbsp;of&nbsp;the&nbsp;current&nbsp;scan&nbsp;to&nbsp;the&nbsp;default&nbsp;printer<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Click&nbsp;"Print&nbsp;All&nbsp;Figures"&nbsp;to&nbsp;send&nbsp;all&nbsp;open&nbsp;figures&nbsp;to&nbsp;a&nbsp;single&nbsp;2x6&nbsp;page<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Click&nbsp;"Meta"&nbsp;to&nbsp;see&nbsp;a&nbsp;full&nbsp;list&nbsp;of&nbsp;metadata&nbsp;for&nbsp;this&nbsp;scan<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Tick&nbsp;the&nbsp;box&nbsp;"Live&nbsp;Mode"&nbsp;to&nbsp;automatically&nbsp;update&nbsp;the&nbsp;GUI&nbsp;every&nbsp;10s<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Click&nbsp;"Params"&nbsp;to&nbsp;change&nbsp;default&nbsp;parameters,&nbsp;such&nbsp;as&nbsp;error&nbsp;bars&nbsp;and&nbsp;temperature&nbsp;sensor<br>
+&nbsp;<br>
+Custom&nbsp;Regions&nbsp;of&nbsp;Interest:<br>
+It&nbsp;is&nbsp;possible&nbsp;to&nbsp;define&nbsp;new&nbsp;regions&nbsp;of&nbsp;interest&nbsp;on&nbsp;an&nbsp;area&nbsp;detector&nbsp;and&nbsp;plot&nbsp;these.<br>
+Note&nbsp;that&nbsp;manual&nbsp;regions&nbsp;of&nbsp;interest&nbsp;have&nbsp;hot&nbsp;and&nbsp;broken&nbsp;pixels&nbsp;set&nbsp;to&nbsp;zero.&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Select&nbsp;the&nbsp;scan<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Click&nbsp;"Update&nbsp;Pilatus&nbsp;Plot"<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Edit&nbsp;the&nbsp;"Centre"&nbsp;and&nbsp;"ROI"&nbsp;boxes&nbsp;to&nbsp;define&nbsp;the&nbsp;box&nbsp;centre&nbsp;and&nbsp;size,&nbsp;press&nbsp;enter&nbsp;to&nbsp;update&nbsp;the&nbsp;plot<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;The&nbsp;button&nbsp;"Find&nbsp;Peak"&nbsp;will&nbsp;find&nbsp;the&nbsp;largest&nbsp;pixel,&nbsp;the&nbsp;buttons&nbsp;"roi2"&nbsp;and&nbsp;"roi1"&nbsp;will&nbsp;generate&nbsp;standard&nbsp;ROIs<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;In&nbsp;the&nbsp;"Y"&nbsp;dropdown&nbsp;menu,&nbsp;choose&nbsp;"Custom&nbsp;ROI"&nbsp;to&nbsp;plot&nbsp;the&nbsp;sum&nbsp;of&nbsp;this&nbsp;ROI<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Or:&nbsp;Choose&nbsp;"ROI&nbsp;-&nbsp;bkg"&nbsp;to&nbsp;plot&nbsp;the&nbsp;background&nbsp;subtracted&nbsp;sum&nbsp;(the&nbsp;background&nbsp;is&nbsp;defined&nbsp;by&nbsp;a&nbsp;region&nbsp;twice&nbsp;the&nbsp;ROIs&nbsp;size)<br>
+&nbsp;<br>
+**********************<br>
+Main&nbsp;GUIs:<br>
+<a href="#I16_Data_Viewer">I16_Data_Viewer</a>&nbsp;-&nbsp;Starts&nbsp;automatically,&nbsp;set&nbsp;the&nbsp;experiment&nbsp;directory&nbsp;to&nbsp;see&nbsp;scan&nbsp;details,&nbsp;plot&nbsp;scan&nbsp;and&nbsp;area&nbsp;detector&nbsp;data,&nbsp;access&nbsp;other&nbsp;GUIs<br>
+<a href="#I16_Peak_Analysis">I16_Peak_Analysis</a>&nbsp;-&nbsp;Plot&nbsp;and&nbsp;analyse&nbsp;multiple&nbsp;scans,&nbsp;including&nbsp;peak&nbsp;fitting&nbsp;and&nbsp;integration<br>
+<a href="#I16_Advanced_Fitting">I16_Advanced_Fitting</a>&nbsp;-&nbsp;More&nbsp;fitting&nbsp;options,&nbsp;including&nbsp;masks<br>
+<a href="#colour_cutoffs">colour_cutoffs</a>&nbsp;-&nbsp;A&nbsp;separate&nbsp;GUI&nbsp;that&nbsp;will&nbsp;interactively&nbsp;change&nbsp;the&nbsp;colormap&nbsp;max/min&nbsp;of&nbsp;the&nbsp;current&nbsp;figure.<br>
+&nbsp;<br>
+Version&nbsp;3.2<br>
+Last&nbsp;updated:&nbsp;23/10/17<br>
+&nbsp;<br>
+Version&nbsp;History:<br>
+07/02/16&nbsp;0.9&nbsp;&nbsp;&nbsp;&nbsp;Program&nbsp;created<br>
+29/02/16&nbsp;1.0&nbsp;&nbsp;&nbsp;&nbsp;<a href="#I16_Data_Viewer">I16_Data_Viewer</a>&nbsp;and&nbsp;<a href="#I16_Peak_Analysis">I16_Peak_Analysis</a>&nbsp;Finished<br>
+03/03/16&nbsp;1.1&nbsp;&nbsp;&nbsp;&nbsp;Tested&nbsp;on&nbsp;Beamline,&nbsp;removed&nbsp;errors,&nbsp;cleaned&nbsp;up<br>
+28/04/16&nbsp;1.2&nbsp;&nbsp;&nbsp;&nbsp;Added&nbsp;Find&nbsp;Peak&nbsp;button<br>
+05/05/16&nbsp;1.3&nbsp;&nbsp;&nbsp;&nbsp;Added&nbsp;helper&nbsp;bar,&nbsp;made&nbsp;pilatus&nbsp;button&nbsp;clearer<br>
+09/05/16&nbsp;1.4&nbsp;&nbsp;&nbsp;&nbsp;Added&nbsp;buttons&nbsp;for&nbsp;find&nbsp;files&nbsp;and&nbsp;meta<br>
+10/05/16&nbsp;1.5&nbsp;&nbsp;&nbsp;&nbsp;Added&nbsp;print&nbsp;buffer&nbsp;+&nbsp;close&nbsp;all&nbsp;buttons<br>
+20/05/16&nbsp;1.6&nbsp;&nbsp;&nbsp;&nbsp;Added&nbsp;fit&nbsp;function&nbsp;to&nbsp;fit&nbsp;option&nbsp;menu&nbsp;and&nbsp;fixed&nbsp;reploting&nbsp;issue<br>
+12/07/16&nbsp;1.7&nbsp;&nbsp;&nbsp;&nbsp;Added&nbsp;Advanced&nbsp;Peak&nbsp;Fitting&nbsp;GUI<br>
+10/08/16&nbsp;1.8&nbsp;&nbsp;&nbsp;&nbsp;Added&nbsp;logplot&nbsp;and&nbsp;diffplot&nbsp;options<br>
+08/09/16&nbsp;1.9&nbsp;&nbsp;&nbsp;&nbsp;Added&nbsp;auto&nbsp;pilatus&nbsp;update&nbsp;checkbox<br>
+24/09/16&nbsp;2.0&nbsp;&nbsp;&nbsp;&nbsp;Removed&nbsp;requirement&nbsp;for&nbsp;SciSoftPi&nbsp;data&nbsp;loader<br>
+07/10/16&nbsp;2.1&nbsp;&nbsp;&nbsp;&nbsp;Some&nbsp;minor&nbsp;corrections,&nbsp;addition&nbsp;of&nbsp;parameters&nbsp;window<br>
+17/10/16&nbsp;2.2&nbsp;&nbsp;&nbsp;&nbsp;Addition&nbsp;of&nbsp;rem.&nbsp;Bkg&nbsp;for&nbsp;pilatus&nbsp;and&nbsp;pilatus&nbsp;peakregion/&nbsp;background&nbsp;lines<br>
+14/12/16&nbsp;2.3&nbsp;&nbsp;&nbsp;&nbsp;New&nbsp;option&nbsp;menus&nbsp;for&nbsp;exp&nbsp;directories&nbsp;and&nbsp;X,Y&nbsp;variables,&nbsp;other&nbsp;minor&nbsp;improvements<br>
+20/12/16&nbsp;2.4&nbsp;&nbsp;&nbsp;&nbsp;Main&nbsp;app&nbsp;now&nbsp;resizes&nbsp;for&nbsp;screensize,&nbsp;Mac&nbsp;option&nbsp;added.&nbsp;Fixes&nbsp;for&nbsp;option&nbsp;menus.&nbsp;New&nbsp;Check&nbsp;buttons<br>
+08/02/17&nbsp;2.5&nbsp;&nbsp;&nbsp;&nbsp;Log&nbsp;of&nbsp;pilatus&nbsp;images&nbsp;added,&nbsp;other&nbsp;bugs&nbsp;fixed<br>
+25/02/17&nbsp;2.6&nbsp;&nbsp;&nbsp;&nbsp;Minor&nbsp;corrections&nbsp;and&nbsp;fixes,&nbsp;including&nbsp;multi-variable&nbsp;advanced&nbsp;fitting&nbsp;and&nbsp;persistence&nbsp;of&nbsp;custom&nbsp;ROIs<br>
+11/07/17&nbsp;2.7&nbsp;&nbsp;&nbsp;&nbsp;Added&nbsp;scan&nbsp;selector<br>
+24/07/17&nbsp;2.8&nbsp;&nbsp;&nbsp;&nbsp;Added&nbsp;<a href="#colour_cutoffs">colour_cutoffs</a>&nbsp;and&nbsp;other&nbsp;bug&nbsp;fixes<br>
+01/08/17&nbsp;2.9&nbsp;&nbsp;&nbsp;&nbsp;Added&nbsp;check&nbsp;for&nbsp;large&nbsp;pilatus&nbsp;arrays,&nbsp;parameter&nbsp;"max&nbsp;array"&nbsp;in&nbsp;parameters&nbsp;window<br>
+02/10/17&nbsp;2.9&nbsp;&nbsp;&nbsp;&nbsp;Added&nbsp;ability&nbsp;to&nbsp;turn&nbsp;off&nbsp;normalisation&nbsp;in&nbsp;multi-plots<br>
+06/10/17&nbsp;3.0&nbsp;&nbsp;&nbsp;&nbsp;Added&nbsp;log&nbsp;plot&nbsp;to&nbsp;multiplots,&nbsp;plus&nbsp;other&nbsp;fixes<br>
+10/10/17&nbsp;3.1&nbsp;&nbsp;&nbsp;&nbsp;Added&nbsp;<a href="#I16_Meta_Display">I16_Meta_Display</a>,&nbsp;multiplotting&nbsp;from&nbsp;scan&nbsp;selector<br>
+23/10/17&nbsp;3.2&nbsp;&nbsp;&nbsp;&nbsp;Several&nbsp;minor&nbsp;improvements,&nbsp;including&nbsp;choice&nbsp;of&nbsp;plots&nbsp;for&nbsp;fitting<br>
+&nbsp;<br>
+###FEEDBACK###&nbsp;Please&nbsp;submit&nbsp;your&nbsp;bug&nbsp;reports,&nbsp;feature&nbsp;requests&nbsp;or&nbsp;queries&nbsp;to:&nbsp;dan.porter@diamond.ac.uk<br>
+&nbsp;<br>
+@author:&nbsp;Dan&nbsp;Porter<br>
+I16,&nbsp;Diamond&nbsp;Light&nbsp;Source<br>
+2016</tt></p>
+<p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#aa55cc">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Modules</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#aa55cc"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><table width="100%" summary="list"><tr><td width="25%" valign=top><a href="datetime.html">datetime</a><br>
+<a href="tkFileDialog.html">tkFileDialog</a><br>
+<a href="glob.html">glob</a><br>
+<a href="__main__.html">__main__</a><br>
+<a href="matplotlib.html">matplotlib</a><br>
+</td><td width="25%" valign=top><a href="tkMessageBox.html">tkMessageBox</a><br>
+<a href="matplotlib.ticker.html">matplotlib.ticker</a><br>
+<a href="numpy.html">numpy</a><br>
+<a href="os.html">os</a><br>
+<a href="matplotlib.pyplot.html">matplotlib.pyplot</a><br>
+</td><td width="25%" valign=top><a href="Py16progs.html">Py16progs</a><br>
+<a href="re.html">re</a><br>
+<a href="subprocess.html">subprocess</a><br>
+<a href="sys.html">sys</a><br>
+<a href="tempfile.html">tempfile</a><br>
+</td><td width="25%" valign=top><a href="time.html">time</a><br>
+<a href="Tkinter.html">Tkinter</a><br>
+</td></tr></table></td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ee77aa">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Classes</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#ee77aa"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><dl>
+<dt><font face="helvetica, arial"><a href="Py16GUI.html#I16_Advanced_Fitting">I16_Advanced_Fitting</a>
+</font></dt><dt><font face="helvetica, arial"><a href="Py16GUI.html#I16_Check_Log">I16_Check_Log</a>
+</font></dt><dt><font face="helvetica, arial"><a href="Py16GUI.html#I16_Data_Viewer">I16_Data_Viewer</a>
+</font></dt><dt><font face="helvetica, arial"><a href="Py16GUI.html#I16_Meta_Display">I16_Meta_Display</a>
+</font></dt><dt><font face="helvetica, arial"><a href="Py16GUI.html#I16_Params">I16_Params</a>
+</font></dt><dt><font face="helvetica, arial"><a href="Py16GUI.html#I16_Peak_Analysis">I16_Peak_Analysis</a>
+</font></dt><dt><font face="helvetica, arial"><a href="Py16GUI.html#I16_Print_Buffer">I16_Print_Buffer</a>
+</font></dt><dt><font face="helvetica, arial"><a href="Py16GUI.html#I16_Scan_Selector">I16_Scan_Selector</a>
+</font></dt><dt><font face="helvetica, arial"><a href="Py16GUI.html#colour_cutoffs">colour_cutoffs</a>
+</font></dt></dl>
+ <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="I16_Advanced_Fitting">class <strong>I16_Advanced_Fitting</strong></a></font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt>More&nbsp;Fitting&nbsp;options,&nbsp;including&nbsp;masking<br>
+Activated&nbsp;from&nbsp;"Adv.&nbsp;Fitting"&nbsp;button&nbsp;in&nbsp;<a href="#I16_Peak_Analysis">I16_Peak_Analysis</a><br>
+&nbsp;<br>
+Takes&nbsp;scan&nbsp;numbers&nbsp;from&nbsp;<a href="#I16_Peak_Analysis">I16_Peak_Analysis</a>&nbsp;and&nbsp;allows&nbsp;navigation&nbsp;through<br>
+all&nbsp;scans&nbsp;to&nbsp;check&nbsp;peak&nbsp;shapes&nbsp;etc.<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="I16_Advanced_Fitting-__init__"><strong>__init__</strong></a>(self, scan_nos<font color="#909090">=[]</font>, ini_dependent<font color="#909090">=['Ta']</font>, ini_X<font color="#909090">=''</font>, ini_Y<font color="#909090">=''</font>, ini_fit<font color="#909090">='pVoight'</font>, ini_Isig<font color="#909090">=1</font>, ini_save<font color="#909090">=0</font>)</dt></dl>
+
+<dl><dt><a name="I16_Advanced_Fitting-f_chk_save"><strong>f_chk_save</strong></a>(self)</dt><dd><tt>Activate&nbsp;or&nbsp;deactivate&nbsp;scan</tt></dd></dl>
+
+<dl><dt><a name="I16_Advanced_Fitting-f_mask_1"><strong>f_mask_1</strong></a>(self)</dt><dd><tt>Mask&nbsp;1:&nbsp;x&nbsp;&lt;&nbsp;val</tt></dd></dl>
+
+<dl><dt><a name="I16_Advanced_Fitting-f_mask_2"><strong>f_mask_2</strong></a>(self)</dt><dd><tt>Mask&nbsp;2:&nbsp;x&nbsp;&gt;&nbsp;val</tt></dd></dl>
+
+<dl><dt><a name="I16_Advanced_Fitting-f_mask_3"><strong>f_mask_3</strong></a>(self)</dt><dd><tt>Mask&nbsp;3:&nbsp;|x-val1|&nbsp;&lt;&nbsp;val2</tt></dd></dl>
+
+<dl><dt><a name="I16_Advanced_Fitting-f_mask_4"><strong>f_mask_4</strong></a>(self)</dt><dd><tt>Mask&nbsp;4:&nbsp;|x-val|&nbsp;&gt;&nbsp;val2</tt></dd></dl>
+
+<dl><dt><a name="I16_Advanced_Fitting-f_mask_print"><strong>f_mask_print</strong></a>(self)</dt><dd><tt>Print&nbsp;scans&nbsp;and&nbsp;masks</tt></dd></dl>
+
+<dl><dt><a name="I16_Advanced_Fitting-f_mask_remove"><strong>f_mask_remove</strong></a>(self)</dt><dd><tt>Remove&nbsp;masks</tt></dd></dl>
+
+<dl><dt><a name="I16_Advanced_Fitting-f_plt_dn"><strong>f_plt_dn</strong></a>(self)</dt><dd><tt>Next&nbsp;plot&nbsp;down</tt></dd></dl>
+
+<dl><dt><a name="I16_Advanced_Fitting-f_plt_up"><strong>f_plt_up</strong></a>(self)</dt><dd><tt>Next&nbsp;plot&nbsp;up</tt></dd></dl>
+
+<dl><dt><a name="I16_Advanced_Fitting-f_scan_makefile"><strong>f_scan_makefile</strong></a>(self)</dt><dd><tt>Create&nbsp;python&nbsp;analysis&nbsp;file</tt></dd></dl>
+
+<dl><dt><a name="I16_Advanced_Fitting-f_scan_select"><strong>f_scan_select</strong></a>(self, event)</dt><dd><tt>Scan&nbsp;selection</tt></dd></dl>
+
+<dl><dt><a name="I16_Advanced_Fitting-f_start"><strong>f_start</strong></a>(self)</dt><dd><tt>Begin&nbsp;the&nbsp;fit</tt></dd></dl>
+
+<dl><dt><a name="I16_Advanced_Fitting-update_mask"><strong>update_mask</strong></a>(self, mask)</dt><dd><tt>Update&nbsp;the&nbsp;mask&nbsp;array,&nbsp;mask&nbsp;=&nbsp;string</tt></dd></dl>
+
+<dl><dt><a name="I16_Advanced_Fitting-update_plot"><strong>update_plot</strong></a>(self)</dt><dd><tt>Generate&nbsp;the&nbsp;plot,&nbsp;run&nbsp;a&nbsp;test&nbsp;fit&nbsp;and&nbsp;display&nbsp;the&nbsp;results</tt></dd></dl>
+
+<dl><dt><a name="I16_Advanced_Fitting-update_scans"><strong>update_scans</strong></a>(self)</dt><dd><tt>Update&nbsp;the&nbsp;scan&nbsp;list&nbsp;and&nbsp;masks</tt></dd></dl>
+
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="I16_Check_Log">class <strong>I16_Check_Log</strong></a></font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt>Functions&nbsp;to&nbsp;check&nbsp;multiple&nbsp;scans,&nbsp;check&nbsp;the&nbsp;log&nbsp;file&nbsp;and&nbsp;predict&nbsp;the&nbsp;end&nbsp;of&nbsp;a&nbsp;run<br>
+Activated&nbsp;from&nbsp;the&nbsp;"More&nbsp;Check&nbsp;Options"&nbsp;button&nbsp;in&nbsp;<a href="#I16_Data_Viewer">I16_Data_Viewer</a><br>
+&nbsp;<br>
+Panel&nbsp;1:&nbsp;Check&nbsp;scans<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;input&nbsp;the&nbsp;list&nbsp;of&nbsp;scan&nbsp;required&nbsp;in&nbsp;"Scans",&nbsp;this&nbsp;box&nbsp;is&nbsp;evaluated&nbsp;as&nbsp;python<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Use&nbsp;the&nbsp;"show"&nbsp;box&nbsp;to&nbsp;add&nbsp;any&nbsp;metadata&nbsp;to&nbsp;the&nbsp;output<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Click&nbsp;"Check&nbsp;Scans"&nbsp;-&nbsp;the&nbsp;output&nbsp;can&nbsp;be&nbsp;viewed&nbsp;in&nbsp;the&nbsp;console<br>
+&nbsp;<br>
+Panel&nbsp;2:&nbsp;Check&nbsp;Log<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Set&nbsp;either&nbsp;the&nbsp;Time&nbsp;or&nbsp;Scan&nbsp;number<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Set&nbsp;the&nbsp;number&nbsp;of&nbsp;minutes&nbsp;(or&nbsp;tick&nbsp;"All&nbsp;time")<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Click&nbsp;"Check&nbsp;Log"&nbsp;to&nbsp;show&nbsp;log&nbsp;file&nbsp;entries&nbsp;from&nbsp;"Mins"&nbsp;before&nbsp;Time/Scan&nbsp;until&nbsp;Time/Scan&nbsp;in&nbsp;the&nbsp;console<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Use&nbsp;"Find&nbsp;Sting"&nbsp;to&nbsp;only&nbsp;show&nbsp;entries&nbsp;including&nbsp;this&nbsp;string<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Tick&nbsp;"Show&nbsp;commands&nbsp;only"&nbsp;to&nbsp;only&nbsp;display&nbsp;commands<br>
+&nbsp;<br>
+Panel&nbsp;3:&nbsp;Predict&nbsp;End<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Set&nbsp;the&nbsp;number&nbsp;of&nbsp;the&nbsp;"First&nbsp;Scan"&nbsp;in&nbsp;a&nbsp;series<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Set&nbsp;the&nbsp;expected&nbsp;"Last&nbsp;Scan"&nbsp;of&nbsp;a&nbsp;series&nbsp;(maths&nbsp;allowed)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Click&nbsp;"Predict&nbsp;End"&nbsp;to&nbsp;display&nbsp;the&nbsp;expexted&nbsp;end&nbsp;of&nbsp;the&nbsp;scan&nbsp;series&nbsp;in&nbsp;the&nbsp;console<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Assumes&nbsp;each&nbsp;scan&nbsp;will&nbsp;be&nbsp;the&nbsp;same&nbsp;length&nbsp;on&nbsp;average.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Very&nbsp;useful&nbsp;for&nbsp;determining&nbsp;the&nbsp;end&nbsp;of&nbsp;a&nbsp;script<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="I16_Check_Log-__init__"><strong>__init__</strong></a>(self, ini_scan<font color="#909090">=0</font>)</dt></dl>
+
+<dl><dt><a name="I16_Check_Log-f_checklog"><strong>f_checklog</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="I16_Check_Log-f_checkscans"><strong>f_checkscans</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="I16_Check_Log-f_input_scan"><strong>f_input_scan</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="I16_Check_Log-f_input_time"><strong>f_input_time</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="I16_Check_Log-f_prend"><strong>f_prend</strong></a>(self)</dt></dl>
+
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="I16_Data_Viewer">class <strong>I16_Data_Viewer</strong></a></font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt>Main&nbsp;GUI&nbsp;to&nbsp;view&nbsp;and&nbsp;analyse&nbsp;I16&nbsp;data&nbsp;quickly&nbsp;during&nbsp;or&nbsp;after&nbsp;an&nbsp;experiment.<br>
+&nbsp;<br>
+OPERATION:<br>
+&nbsp;-&nbsp;Once&nbsp;started,&nbsp;enter&nbsp;your&nbsp;experiment&nbsp;data&nbsp;directory,&nbsp;or&nbsp;press&nbsp;"Browse"<br>
+&nbsp;<br>
+&nbsp;-&nbsp;Enter&nbsp;the&nbsp;Scan&nbsp;number&nbsp;you&nbsp;wish&nbsp;to&nbsp;look&nbsp;at&nbsp;and&nbsp;press&nbsp;ENTER,&nbsp;or&nbsp;use&nbsp;"Last"&nbsp;to&nbsp;get&nbsp;the&nbsp;latest&nbsp;scan.<br>
+&nbsp;<br>
+&nbsp;-&nbsp;To&nbsp;plot&nbsp;the&nbsp;data,&nbsp;select&nbsp;the&nbsp;fitting&nbsp;and&nbsp;normalisation&nbsp;options&nbsp;you&nbsp;would&nbsp;like,&nbsp;then&nbsp;press&nbsp;"Plot"<br>
+&nbsp;<br>
+&nbsp;-&nbsp;To&nbsp;see&nbsp;a&nbsp;pilatus&nbsp;image,&nbsp;select&nbsp;the&nbsp;intensity-cutoffs&nbsp;and&nbsp;region&nbsp;of&nbsp;interest&nbsp;(ROI)&nbsp;and&nbsp;press&nbsp;"Pilatus"<br>
+&nbsp;<br>
+&nbsp;-&nbsp;If&nbsp;you&nbsp;would&nbsp;like&nbsp;to&nbsp;send&nbsp;the&nbsp;data&nbsp;to&nbsp;the&nbsp;console,&nbsp;press&nbsp;"Send&nbsp;to&nbsp;Console",&nbsp;this&nbsp;will&nbsp;send&nbsp;the&nbsp;variables<br>
+&nbsp;&nbsp;&nbsp;x,y,dy,xvar,yvar,ttl,d&nbsp;to&nbsp;the&nbsp;console,&nbsp;where&nbsp;d&nbsp;is&nbsp;the&nbsp;dataholder&nbsp;with&nbsp;all&nbsp;the&nbsp;raw&nbsp;data.<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<br>
+&nbsp;-&nbsp;Py16progs&nbsp;is&nbsp;imported&nbsp;to&nbsp;the&nbsp;console&nbsp;by&nbsp;default&nbsp;as&nbsp;pp,&nbsp;so&nbsp;you&nbsp;can&nbsp;use&nbsp;these&nbsp;functions&nbsp;easily.&nbsp;e.g.&nbsp;pp.plotscan(0)<br>
+&nbsp;&nbsp;&nbsp;For&nbsp;more&nbsp;info&nbsp;on&nbsp;Py16progs&nbsp;and&nbsp;to&nbsp;see&nbsp;what&nbsp;functions&nbsp;are&nbsp;available,&nbsp;type:&nbsp;help(pp)<br>
+&nbsp;&nbsp;&nbsp;<br>
+&nbsp;-&nbsp;The&nbsp;buttons&nbsp;"Export&nbsp;Plot/Pilatus"&nbsp;will&nbsp;create&nbsp;figures&nbsp;of&nbsp;the&nbsp;current&nbsp;scan&nbsp;that&nbsp;can&nbsp;be&nbsp;saved&nbsp;or&nbsp;printed.<br>
+&nbsp;<br>
+&nbsp;-&nbsp;The&nbsp;button&nbsp;"Multiplot/&nbsp;Peak&nbsp;Analysis"&nbsp;will&nbsp;take&nbsp;you&nbsp;to&nbsp;the&nbsp;Peak&nbsp;Analysis&nbsp;GUI.<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="I16_Data_Viewer-__init__"><strong>__init__</strong></a>(self, figsize<font color="#909090">={'pilatus': [6, 2.5], 'scan': [6, 4]}</font>)</dt></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_anal"><strong>f_anal</strong></a>(self)</dt><dd><tt>Launch&nbsp;analysis&nbsp;GUI</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_checklog"><strong>f_checklog</strong></a>(self)</dt><dd><tt>checklog(mins=N)</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_checknum"><strong>f_checknum</strong></a>(self)</dt><dd><tt>checknum(-N,0)</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_chk_dn"><strong>f_chk_dn</strong></a>(self)</dt><dd><tt>Decrease&nbsp;Scan&nbsp;number</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_chk_exp"><strong>f_chk_exp</strong></a>(self)</dt><dd><tt>Check&nbsp;experiment&nbsp;button&nbsp;-&nbsp;opens&nbsp;a&nbsp;message&nbsp;box</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_chk_lat"><strong>f_chk_lat</strong></a>(self)</dt><dd><tt>Check&nbsp;scan&nbsp;lattice&nbsp;parameters&nbsp;-&nbsp;opens&nbsp;a&nbsp;message&nbsp;box</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_chk_mor"><strong>f_chk_mor</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_chk_up"><strong>f_chk_up</strong></a>(self)</dt><dd><tt>Increase&nbsp;Scan&nbsp;number</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_fldr2_browse"><strong>f_fldr2_browse</strong></a>(self)</dt><dd><tt>Browse&nbsp;for&nbsp;analysis&nbsp;directory</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_fldr2_log"><strong>f_fldr2_log</strong></a>(self)</dt><dd><tt>Activate&nbsp;log&nbsp;plot</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_fldr_browse"><strong>f_fldr_browse</strong></a>(self)</dt><dd><tt>Browse&nbsp;for&nbsp;data&nbsp;directory</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_fldr_find"><strong>f_fldr_find</strong></a>(self)</dt><dd><tt>Search&nbsp;for&nbsp;data&nbsp;directory</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_fldr_opt"><strong>f_fldr_opt</strong></a>(self)</dt><dd><tt>Load&nbsp;previous&nbsp;experiment</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_fnl_send"><strong>f_fnl_send</strong></a>(self)</dt><dd><tt>Send&nbsp;instructions&nbsp;to&nbsp;console</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_fnl_spil"><strong>f_fnl_spil</strong></a>(self)</dt><dd><tt>Send&nbsp;plotpil&nbsp;command&nbsp;to&nbsp;console</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_fnl_splot"><strong>f_fnl_splot</strong></a>(self)</dt><dd><tt>Send&nbsp;plotscan&nbsp;command&nbsp;to&nbsp;console</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_fnl_splotbuffer"><strong>f_fnl_splotbuffer</strong></a>(self)</dt><dd><tt>Send&nbsp;all&nbsp;open&nbsp;figures&nbsp;to&nbsp;the&nbsp;print&nbsp;buffer&nbsp;for&nbsp;6-per-page&nbsp;page&nbsp;printing</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_fnl_splotclose"><strong>f_fnl_splotclose</strong></a>(self)</dt><dd><tt>Close&nbsp;all&nbsp;figures</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_fnl_splotprint"><strong>f_fnl_splotprint</strong></a>(self)</dt><dd><tt>Send&nbsp;plotscan&nbsp;command&nbsp;to&nbsp;console,&nbsp;print&nbsp;result&nbsp;and&nbsp;close</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_fnl_splotsave"><strong>f_fnl_splotsave</strong></a>(self)</dt><dd><tt>Send&nbsp;plotscan&nbsp;command&nbsp;to&nbsp;console,&nbsp;save&nbsp;result&nbsp;and&nbsp;close</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_livemode"><strong>f_livemode</strong></a>(self)</dt><dd><tt>Activate&nbsp;Live&nbsp;Mode</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_log_dn"><strong>f_log_dn</strong></a>(self)</dt><dd><tt>Decrease&nbsp;Scan&nbsp;number</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_log_up"><strong>f_log_up</strong></a>(self)</dt><dd><tt>Increase&nbsp;Scan&nbsp;number</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_params"><strong>f_params</strong></a>(self)</dt><dd><tt>Launch&nbsp;parameters&nbsp;GUI</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_pilopt_def1"><strong>f_pilopt_def1</strong></a>(self)</dt><dd><tt>Reset&nbsp;the&nbsp;pilatus&nbsp;centre&nbsp;and&nbsp;ROI</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_pilopt_def2"><strong>f_pilopt_def2</strong></a>(self)</dt><dd><tt>Reset&nbsp;the&nbsp;pilatus&nbsp;centre&nbsp;and&nbsp;ROI</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_pilopt_nroi"><strong>f_pilopt_nroi</strong></a>(self)</dt><dd><tt>Send&nbsp;pil&nbsp;values&nbsp;to&nbsp;vary</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_pilopt_peak"><strong>f_pilopt_peak</strong></a>(self)</dt><dd><tt>Determine&nbsp;peak&nbsp;position&nbsp;in&nbsp;pilatus</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_pilopt_plot"><strong>f_pilopt_plot</strong></a>(self)</dt><dd><tt>Plot&nbsp;pilatus&nbsp;images</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_pilopt_posleft"><strong>f_pilopt_posleft</strong></a>(self)</dt><dd><tt>Move&nbsp;to&nbsp;previous&nbsp;pilatus&nbsp;image</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_pilopt_posright"><strong>f_pilopt_posright</strong></a>(self)</dt><dd><tt>Move&nbsp;to&nbsp;next&nbsp;pilatus&nbsp;image</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_pilopt_rembkg"><strong>f_pilopt_rembkg</strong></a>(self)</dt><dd><tt>Remove&nbsp;background&nbsp;from&nbsp;ROI</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_pilopt_remfrm"><strong>f_pilopt_remfrm</strong></a>(self)</dt><dd><tt>Remove&nbsp;background&nbsp;from&nbsp;ROI</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_popt_fit"><strong>f_popt_fit</strong></a>(self, x)</dt><dd><tt>Plot&nbsp;scan&nbsp;with&nbsp;fit</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_popt_norm"><strong>f_popt_norm</strong></a>(self, x)</dt><dd><tt>Plot&nbsp;scan&nbsp;with&nbsp;fit</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_popt_plot"><strong>f_popt_plot</strong></a>(self)</dt><dd><tt>Plot&nbsp;current&nbsp;scan</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_popt_varx"><strong>f_popt_varx</strong></a>(self, x)</dt><dd><tt>Get&nbsp;varx&nbsp;and&nbsp;plot&nbsp;current&nbsp;scan</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_popt_vary"><strong>f_popt_vary</strong></a>(self, x)</dt><dd><tt>Get&nbsp;vary&nbsp;and&nbsp;plot&nbsp;current&nbsp;scan</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_scan_dn"><strong>f_scan_dn</strong></a>(self)</dt><dd><tt>Decrease&nbsp;Scan&nbsp;number</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_scan_ld"><strong>f_scan_ld</strong></a>(self)</dt><dd><tt>Update&nbsp;GUI&nbsp;for&nbsp;selected&nbsp;scan&nbsp;number</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_scan_mt"><strong>f_scan_mt</strong></a>(self)</dt><dd><tt>Send&nbsp;metadata&nbsp;to&nbsp;console</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_scan_st"><strong>f_scan_st</strong></a>(self)</dt><dd><tt>Latest&nbsp;Scan&nbsp;number</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_scan_up"><strong>f_scan_up</strong></a>(self)</dt><dd><tt>Increase&nbsp;Scan&nbsp;number</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-f_scn_sel"><strong>f_scn_sel</strong></a>(self)</dt><dd><tt>Scan&nbsp;selector&nbsp;button&nbsp;launches&nbsp;scan&nbsp;selector</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-on_closing"><strong>on_closing</strong></a>(self)</dt><dd><tt>End&nbsp;mainloop&nbsp;on&nbsp;close&nbsp;window</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-set_files"><strong>set_files</strong></a>(self)</dt><dd><tt>Set&nbsp;the&nbsp;filedir&nbsp;and&nbsp;savedir&nbsp;commands</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-update"><strong>update</strong></a>(self, event<font color="#909090">=None</font>)</dt><dd><tt>Update&nbsp;on&nbsp;&lt;Enter&gt;</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-update_details"><strong>update_details</strong></a>(self, event<font color="#909090">=None</font>)</dt><dd><tt>Load&nbsp;metadata&nbsp;for&nbsp;current&nbsp;scan</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-update_pilatus"><strong>update_pilatus</strong></a>(self, event<font color="#909090">=None</font>)</dt><dd><tt>Loads&nbsp;Pilatus&nbsp;data,&nbsp;plots&nbsp;data</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-update_plot"><strong>update_plot</strong></a>(self, event<font color="#909090">=None</font>)</dt><dd><tt>Plot&nbsp;metadata&nbsp;for&nbsp;current&nbsp;scan</tt></dd></dl>
+
+<dl><dt><a name="I16_Data_Viewer-writeval"><strong>writeval</strong></a>(self, mstr, label_str, label_var, wid<font color="#909090">=27</font>)</dt></dl>
+
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="I16_Meta_Display">class <strong>I16_Meta_Display</strong></a></font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt>Displays&nbsp;the&nbsp;full&nbsp;meta&nbsp;data&nbsp;of&nbsp;the&nbsp;current&nbsp;scan<br>
+Activated&nbsp;from&nbsp;the&nbsp;"Meta"&nbsp;button&nbsp;in&nbsp;<a href="#I16_Data_Viewer">I16_Data_Viewer</a><br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="I16_Meta_Display-__init__"><strong>__init__</strong></a>(self, scanno<font color="#909090">=0</font>)</dt></dl>
+
+<dl><dt><a name="I16_Meta_Display-f_exit"><strong>f_exit</strong></a>(self)</dt><dd><tt>Closes&nbsp;the&nbsp;current&nbsp;metadata&nbsp;window</tt></dd></dl>
+
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="I16_Params">class <strong>I16_Params</strong></a></font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt>Set&nbsp;the&nbsp;default&nbsp;experimental&nbsp;parameters<br>
+Activated&nbsp;from&nbsp;the&nbsp;"Params"&nbsp;button&nbsp;in&nbsp;<a href="#I16_Data_Viewer">I16_Data_Viewer</a><br>
+&nbsp;&nbsp;&nbsp;&nbsp;Ring&nbsp;Current&nbsp;&nbsp;&nbsp;&nbsp;Standard&nbsp;ring&nbsp;current&nbsp;for&nbsp;current&nbsp;experiment&nbsp;for&nbsp;normalisation<br>
+&nbsp;&nbsp;&nbsp;&nbsp;ic1&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Standard&nbsp;ic1monitor&nbsp;value&nbsp;for&nbsp;current&nbsp;experiment&nbsp;for&nbsp;normalisation<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Temp&nbsp;Sensor&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Temperature&nbsp;sensor&nbsp;used&nbsp;as&nbsp;default<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Errors&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Error&nbsp;funciton&nbsp;used&nbsp;(select&nbsp;none&nbsp;to&nbsp;remove&nbsp;error&nbsp;bars)<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Central&nbsp;Pixel&nbsp;&nbsp;&nbsp;Centre&nbsp;pixel&nbsp;[i,j]&nbsp;in&nbsp;area&nbsp;detectors<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Max&nbsp;Pixel&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Any&nbsp;pixels&nbsp;larger&nbsp;than&nbsp;this&nbsp;are&nbsp;hot&nbsp;pixels&nbsp;and&nbsp;set&nbsp;to&nbsp;zero<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Max&nbsp;array&nbsp;size&nbsp;&nbsp;Stops&nbsp;PC&nbsp;form&nbsp;running&nbsp;out&nbsp;of&nbsp;memory&nbsp;on&nbsp;large&nbsp;pilatus&nbsp;scans<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Peak&nbsp;Region&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Peak&nbsp;finding&nbsp;(nroi_peak)&nbsp;searches&nbsp;within&nbsp;this&nbsp;box<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Colours&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Set&nbsp;the&nbsp;default&nbsp;colour&nbsp;order&nbsp;for&nbsp;plots<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Title&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Set&nbsp;the&nbsp;title&nbsp;that&nbsp;will&nbsp;appear&nbsp;in&nbsp;plot&nbsp;titles<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="I16_Params-__init__"><strong>__init__</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="I16_Params-f_update"><strong>f_update</strong></a>(self)</dt><dd><tt>Update&nbsp;parameters&nbsp;and&nbsp;exit</tt></dd></dl>
+
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="I16_Peak_Analysis">class <strong>I16_Peak_Analysis</strong></a></font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt><a href="#I16_Peak_Analysis">I16_Peak_Analysis</a><br>
+&nbsp;<br>
+GUI&nbsp;allowing&nbsp;you&nbsp;to&nbsp;quickly&nbsp;plot&nbsp;multiscan&nbsp;runs&nbsp;such&nbsp;as&nbsp;temperature&nbsp;or&nbsp;energy&nbsp;dependences.<br>
+&nbsp;<br>
+OPERATION:<br>
+&nbsp;-&nbsp;As&nbsp;above,&nbsp;enter&nbsp;your&nbsp;experiment&nbsp;data&nbsp;director,&nbsp;or&nbsp;press&nbsp;"Browse"<br>
+&nbsp;-&nbsp;Also&nbsp;enter&nbsp;the&nbsp;directory&nbsp;you&nbsp;would&nbsp;like&nbsp;files&nbsp;saved&nbsp;in.<br>
+&nbsp;<br>
+&nbsp;-&nbsp;Give&nbsp;the&nbsp;title&nbsp;and&nbsp;the&nbsp;variable&nbsp;that&nbsp;changes&nbsp;between&nbsp;scans&nbsp;(Dependent)<br>
+&nbsp;<br>
+&nbsp;-&nbsp;Define&nbsp;the&nbsp;variable&nbsp;to&nbsp;analyse&nbsp;(Y&nbsp;var)&nbsp;and&nbsp;the&nbsp;fit&nbsp;options&nbsp;(leave&nbsp;blank&nbsp;for&nbsp;defaults).<br>
+&nbsp;<br>
+&nbsp;-&nbsp;Define&nbsp;the&nbsp;scan&nbsp;numbers&nbsp;required&nbsp;by&nbsp;either:&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;1.&nbsp;Specifying&nbsp;the&nbsp;range&nbsp;with&nbsp;first,&nbsp;last&nbsp;and&nbsp;step&nbsp;(then&nbsp;click&nbsp;"Generate")<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;2.&nbsp;Specifying&nbsp;scan&nbsp;numbers&nbsp;directly&nbsp;in&nbsp;the&nbsp;box.&nbsp;Note&nbsp;that&nbsp;this&nbsp;box&nbsp;will&nbsp;be&nbsp;evaluated&nbsp;so&nbsp;you&nbsp;must<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;specify&nbsp;a&nbsp;python&nbsp;array.<br>
+&nbsp;<br>
+&nbsp;-&nbsp;Use&nbsp;the&nbsp;buttons&nbsp;to&nbsp;select&nbsp;what&nbsp;you&nbsp;want&nbsp;to&nbsp;do&nbsp;next:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"Plot&nbsp;Scans"&nbsp;-&nbsp;plot&nbsp;multiple&nbsp;scans&nbsp;on&nbsp;the&nbsp;same&nbsp;axis,&nbsp;with&nbsp;"Dependent"&nbsp;as&nbsp;the&nbsp;legend<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"Plot&nbsp;3D"&nbsp;-&nbsp;Plot&nbsp;multiple&nbsp;scans&nbsp;on&nbsp;a&nbsp;3D&nbsp;axis,&nbsp;with&nbsp;"Dependent"&nbsp;as&nbsp;the&nbsp;3rd&nbsp;axis<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"Plot&nbsp;2D"&nbsp;-&nbsp;As&nbsp;above,&nbsp;except&nbsp;creates&nbsp;a&nbsp;map&nbsp;where&nbsp;the&nbsp;height&nbsp;becomes&nbsp;a&nbsp;colour&nbsp;axis<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"Plot&nbsp;Surf"&nbsp;-&nbsp;As&nbsp;above&nbsp;but&nbsp;generates&nbsp;a&nbsp;surface<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"Fit&nbsp;Peaks"&nbsp;-&nbsp;On&nbsp;each&nbsp;scan,&nbsp;perform&nbsp;a&nbsp;fitting&nbsp;routine,&nbsp;storing&nbsp;the&nbsp;area,&nbsp;width,&nbsp;centre,&nbsp;etc,&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;plot&nbsp;the&nbsp;results&nbsp;and&nbsp;save&nbsp;them&nbsp;to&nbsp;a&nbsp;.dat&nbsp;file.<br>
+&nbsp;<br>
+Custom&nbsp;regions&nbsp;of&nbsp;interest&nbsp;can&nbsp;be&nbsp;set&nbsp;for&nbsp;scans&nbsp;with&nbsp;area&nbsp;detectors:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;In&nbsp;the&nbsp;"Y"&nbsp;box,&nbsp;use&nbsp;the&nbsp;commands:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;nroi[110,242,75,67]&nbsp;-&nbsp;creates&nbsp;roi&nbsp;[ceni,cenj,widi,widj]<br>
+&nbsp;&nbsp;&nbsp;&nbsp;nroi[31,31]&nbsp;-&nbsp;creates&nbsp;centred&nbsp;roi&nbsp;with&nbsp;size&nbsp;[widi,widj]<br>
+&nbsp;&nbsp;&nbsp;&nbsp;nroi_peak[31,31]&nbsp;-&nbsp;create&nbsp;roi&nbsp;centred&nbsp;around&nbsp;largest&nbsp;pixel<br>
+&nbsp;&nbsp;&nbsp;&nbsp;nroi_bkg[31,31]&nbsp;-&nbsp;create&nbsp;roi&nbsp;and&nbsp;subtract&nbsp;average&nbsp;value&nbsp;of&nbsp;surrounding&nbsp;pixels<br>
+&nbsp;&nbsp;&nbsp;&nbsp;nroi_peak_bkg[11,15]&nbsp;-&nbsp;add&nbsp;functions&nbsp;together<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="I16_Peak_Analysis-__init__"><strong>__init__</strong></a>(self, initial_num<font color="#909090">=0</font>, ini_varx<font color="#909090">=''</font>, ini_vary<font color="#909090">=''</font>)</dt></dl>
+
+<dl><dt><a name="I16_Peak_Analysis-f_adv_fit"><strong>f_adv_fit</strong></a>(self)</dt><dd><tt>Start&nbsp;Advanced&nbsp;Fitting&nbsp;GUI</tt></dd></dl>
+
+<dl><dt><a name="I16_Peak_Analysis-f_btn_2D"><strong>f_btn_2D</strong></a>(self)</dt><dd><tt>Button:&nbsp;Plot&nbsp;2D</tt></dd></dl>
+
+<dl><dt><a name="I16_Peak_Analysis-f_btn_3D"><strong>f_btn_3D</strong></a>(self)</dt><dd><tt>Button:&nbsp;Plot&nbsp;3D</tt></dd></dl>
+
+<dl><dt><a name="I16_Peak_Analysis-f_btn_fit"><strong>f_btn_fit</strong></a>(self)</dt><dd><tt>Button:&nbsp;Fit&nbsp;Peaks</tt></dd></dl>
+
+<dl><dt><a name="I16_Peak_Analysis-f_btn_plot"><strong>f_btn_plot</strong></a>(self)</dt><dd><tt>Button:&nbsp;Plot&nbsp;scans</tt></dd></dl>
+
+<dl><dt><a name="I16_Peak_Analysis-f_btn_surf"><strong>f_btn_surf</strong></a>(self)</dt><dd><tt>Button:&nbsp;Plot&nbsp;Surf</tt></dd></dl>
+
+<dl><dt><a name="I16_Peak_Analysis-f_fldr_browse"><strong>f_fldr_browse</strong></a>(self)</dt><dd><tt>Browse&nbsp;for&nbsp;data&nbsp;directory</tt></dd></dl>
+
+<dl><dt><a name="I16_Peak_Analysis-f_save_browse"><strong>f_save_browse</strong></a>(self)</dt><dd><tt>Browse&nbsp;for&nbsp;data&nbsp;directory</tt></dd></dl>
+
+<dl><dt><a name="I16_Peak_Analysis-f_scan_check"><strong>f_scan_check</strong></a>(self)</dt><dd><tt>Check&nbsp;the&nbsp;scan&nbsp;numbers</tt></dd></dl>
+
+<dl><dt><a name="I16_Peak_Analysis-f_scan_ld"><strong>f_scan_ld</strong></a>(self)</dt><dd><tt>Update&nbsp;GUI&nbsp;for&nbsp;selected&nbsp;scan&nbsp;number</tt></dd></dl>
+
+<dl><dt><a name="I16_Peak_Analysis-f_scan_makefile"><strong>f_scan_makefile</strong></a>(self)</dt><dd><tt>Create&nbsp;python&nbsp;analysis&nbsp;file</tt></dd></dl>
+
+<dl><dt><a name="I16_Peak_Analysis-f_scan_st"><strong>f_scan_st</strong></a>(self)</dt><dd><tt>Latest&nbsp;Scan&nbsp;number</tt></dd></dl>
+
+<dl><dt><a name="I16_Peak_Analysis-getdepvar"><strong>getdepvar</strong></a>(self)</dt><dd><tt>Reads&nbsp;the&nbsp;dependant&nbsp;variable&nbsp;and&nbsp;returns&nbsp;the&nbsp;values&nbsp;given</tt></dd></dl>
+
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="I16_Print_Buffer">class <strong>I16_Print_Buffer</strong></a></font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt>Adds&nbsp;images&nbsp;to&nbsp;a&nbsp;series&nbsp;of&nbsp;A4&nbsp;pages&nbsp;allowing&nbsp;multiple&nbsp;plots&nbsp;to&nbsp;be&nbsp;printed<br>
+on&nbsp;one&nbsp;page.<br>
+Activated&nbsp;from&nbsp;the&nbsp;"Print&nbsp;All&nbsp;Figures"&nbsp;button&nbsp;in&nbsp;<a href="#I16_Data_Viewer">I16_Data_Viewer</a><br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="I16_Print_Buffer-__init__"><strong>__init__</strong></a>(self, fignos, ax_layout<font color="#909090">=[3, 2]</font>)</dt></dl>
+
+<dl><dt><a name="I16_Print_Buffer-f_print"><strong>f_print</strong></a>(self)</dt><dd><tt>Print&nbsp;the&nbsp;buffer&nbsp;figure</tt></dd></dl>
+
+<dl><dt><a name="I16_Print_Buffer-f_save"><strong>f_save</strong></a>(self)</dt><dd><tt>Save&nbsp;the&nbsp;buffer&nbsp;figure</tt></dd></dl>
+
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="I16_Scan_Selector">class <strong>I16_Scan_Selector</strong></a></font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt>Displays&nbsp;list&nbsp;of&nbsp;previous&nbsp;scans,&nbsp;selecting&nbsp;them&nbsp;will&nbsp;change&nbsp;the&nbsp;currently<br>
+displayed&nbsp;scan&nbsp;in&nbsp;the&nbsp;main&nbsp;window.<br>
+Opens&nbsp;on&nbsp;click&nbsp;of&nbsp;the&nbsp;"Last&nbsp;Scans&nbsp;window"&nbsp;button&nbsp;in&nbsp;<a href="#I16_Data_Viewer">I16_Data_Viewer</a><br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;If&nbsp;"All&nbsp;scans"&nbsp;is&nbsp;ticked&nbsp;in&nbsp;the&nbsp;main&nbsp;window,&nbsp;this&nbsp;window&nbsp;will&nbsp;display<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;all&nbsp;scans&nbsp;from&nbsp;this&nbsp;experiment<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;Otherwise,&nbsp;the&nbsp;last&nbsp;100&nbsp;scans&nbsp;will&nbsp;be&nbsp;displayed<br>
+&nbsp;<br>
+The&nbsp;"Update"&nbsp;button&nbsp;adds&nbsp;the&nbsp;most&nbsp;recent&nbsp;scans&nbsp;to&nbsp;the&nbsp;top&nbsp;of&nbsp;the&nbsp;list<br>
+The&nbsp;"Reload"&nbsp;button&nbsp;reloads&nbsp;the&nbsp;scans,&nbsp;but&nbsp;also&nbsp;displays&nbsp;data&nbsp;associated&nbsp;with<br>
+any&nbsp;metadata&nbsp;defined&nbsp;in&nbsp;the&nbsp;"show"&nbsp;box.<br>
+&nbsp;<br>
+E.G.&nbsp;<br>
+&nbsp;&nbsp;&nbsp;&nbsp;Show:&nbsp;Ta&nbsp;&gt;&gt;&nbsp;Reload&nbsp;-&nbsp;scans&nbsp;are&nbsp;shown&nbsp;with&nbsp;temperatures<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="I16_Scan_Selector-__init__"><strong>__init__</strong></a>(self, parent, scanrange, showval<font color="#909090">=''</font>)</dt></dl>
+
+<dl><dt><a name="I16_Scan_Selector-f_reload"><strong>f_reload</strong></a>(self)</dt><dd><tt>Closes&nbsp;the&nbsp;current&nbsp;selector&nbsp;window&nbsp;and&nbsp;reloads&nbsp;it</tt></dd></dl>
+
+<dl><dt><a name="I16_Scan_Selector-f_scan_select"><strong>f_scan_select</strong></a>(self, event)</dt><dd><tt>Select&nbsp;scan&nbsp;number&nbsp;from&nbsp;list&nbsp;box&nbsp;and&nbsp;send&nbsp;plot&nbsp;command&nbsp;to&nbsp;main&nbsp;window</tt></dd></dl>
+
+<dl><dt><a name="I16_Scan_Selector-f_update"><strong>f_update</strong></a>(self)</dt><dd><tt>Closes&nbsp;the&nbsp;current&nbsp;selector&nbsp;window&nbsp;and&nbsp;reloads&nbsp;it</tt></dd></dl>
+
+</td></tr></table> <p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#ffc8d8">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#000000" face="helvetica, arial"><a name="colour_cutoffs">class <strong>colour_cutoffs</strong></a></font></td></tr>
+    
+<tr bgcolor="#ffc8d8"><td rowspan=2><tt>&nbsp;&nbsp;&nbsp;</tt></td>
+<td colspan=2><tt>Change&nbsp;the&nbsp;vmin/vmax&nbsp;colormap&nbsp;limits&nbsp;of&nbsp;the&nbsp;current&nbsp;figure<br>
+Activate&nbsp;form&nbsp;the&nbsp;console&nbsp;by&nbsp;typing:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;<a href="#colour_cutoffs">colour_cutoffs</a>()<br>&nbsp;</tt></td></tr>
+<tr><td>&nbsp;</td>
+<td width="100%">Methods defined here:<br>
+<dl><dt><a name="colour_cutoffs-__init__"><strong>__init__</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="colour_cutoffs-f_but1"><strong>f_but1</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="colour_cutoffs-f_but2"><strong>f_but2</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="colour_cutoffs-f_but3"><strong>f_but3</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="colour_cutoffs-f_gcf"><strong>f_gcf</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="colour_cutoffs-f_lower_left"><strong>f_lower_left</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="colour_cutoffs-f_lower_right"><strong>f_lower_right</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="colour_cutoffs-f_upper_left"><strong>f_upper_left</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="colour_cutoffs-f_upper_right"><strong>f_upper_right</strong></a>(self)</dt></dl>
+
+<dl><dt><a name="colour_cutoffs-update"><strong>update</strong></a>(self, event<font color="#909090">=None</font>)</dt></dl>
+
+</td></tr></table></td></tr></table><p>
+<table width="100%" cellspacing=0 cellpadding=2 border=0 summary="section">
+<tr bgcolor="#55aa55">
+<td colspan=3 valign=bottom>&nbsp;<br>
+<font color="#ffffff" face="helvetica, arial"><big><strong>Data</strong></big></font></td></tr>
+    
+<tr><td bgcolor="#55aa55"><tt>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</tt></td><td>&nbsp;</td>
+<td width="100%"><strong>BF</strong> = ['Times', 12]<br>
+<strong>HF</strong> = ['Courier', 12]<br>
+<strong>LF</strong> = ['Times', 14]<br>
+<strong>LINUX</strong> = {'pilatus': [6, 2.9], 'scan': [6, 4]}<br>
+<strong>MAC</strong> = {'pilatus': [5, 2], 'scan': [5, 3]}<br>
+<strong>NORMAL</strong> = {'pilatus': [6, 2.5], 'scan': [6, 4]}<br>
+<strong>Py16GUI_Version</strong> = 3.2<br>
+<strong>SF</strong> = ['Times New Roman', 14]<br>
+<strong>WINDOWS</strong> = {'pilatus': [6, 2.5], 'scan': [6, 4]}</td></tr></table>
+</body></html>

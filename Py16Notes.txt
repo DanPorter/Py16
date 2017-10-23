@@ -1,47 +1,78 @@
 Py16 programs for data viewing and analysis of I16 data
-By Dan Porter, 2016, Version 2.0
+By Dan Porter, 2016, Version 3.2
 
-These programs are designed to be run in DAWN, though in principle should work in any python environment, as long as you have scisoftpy installed and matplotlib initialised in the tkinter backend.
+These programs workin work in any python environment, as long as you have numpy, scipy and matplotlib installed and matplotlib initialised in the tkinter backend. The software has been extensivley tested in Python 2.7+ but should also work in Python 3+ environments.
 
-To run in a console:
-	- Ensure you have Anaconda (or similar) Python 2.7 installed
-	- Copy Py16progs.py and Py16GUI.py to a folder
-	- Run a console/terminal/command prompt from this folder (linux: Right-click > console Windows: Shift+RightClick > command window  Mac: ?)
-	- type: python py16GUI.py
+#### INSTALLATION ####
+1. On an I16 Workstation as I16user:
+	The Software is already installed and ready for use, there is a shortcut on the desktop "I16 Data Viewer"
+
+2. On a Diamond workstation or via the NX server
+	The Software is already available, see below.
+
+3. Remotley run the Software using Cygwin (or linux):
+	- Install Cygwin: https://cygwin.com/install.html
+    - https://x.cygwin.com/docs/ug/using-remote-apps.html
+    - In the Cygwin terminal, first prepare the display for X11 forwarding. Type: export DISPLAY=:0.0
+    - Start an ssh session. Type: ssh -X FED_ID@nx-user.diamond.ac.uk (replace FED_ID with your FedID, if Diamond Staff, use nx-staff.diamond.ac.uk)
+    - Say "Yes" to any messages that may come up, then enter your FED_ID password
+    - You are now connected to a machine local to diamond, use the commands described below
+
+4. To run these programs elsewhere:
+	    - You need a distribution of Python that includes numpy, matplotlib, scipy and tkinter, such as Anaconda: www.anaconda.com/download/
+	    - You must ensure you have tkinter set as the matplotlib backend (this is usually default)
+	    - Run the Py16GUI.py script using the command: ipython -i --matplotlib tk Py16GUI.py
 
 
-To run these programs in DAWN on an I16 workstation (as I16user):
-    - Open a console
-    - type: module load dawn
-    - type: dawn
-    - in DAWN, open the PyDev perspective (Window>Open Perspective>Pydev)
-    - Open a PyDev interactive Console (Window>Show View>Console, then on the upper right of the console tab, press the button Open Console>PyDev Console 
-    - Upon starting, the console should start the Py16 graphical user interface
+#### RUNNING THE SOFTWARE ####
+The software can be run in three ways:
+	1. Using a GUI interface through an interactive terminal
+	2. Using a command line interface through an interactive terminal
+	3. Using a python script
 
-To run these programs elsewhere:
-    - You need Anaconda (or similar) Python 2.7
-    - You must ensure you have tkinter set as the matplotlib backend (this is usually default)
-    - Run the Py16GUI.py script.
+1. Using a GUI interface through an interactive terminal
+	On an I16 workstation (as I16user)
+		- Double click the shortcut on the desktop "I16_Data_Viewer"
+		- Select "Run in Console"
 
+	On another Diamond workstation, the Diamond NX server or when remotely connecting:
+	    - Open a terminal
+	    - Type:
+	        >> cd /dls_sw/i16/software/python/Py16/
+	        >> module load python/ana
+	        >> ipython -i --matplotlib tk Py16GUI.py
 
-Using Py16 programs:
-You can either use the graphical user interface or use the functions from the Py16 module directly.
+	On another system
+		- Open a terminal/ console/ command prompt
+		Type:
+			>> cd /direcotry of Py16GUI.py
+			>> ipython -i --matplotlib tk Py16GUI.py
+		- NOTE: There are included bash scripts for linux and windows that can be simply run to start the software.
 
-Py16 Data Viewer:
-    - Start by adding your experiment data path and the path of the directory you would like to save files to
-    - Type the scan number you would like to look at, or press the button "0" to get the latest scan
-    - the x and y axis of plots are automatically choosen based on the scan command, to change the Y axis, type the required psudo device into the "Y axis" box and press "Plot"
-    - Press "Pilatus" to load the set of pilatus images from the current scan, you can scroll through them using the arrows.
-    - To save the current plot, you can export the plot to a new figure using "Export Plot" or you can save it directly to the analysis folder with "Save Plot"
-    - Press "multiplot/ peak analysis" to go to the peak analysis window
+2. Using a command line interface through an interactive terminal
+	a. Start iPython from the Py16 directory
+		- in Windows: Navigate to the directory containing Py16progs.py, SHIFT+Right Click and select "Open Command Window Here"
+		- in Linux: Open a console, cd to the location of Py16progs.py
+		- in Mac: Open a console, cd to the location of Py16progs.py
+		- type >> ipython -i --matplotlib tk
+	b. in the iPython console, type:
+		>> import Py16progs as p16
+	c. Define the experiment and analysis folders
+		>> p16.filedir = '/experiment_directory'
+		>> p16.savedir = '/analysis_directory'
+	d. Load data/ plot data as requried
+		>> d = p16.readscan(534299) 					# Loads the data from this scan number into a python dictionary d
+    	>> x,y,dy,varx,vary,ttl,d = p16.getdata(534299) # Automatically loads x,y normalised data from scan
+    	>> p16.plotscan(534299) 						# Automatically plots the data
+    	>> help(p16) 									# List of functions
 
-Py16 functions:
-    - Py16progs.py is a module of many useful functions, it is loaded automatically when you open a console in DAWN and named 'pp'
-    - in the Console, type pp. and you should see a list of all the functions in the module
-    - type help(pp.functionname) to see the allowed inputs, outputs and useage
-Examples:
-    d = readscan(534299) # Loads the data from this scan number into a python dictionary d
-    x,y,dy,varx,vary,ttl,d = getdata(534299) # Automatically loads x,y data from scan, using the scan command to determine scanned values (x) and pseudo device (y), performs automatic normalisation
-    plotscan(534299) # Automatically plots the data
-    plotscan([534299,534300]) # plots multiple scans
-    plotscan(534299,fit='pVoight') # plots with fitting
+3. Using a python script
+	a. Make a copy of the included "Example_Script.py"
+	b. In the new script, before doing anything else, change the following lines:
+		- The location of Py16progs.py
+		- The location of the data (dp.filedir = '')
+		- The location of the analysis folder (dp.savedir = '')
+		- Make any changes to the experiment parameters requried
+	c. Write your analysis script
+	d. Run the script in your prefered way. E.G,: In a console, type >> ipython My_Script.py
+

@@ -1,0 +1,8 @@
+#!/bin/bash
+# Open python and run I16_Data_Viewer
+
+cd /dls_sw/i16/software/python/Py16/
+module load python/ana
+ipython -i --matplotlib tk Py16GUI.py
+
+echo "Finished"

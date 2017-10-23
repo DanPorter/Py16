@@ -1,63 +1,68 @@
 # -*- coding: utf-8 -*-
 """
-I16_Data_Viewer
+Selection of graphical user interfaces (GUIs) that allow fast viewing and analysis of data 
+on the beamline I16 at Diamond Light Source Ltd.
 
-App to view and analyse I16 data quickly during experiment.
+By Dan Porter, PhD
+Diamond
+2016
 
-Makes use of Py16progs.py to load #.dat files, interpret the scans,
-normalise the data and provide peak fitting.
+Usage: 
+On an I16 workstation (as I16user)
+    - Double click the shortcut on the desktop "I16_Data_Viewer"
+    - Select "Run in Console"
 
-To start the App, simply run the script:
+On another Diamond workstation, the Diamond NX server or when remotely connecting:
+    - Open a terminal
+    - Type:
+        >> cd /dls_sw/i16/software/python/Py16/
+        >> module load python/ana
+        >> ipython -i --matplotlib tk Py16GUI.py
 
-    - In DAWN: create a  PyDev/Python console, then press CTRL+ALT+ENTER whilst in this script.
+On another system
+    - Open a terminal/ console/ command prompt
+    Type:
+        >> cd /direcotry of Py16GUI.py
+        >> ipython -i --matplotlib tk Py16GUI.py
 
-OPERATION:
- - Once started, enter your experiment data directory, or press "Browse"
+Operation:
+1. On running the program, the main GUI (I16_Data_Viewer) will appear
+2. Browse for the experimental and analysis directories 
+    - the experimental directory is where the scan data is stored
+    - the analysis directory is where you wish to store any data you save or scripts you create
+3. Click "Last" to load the latest data with automaticaly choosen axes
 
- - Enter the Scan number you wish to look at and press ENTER, or use "Last" to get the latest scan.
+More Operations:
+    - Click "Update Pilatus Plot" to load the images from any area detector
+    - Click "Last Scans" to see a list of the last 100 scans that are selectable to plot
+    - Select a function from the "Fit" dropdown menu to apply a fit the current plot
+    - Click "Multiplot/ Peak Analysis" to open the I16_Peak_Analysis GUI
+    - Click "Export Plot" to generate an figure of the current scan
+    - Click "Print Current Scan" to send an image of the current scan to the default printer
+    - Click "Print All Figures" to send all open figures to a single 2x6 page
+    - Click "Meta" to see a full list of metadata for this scan
+    - Tick the box "Live Mode" to automatically update the GUI every 10s
+    - Click "Params" to change default parameters, such as error bars and temperature sensor
 
- - To plot the data, select the fitting and normalisation options you would like, then press "Plot"
+Custom Regions of Interest:
+It is possible to define new regions of interest on an area detector and plot these.
+Note that manual regions of interest have hot and broken pixels set to zero. 
+    - Select the scan
+    - Click "Update Pilatus Plot"
+    - Edit the "Centre" and "ROI" boxes to define the box centre and size, press enter to update the plot
+    - The button "Find Peak" will find the largest pixel, the buttons "roi2" and "roi1" will generate standard ROIs
+    - In the "Y" dropdown menu, choose "Custom ROI" to plot the sum of this ROI
+    - Or: Choose "ROI - bkg" to plot the background subtracted sum (the background is defined by a region twice the ROIs size)
 
- - To see a pilatus image, select the intensity-cutoffs and region of interest (ROI) and press "Pilatus"
+**********************
+Main GUIs:
+I16_Data_Viewer - Starts automatically, set the experiment directory to see scan details, plot scan and area detector data, access other GUIs
+I16_Peak_Analysis - Plot and analyse multiple scans, including peak fitting and integration
+I16_Advanced_Fitting - More fitting options, including masks
+colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
- - If you would like to send the data to the console, press "Send to Console", this will send the variables
-   x,y,dy,xvar,yvar,ttl,d to the console, where d is the dataholder with all the raw data.
-    
- - Py16progs is imported to the console by default as pp, so you can use these functions easily. e.g. pp.plotscan(0)
-   For more info on Py16progs and to see what functions are available, type: help(pp)
-   
- - The buttons "Export Plot/Pilatus" will create figures of the current scan that can be saved or printed.
- 
- - The button "Multiplot/ Peak Analysis" will take you to the Peak Analysis GUI.
-
-###########################################################################################################
-I16_Peak_Analysis
-
-App allowing you to quickly plot multiscan runs such as temperature or energy dependences.
-
-OPERATION:
- - As above, enter your experiment data director, or press "Browse"
- - Also enter the directory you would like files saved in.
- 
- - Give the title and the variable that changes between scans (Dependent)
- 
- - Define the variable to analyse (Y var) and the fit options.
- 
- - Define the scan numbers required by either: 
-     1. Specifying the range with first, last and step (then click "Generate")
-     2. Specifying scan numbers directly in the box. Note that this box will be evaluated so you must
-        specify a python array.
-
- - Use the buttons to select what you want to do next:
-     "Plot Scans" - plot multiple scans on the same axis, with "Dependent" as the legend
-     "Plot 3D" - Plot multiple scans on a 3D axis, with "Dependent" as the 3rd axis
-     "Plot 2D" - As above, except creates a map where the height becomes a colour axis
-     "Plot Surf" - As above but generates a surface
-     "Fit Peaks" - On each scan, perform a fitting routine, storing the area, width, centre, etc, 
-                   plot the results and save them to a .dat file.
-
-Version 3.1
-Last updated: 10/10/17
+Version 3.2
+Last updated: 23/10/17
 
 Version History:
 07/02/16 0.9    Program created
@@ -83,7 +88,8 @@ Version History:
 01/08/17 2.9    Added check for large pilatus arrays, parameter "max array" in parameters window
 02/10/17 2.9    Added ability to turn off normalisation in multi-plots
 06/10/17 3.0    Added log plot to multiplots, plus other fixes
-10/10/17 3.1    Added I16_Meta_Display
+10/10/17 3.1    Added I16_Meta_Display, multiplotting from scan selector
+23/10/17 3.2    Several minor improvements, including choice of plots for fitting
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -141,7 +147,7 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 3.1
+Py16GUI_Version = 3.2
 
 # App Fonts
 BF= ["Times", 12]
@@ -166,6 +172,28 @@ else:
 "---------------------------I16_Data_Viewer------------------------------"
 "------------------------------------------------------------------------"
 class I16_Data_Viewer():
+    """
+    Main GUI to view and analyse I16 data quickly during or after an experiment.
+    
+    OPERATION:
+     - Once started, enter your experiment data directory, or press "Browse"
+    
+     - Enter the Scan number you wish to look at and press ENTER, or use "Last" to get the latest scan.
+    
+     - To plot the data, select the fitting and normalisation options you would like, then press "Plot"
+    
+     - To see a pilatus image, select the intensity-cutoffs and region of interest (ROI) and press "Pilatus"
+    
+     - If you would like to send the data to the console, press "Send to Console", this will send the variables
+       x,y,dy,xvar,yvar,ttl,d to the console, where d is the dataholder with all the raw data.
+        
+     - Py16progs is imported to the console by default as pp, so you can use these functions easily. e.g. pp.plotscan(0)
+       For more info on Py16progs and to see what functions are available, type: help(pp)
+       
+     - The buttons "Export Plot/Pilatus" will create figures of the current scan that can be saved or printed.
+     
+     - The button "Multiplot/ Peak Analysis" will take you to the Peak Analysis GUI.
+    """
     "------------------------------------------------------------------------"
     "--------------------------GUI Initilisation-----------------------------"
     "------------------------------------------------------------------------"
@@ -867,7 +895,32 @@ class I16_Data_Viewer():
         
         self.set_files()
         
-        I16_Peak_Analysis(self.scanno.get())
+        setvarx = self.varx.get()
+        setvary = self.vary.get()
+        
+        if self.remfrm.get():
+            remfrm = '_sfm'
+        else:
+            remfrm = ''
+        
+        if setvarx == 'Auto':
+            setvarx = ''
+        if setvary == 'Auto':
+            setvary = ''
+        elif setvary == 'Custom ROI':
+            ROIceni = self.pilcen_i.get()
+            ROIcenj = self.pilcen_j.get()
+            ROIsizei = self.roisiz_i.get()
+            ROIsizej = self.roisiz_j.get()
+            setvary = 'nroi{}[{},{},{},{}]'.format(remfrm,ROIceni,ROIcenj,ROIsizei,ROIsizej)
+        elif setvary == 'ROI - bkg':
+            ROIceni = self.pilcen_i.get()
+            ROIcenj = self.pilcen_j.get()
+            ROIsizei = self.roisiz_i.get()
+            ROIsizej = self.roisiz_j.get()
+            setvary = 'nroi_bkg{}[{},{},{},{}]'.format(remfrm,ROIceni,ROIcenj,ROIsizei,ROIsizej)
+        
+        I16_Peak_Analysis(self.scanno.get(),setvarx,setvary)
     
     def f_livemode(self):
         "Activate Live Mode"
@@ -1294,6 +1347,9 @@ class I16_Data_Viewer():
         fittype = self.fittype.get()
         if fittype == 'None': fittype=None
         
+        if len(self.extra_scannos) > 0:
+            scanno = [scanno]+list(self.extra_scannos)
+        
         # Send the command
         cmdstr = 'pp.plotscan({},varx=\'{}\',vary=\'{}\',fit=\'{}\',norm={})'
         print( cmdstr.format(scanno,setvarx,setvary,fittype,norm) )
@@ -1582,7 +1638,7 @@ class I16_Data_Viewer():
         self.N.set(str(len(d[d.keys()[0]])))
         self.HKL.set(m.hkl_str)
         self.ENG.set('{} keV'.format(m.Energy))
-        self.T.set('{} K'.format(m.Ta))
+        self.T.set(m.temperature)
         
         self.do.set(m.delta_axis_offset)
 
@@ -1860,6 +1916,21 @@ class I16_Data_Viewer():
 "--------------------------I16_Scan_Selector-----------------------------"
 "------------------------------------------------------------------------"
 class I16_Scan_Selector:
+    """
+    Displays list of previous scans, selecting them will change the currently
+    displayed scan in the main window.
+    Opens on click of the "Last Scans window" button in I16_Data_Viewer
+        - If "All scans" is ticked in the main window, this window will display
+          all scans from this experiment
+        - Otherwise, the last 100 scans will be displayed
+    
+    The "Update" button adds the most recent scans to the top of the list
+    The "Reload" button reloads the scans, but also displays data associated with
+    any metadata defined in the "show" box.
+    
+    E.G. 
+        Show: Ta >> Reload - scans are shown with temperatures
+    """
     "------------------------------------------------------------------------"
     "--------------------------GUI Initilisation-----------------------------"
     "------------------------------------------------------------------------"
@@ -1884,7 +1955,7 @@ class I16_Scan_Selector:
         frame.pack(fill=tk.BOTH,expand=tk.YES)
         
         # Create scan info
-        self.scan_nos = np.array(scanrange[::-1],dtype=int)
+        self.scan_nos = np.asarray(scanrange[::-1],dtype=int)
         #self.scan_nos = pp.get_all_scannos()
         #fmt = '{cmd} | {date} | {mode:4s} {ss} {ds} {energy:5.3g}keV {temp:5.3g}K {hkl:17s} {show}{equal}{val} | {cmd}'
         if showval is None or len(showval) == 0:
@@ -1911,6 +1982,7 @@ class I16_Scan_Selector:
         for scanno in self.scan_nos:
             d = pp.readscan(scanno)
             if d is None:
+                self.lst_scan.insert(tk.END,'{:6.0f}: No Scan'.format(scanno)) 
                 continue
             if showval is None or len(showval) == 0:
                 strval = fmt.format(scanno,d.metadata.cmd_short)
@@ -1924,7 +1996,7 @@ class I16_Scan_Selector:
                 else:
                     val = 'N/A'
                 strval = fmt.format(scanno,val,d.metadata.cmd_short)
-            self.lst_scan.insert(tk.END,strval)
+            self.lst_scan.insert(tk.END,strval) 
         
         self.lst_scan.pack(side=tk.LEFT,fill=tk.BOTH,expand=tk.YES)
         self.lst_scan.select_set(0)
@@ -1952,7 +2024,10 @@ class I16_Scan_Selector:
         frm_btn.pack()
         
         btn_reld = tk.Button(frm_btn,text='Reload',font=BF, command=self.f_reload)
-        btn_reld.pack()
+        btn_reld.pack(side=tk.LEFT)
+        
+        btn_updt = tk.Button(frm_btn,text='Update',font=BF, command=self.f_update)
+        btn_updt.pack(side=tk.LEFT)
         
     "------------------------------------------------------------------------"
     "--------------------------General Functions-----------------------------"
@@ -1969,25 +2044,66 @@ class I16_Scan_Selector:
             # Multi-plots
             self.parent.extra_scannos = scanno[1:]
             self.parent.update_plot()
-            
+            """
             # Try to color the highlighted scans the same colors as the plot *doesn't work*
-            #col_conv={'k':"black", 'r':"red", 'g': "green", 'b':"blue", 'c':"cyan", 'y':"yellow", 'm':"magenta"}
-            #for n in range(len(current)):
-                #col=pp.plot_colors[n%len(pp.plot_colors)]
-                #self.lst_scan.config(highlightbackground=col_conv[col])
+            col_conv={'k':"black", 'r':"red", 'g': "green", 'b':"blue", 'c':"cyan", 'y':"yellow", 'm':"magenta"}
+            for n in range(len(current)):
+                col=pp.plot_colors[n%len(pp.plot_colors)]
+                
+                self.lst_scan.config(selectbackground=col_conv[col])
                 #self.lst_scan.itemconfig(current[n],bg=col_conv[col])
+            """
     
     def f_reload(self):
         "Closes the current selector window and reloads it"
         self.parent.scan_selector_showval = self.new_showval.get()
         self.root.destroy()
         self.parent.f_scn_sel()
+    
+    def f_update(self):
+        "Closes the current selector window and reloads it"
+        
+        latest = pp.latest()
+        last = self.scan_nos[0]
+        if latest <= last: return
+        
+        new_scannos = range(last+1,latest+1)
+        self.scan_nos = np.append(new_scannos[::-1],self.scan_nos)
+        
+        showval = self.new_showval.get()
+        if showval is None or len(showval) == 0:
+            fmt = '{:6.0f}: {}'
+        else:
+            fmt = '{:6.0f}:  {}  {}'
+        
+        for scanno in new_scannos:
+            d = pp.readscan(scanno)
+            if d is None:
+                self.lst_scan.insert(tk.END,'{:6.0f}: No Scan'.format(scanno)) 
+                continue
+            if showval is None or len(showval) == 0:
+                strval = fmt.format(scanno,d.metadata.cmd_short)
+            else:
+                if showval == 'hkl':
+                    val = pp.scanhkl(scanno)
+                elif showval in d.keys():
+                    val = np.mean(getattr(d,showval))
+                elif showval in d.metadata.keys():
+                    val = getattr(d.metadata,showval)
+                else:
+                    val = 'N/A'
+                strval = fmt.format(scanno,val,d.metadata.cmd_short)
+            self.lst_scan.insert(0,strval) 
 
 
 "------------------------------------------------------------------------"
 "--------------------------I16_Meta_Display------------------------------"
 "------------------------------------------------------------------------"
 class I16_Meta_Display:
+    """
+    Displays the full meta data of the current scan
+    Activated from the "Meta" button in I16_Data_Viewer
+    """
     "------------------------------------------------------------------------"
     "--------------------------GUI Initilisation-----------------------------"
     "------------------------------------------------------------------------"
@@ -2004,7 +2120,7 @@ class I16_Meta_Display:
         
         #Frame
         frame = tk.Frame(self.root)
-        frame.pack(side=tk.LEFT,anchor=tk.N)
+        frame.pack(side=tk.LEFT,fill=tk.BOTH,expand=tk.YES,anchor=tk.N)
         
         "---------------------------Metadata ListBox---------------------------"
         # Eval box with scroll bar
@@ -2057,10 +2173,44 @@ class I16_Meta_Display:
 "--------------------------I16_Peak_Analysis-----------------------------"
 "------------------------------------------------------------------------"
 class I16_Peak_Analysis:
+    """
+    I16_Peak_Analysis
+    
+    GUI allowing you to quickly plot multiscan runs such as temperature or energy dependences.
+    
+    OPERATION:
+     - As above, enter your experiment data director, or press "Browse"
+     - Also enter the directory you would like files saved in.
+     
+     - Give the title and the variable that changes between scans (Dependent)
+     
+     - Define the variable to analyse (Y var) and the fit options (leave blank for defaults).
+     
+     - Define the scan numbers required by either: 
+         1. Specifying the range with first, last and step (then click "Generate")
+         2. Specifying scan numbers directly in the box. Note that this box will be evaluated so you must
+            specify a python array.
+    
+     - Use the buttons to select what you want to do next:
+         "Plot Scans" - plot multiple scans on the same axis, with "Dependent" as the legend
+         "Plot 3D" - Plot multiple scans on a 3D axis, with "Dependent" as the 3rd axis
+         "Plot 2D" - As above, except creates a map where the height becomes a colour axis
+         "Plot Surf" - As above but generates a surface
+         "Fit Peaks" - On each scan, perform a fitting routine, storing the area, width, centre, etc, 
+                       plot the results and save them to a .dat file.
+    
+    Custom regions of interest can be set for scans with area detectors:
+        In the "Y" box, use the commands:
+        nroi[110,242,75,67] - creates roi [ceni,cenj,widi,widj]
+        nroi[31,31] - creates centred roi with size [widi,widj]
+        nroi_peak[31,31] - create roi centred around largest pixel
+        nroi_bkg[31,31] - create roi and subtract average value of surrounding pixels
+        nroi_peak_bkg[11,15] - add functions together
+    """
     "------------------------------------------------------------------------"
     "--------------------------GUI Initilisation-----------------------------"
     "------------------------------------------------------------------------"
-    def __init__(self,initial_num=0):
+    def __init__(self,initial_num=0,ini_varx='',ini_vary=''):
         # Create Tk inter instance
         root = tk.Tk()
         root.wm_title('I16 Peak Analysis by D G Porter [dan.porter@diamond.ac.uk]')
@@ -2104,17 +2254,17 @@ class I16_Peak_Analysis:
         frm_titl.pack(fill=tk.X)
         
         # Title
-        self.title = tk.StringVar(frm_titl,'')
+        self.title = tk.StringVar(frm_titl,pp.exp_title)
         lbl_titl = tk.Label(frm_titl, text='Title: ',font=SF)
         lbl_titl.pack(side=tk.LEFT,padx=5,pady=5)
         ety_titl = tk.Entry(frm_titl, textvariable=self.title, width=35)
         ety_titl.pack(side=tk.LEFT,padx=5,pady=5)
         
         # Dependent variable
-        self.depvar = tk.StringVar(frm_titl,'Ta')
+        self.depvar = tk.StringVar(frm_titl,pp.default_sensor)
         lbl_depv = tk.Label(frm_titl, text='Dependent: ',font=SF)
         lbl_depv.pack(side=tk.LEFT,padx=5,pady=5)
-        ety_depv = tk.Entry(frm_titl, textvariable=self.depvar, width=20)
+        ety_depv = tk.Entry(frm_titl, textvariable=self.depvar, width=15)
         ety_depv.pack(side=tk.LEFT,padx=5,pady=5)
         
         # Differentiate Plot
@@ -2127,18 +2277,23 @@ class I16_Peak_Analysis:
         chk_log = tk.Checkbutton(frm_titl, text='Log',font=BF,variable=self.logplot)
         chk_log.pack(side=tk.RIGHT,padx=0)
         
+        # Normalise Plot
+        self.normplot = tk.IntVar(frm_titl,0)
+        chk_log = tk.Checkbutton(frm_titl, text='Normalise',font=BF,variable=self.normplot)
+        chk_log.pack(side=tk.RIGHT,padx=0)
+        
         frm_opt = tk.Frame(frame)
         frm_opt.pack(fill=tk.X)
         
         # vary box
-        self.varx = tk.StringVar(frm_opt,'')
+        self.varx = tk.StringVar(frm_opt,ini_varx)
         lbl_varx = tk.Label(frm_opt, text='X: ',font=SF)
         lbl_varx.pack(side=tk.LEFT,padx=2,pady=5)
         ety_varx = tk.Entry(frm_opt, textvariable=self.varx, width=8)
         ety_varx.pack(side=tk.LEFT,padx=2,pady=5)
         
         # vary box
-        self.vary = tk.StringVar(frm_opt,'')
+        self.vary = tk.StringVar(frm_opt,ini_vary)
         lbl_vary = tk.Label(frm_opt, text='Y: ',font=SF)
         lbl_vary.pack(side=tk.LEFT,padx=3,pady=5)
         ety_vary = tk.Entry(frm_opt, textvariable=self.vary, width=14)
@@ -2245,11 +2400,40 @@ class I16_Peak_Analysis:
         btn_plt4 = tk.Button(frm_btn1, text='Plot Surf',font=BF, width=19, height=2, command = self.f_btn_surf)
         btn_plt4.pack(side=tk.LEFT,padx=4,pady=2)
         
+        
         frm_btn2 = tk.Frame(frame)
         frm_btn2.pack(fill=tk.X)
         
+        frm_fpt = tk.Frame(frm_btn2,borderwidth=2,relief=tk.RIDGE)
+        frm_fpt.pack(side=tk.LEFT)
+        
+        lbl_fpt = tk.Label(frm_fpt, text='Fit Plots: ',font=SF)
+        lbl_fpt.pack(side=tk.LEFT,padx=5,pady=5)
+        
+        self.fitplot_all = tk.IntVar(frm_btn2,1)
+        chk_fpt = tk.Checkbutton(frm_fpt, text='All',font=SF,variable=self.fitplot_all)
+        chk_fpt.pack(side=tk.LEFT,padx=0)
+        
+        self.fitplot_ara = tk.IntVar(frm_btn2,0)
+        chk_fpt = tk.Checkbutton(frm_fpt, text='Area',font=SF,variable=self.fitplot_ara)
+        chk_fpt.pack(side=tk.LEFT,padx=0)
+        
+        self.fitplot_wid = tk.IntVar(frm_btn2,0)
+        chk_fpt = tk.Checkbutton(frm_fpt, text='Width',font=SF,variable=self.fitplot_wid)
+        chk_fpt.pack(side=tk.LEFT,padx=0)
+        
+        self.fitplot_cen = tk.IntVar(frm_btn2,0)
+        chk_fpt = tk.Checkbutton(frm_fpt, text='Centre',font=SF,variable=self.fitplot_cen)
+        chk_fpt.pack(side=tk.LEFT,padx=0)
+        
+        self.fitplot_2d = tk.IntVar(frm_btn2,0)
+        chk_fpt = tk.Checkbutton(frm_fpt, text='2D',font=SF,variable=self.fitplot_2d)
+        chk_fpt.pack(side=tk.LEFT,padx=0)
+        
+        
         btn_plt5 = tk.Button(frm_btn2, text='Fit Peaks',font=BF, height=2, command = self.f_btn_fit)
-        btn_plt5.pack(fill=tk.X, padx=2,pady=2)
+        btn_plt5.pack(side=tk.LEFT,fill=tk.X,expand=tk.YES, padx=2,pady=2)
+    
     "------------------------------------------------------------------------"
     "---------------------------Button Functions-----------------------------"
     "------------------------------------------------------------------------"
@@ -2303,21 +2487,14 @@ class I16_Peak_Analysis:
         pp.savedir = self.savedir.get()
         pp.normby = self.normtype.get()
         
-        # Seet scan numbers
-        first = self.first.get()
-        last = eval(self.last.get())
-        step = self.step.get()
+        # Get scan numbers
+        scanstr=self.txt_scan.get('1.0','end-1c')
+        scanno = eval(scanstr)
         
-        if last > pp.latest(): 
-            last = pp.latest()
-            self.last.set(last)
-        
-        scans = range(first,last+1,step)
-        
-        depvar = self.depvar.get()
+        depvar = self.getdepvar()
         
         # Run checkscans
-        pp.checkscans(scans,showval=depvar)
+        pp.checkscans(scanno,showval=depvar)
     
     def f_scan_makefile(self):
         "Create python analysis file"
@@ -2340,6 +2517,14 @@ class I16_Peak_Analysis:
         fit = self.fittype.get()
         test = self.peaktest.get()
         
+        # Get plot options
+        plot_opt = []
+        if self.fitplot_all.get(): plot_opt += ['all']
+        if self.fitplot_ara.get(): plot_opt += ['int']
+        if self.fitplot_wid.get(): plot_opt += ['wid']
+        if self.fitplot_cen.get(): plot_opt += ['cen']
+        if self.fitplot_2d.get(): plot_opt += ['surface']
+        
         if pp.normby == 'none':
             norm = False
         else:
@@ -2347,7 +2532,7 @@ class I16_Peak_Analysis:
         
         if save == 0: save = None
         
-        pp.create_analysis_file(scanno, depvar=depvar, varx=xvar, vary=yvar, fit_type = fit, peaktest=test, norm=norm, savePLOT=save)
+        pp.create_analysis_file(scanno, depvar=depvar, varx=xvar, vary=yvar, fit_type = fit, peaktest=test, norm=norm, plot=plot_opt, savePLOT=save)
     
     def f_adv_fit(self):
         "Start Advanced Fitting GUI"
@@ -2363,7 +2548,7 @@ class I16_Peak_Analysis:
         scanno = eval(scanstr)
         
         # Get fit options
-        depvar = self.depvar.get().split()
+        depvar = self.getdepvar()
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
@@ -2389,7 +2574,7 @@ class I16_Peak_Analysis:
         scanno = eval(scanstr)
         
         # Get plot options
-        depvar = self.depvar.get().split()[0]
+        depvar = self.getdepvar()
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
@@ -2401,7 +2586,10 @@ class I16_Peak_Analysis:
         else:
             norm = True
         
-        pp.plotscan(scanno,varx=xvar,vary=yvar,norm=norm,logplot=log,diffplot=dif,labels=depvar,save=save)
+        if dif == False and len(scanno) > 5:
+            pp.plotscans(scanno,depvar=depvar[0],varx=xvar,vary=yvar,norm=norm,logplot=log,save=save)
+        else:
+            pp.plotscan(scanno,varx=xvar,vary=yvar,norm=norm,logplot=log,diffplot=dif,labels=depvar,save=save)
         plt.show()
     
     def f_btn_3D(self):
@@ -2418,7 +2606,7 @@ class I16_Peak_Analysis:
         scanno = eval(scanstr)
         
         # Get plot options
-        depvar = self.depvar.get().split()[0]
+        depvar = self.getdepvar()[0]
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
@@ -2446,7 +2634,7 @@ class I16_Peak_Analysis:
         scanno = eval(scanstr)
         
         # Get plot options
-        depvar = self.depvar.get().split()[0]
+        depvar = self.getdepvar()[0]
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
@@ -2474,7 +2662,7 @@ class I16_Peak_Analysis:
         scanno = eval(scanstr)
         
         # Get plot options
-        depvar = self.depvar.get().split()[0]
+        depvar = self.getdepvar()[0]
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
@@ -2504,12 +2692,20 @@ class I16_Peak_Analysis:
         scanno = eval(scanstr)
         
         # Get fit options
-        depvar = self.depvar.get().split()
+        depvar = self.getdepvar()
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
         fit = self.fittype.get()
         test = self.peaktest.get()
+        
+        # Get plot options
+        plot_opt = []
+        if self.fitplot_all.get(): plot_opt += ['all']
+        if self.fitplot_ara.get(): plot_opt += ['int']
+        if self.fitplot_wid.get(): plot_opt += ['wid']
+        if self.fitplot_cen.get(): plot_opt += ['cen']
+        if self.fitplot_2d.get(): plot_opt += ['surface']
         
         if pp.normby == 'none':
             norm = False
@@ -2518,17 +2714,33 @@ class I16_Peak_Analysis:
         
         if save == 0: save = None
         
-        print( 'fit,err = pp.fit_scans(scannos,vary={},depvar={},peaktest={},fit_type={},norm={},saveFIT={},savePLOT={})'.format(yvar,depvar,test,fit,norm,save,save) )
+        print( 'fit,err = pp.fit_scans(scannos,vary={},depvar={},peaktest={},fit_type={},norm={},plot={},saveFIT={},savePLOT={})'.format(yvar,depvar,test,fit,norm,plot_opt,save,save) )
         fit,err = pp.fit_scans(scanno,varx=xvar,vary=yvar,depvar=depvar,
-                               peaktest=test,fit_type=fit,norm=norm,
+                               peaktest=test,fit_type=fit,norm=norm,plot=plot_opt,
                                saveFIT=save,savePLOT=save)
         plt.show()
+        
+    def getdepvar(self):
+        "Reads the dependant variable and returns the values given"
+        
+        depvar = self.depvar.get()
+        depvar = depvar.strip('[]')
+        depvar = [x.strip() for x in depvar.split(',')]
+        print('{}'.format(depvar))
+        return depvar
 
 
 "------------------------------------------------------------------------"
 "-------------------------I16_Advanced_Fitting---------------------------"
 "------------------------------------------------------------------------"
 class I16_Advanced_Fitting:
+    """
+    More Fitting options, including masking
+    Activated from "Adv. Fitting" button in I16_Peak_Analysis
+    
+    Takes scan numbers from I16_Peak_Analysis and allows navigation through
+    all scans to check peak shapes etc.
+    """
     "------------------------------------------------------------------------"
     "--------------------------GUI Initilisation-----------------------------"
     "------------------------------------------------------------------------"
@@ -3255,6 +3467,11 @@ class I16_Advanced_Fitting:
 "---------------------------I16_Print_Buffer-----------------------------"
 "------------------------------------------------------------------------"
 class I16_Print_Buffer():
+    """
+    Adds images to a series of A4 pages allowing multiple plots to be printed
+    on one page.
+    Activated from the "Print All Figures" button in I16_Data_Viewer
+    """
     "------------------------------------------------------------------------"
     "--------------------------GUI Initilisation-----------------------------"
     "------------------------------------------------------------------------"
@@ -3336,6 +3553,29 @@ class I16_Print_Buffer():
 "-----------------------------I16_Check_Log------------------------------"
 "------------------------------------------------------------------------"
 class I16_Check_Log:
+    """
+    Functions to check multiple scans, check the log file and predict the end of a run
+    Activated from the "More Check Options" button in I16_Data_Viewer
+    
+    Panel 1: Check scans
+        - input the list of scan required in "Scans", this box is evaluated as python
+        - Use the "show" box to add any metadata to the output
+        - Click "Check Scans" - the output can be viewed in the console
+    
+    Panel 2: Check Log
+        - Set either the Time or Scan number
+        - Set the number of minutes (or tick "All time")
+        - Click "Check Log" to show log file entries from "Mins" before Time/Scan until Time/Scan in the console
+        - Use "Find Sting" to only show entries including this string
+        - Tick "Show commands only" to only display commands
+    
+    Panel 3: Predict End
+        - Set the number of the "First Scan" in a series
+        - Set the expected "Last Scan" of a series (maths allowed)
+        - Click "Predict End" to display the expexted end of the scan series in the console
+        - Assumes each scan will be the same length on average.
+        - Very useful for determining the end of a script
+    """
     "------------------------------------------------------------------------"
     "--------------------------GUI Initilisation-----------------------------"
     "------------------------------------------------------------------------"
@@ -3526,7 +3766,7 @@ class I16_Check_Log:
             time = datetime.datetime.strptime(time,'%Y-%m-%d %H:%M')
             scan = datetime.datetime.strftime(time,'%Y-%m-%d %H:%M:%S,%f')
         
-        if self.log_AllTime == 1:
+        if self.log_AllTime.get():
             mins = 'all'
         
         if len(find) == 0:
@@ -3559,6 +3799,20 @@ class I16_Check_Log:
 "--------------------------------I16_Params------------------------------"
 "------------------------------------------------------------------------"
 class I16_Params:
+    """
+    Set the default experimental parameters
+    Activated from the "Params" button in I16_Data_Viewer
+        Ring Current    Standard ring current for current experiment for normalisation
+        ic1             Standard ic1monitor value for current experiment for normalisation
+        Temp Sensor     Temperature sensor used as default
+        Errors          Error funciton used (select none to remove error bars)
+        Central Pixel   Centre pixel [i,j] in area detectors
+        Max Pixel       Any pixels larger than this are hot pixels and set to zero
+        Max array size  Stops PC form running out of memory on large pilatus scans
+        Peak Region     Peak finding (nroi_peak) searches within this box
+        Colours         Set the default colour order for plots
+        Title           Set the title that will appear in plot titles
+    """
     "------------------------------------------------------------------------"
     "--------------------------GUI Initilisation-----------------------------"
     "------------------------------------------------------------------------"
@@ -3607,11 +3861,24 @@ class I16_Params:
         frame1c.pack()
         
         # Errors
+        tempopts = ['Ta','Tb','Tc','Td']
+        self.sensortype = tk.StringVar(frame1, pp.default_sensor)
+        lbl_sen = tk.Label(frame1c,text='Temp Sensor:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_sen.pack(side=tk.LEFT,padx=5,pady=5)
+        opt_sen = tk.OptionMenu(frame1c, self.sensortype, *tempopts)
+        opt_sen.config(width=dwid)
+        opt_sen.pack(side=tk.LEFT,padx=0,pady=5)
+        
+        # Line 1d
+        frame1d = tk.Frame(frame1)
+        frame1d.pack()
+        
+        # Errors
         erroropts = ['sqrt(n)','std(N)','none']
         self.errortype = tk.StringVar(frame1, erroropts[0])
-        lbl_err = tk.Label(frame1c,text='Errors:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_err = tk.Label(frame1d,text='Errors:',font=SF, justify=tk.RIGHT, width=dwid)
         lbl_err.pack(side=tk.LEFT,padx=5,pady=5)
-        opt_nrm = tk.OptionMenu(frame1c, self.errortype, *erroropts)
+        opt_nrm = tk.OptionMenu(frame1d, self.errortype, *erroropts)
         opt_nrm.config(width=dwid)
         opt_nrm.pack(side=tk.LEFT,padx=0,pady=5)
         
@@ -3716,6 +3983,7 @@ class I16_Params:
         pp.peakregion = eval(self.peakregion.get())
         pp.plot_colors = eval(self.plot_colors.get())
         pp.exp_title = self.exp_title.get()
+        pp.default_sensor = self.sensortype.get()
         
         # Errors
         ch_error = self.errortype.get()
@@ -3733,6 +4001,11 @@ class I16_Params:
 "----------------------------------cutoffs-------------------------------"
 "------------------------------------------------------------------------"
 class colour_cutoffs:
+    """
+    Change the vmin/vmax colormap limits of the current figure
+    Activate form the console by typing:
+        colour_cutoffs()
+    """
     "------------------------------------------------------------------------"
     "--------------------------GUI Initilisation-----------------------------"
     "------------------------------------------------------------------------"

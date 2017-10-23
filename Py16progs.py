@@ -11,7 +11,7 @@ Usage:
 include the following lines at the top of your script
 
 import sys
-sys.path.insert(0,'/dls_sw/i16/software/python/userscripts/python') # location of Py16Progs
+sys.path.insert(0,'/dls_sw/i16/software/python/Py16') # location of Py16Progs
 import Py16Progs as p16
 p16.filedir = '/dls/i16/data/2015/mt0000-1' # your experiment folder
 p16.savedir = '' # where to save output
@@ -24,26 +24,29 @@ p16.plotscan(num)
 p16.plotpil(num)
 
 ******In Console*******
-Run the file in the current console
-
-Load the module:
-runfile('/dls_sw/i16/software/python/userscripts/I16user/Py16/Py16progs.py')
-
+Run the file in the current console:
+    >> cd /dls_sw/i16/software/python/Py16/
+    >> ipython -i --matplotlib tk
+In the python console:
+    >> import Py16progs as p16
 Change filedir: 
-filedir = '/dls/i16/data/2015/cm12169-2/CsFeSe' # your experiment folder
+    >> p16.filedir = '/dls/i16/data/2015/cm12169-2/CsFeSe' # your experiment folder
 
 # Use functions:
-d= readscan(num)
-checkexp()
-num = latest()
+    >> d= p16.readscan(12345) # generate data structure for scan number 12345
+    >> d.eta # returns scan data for eta psudo-device
+    >> d.metadata.Energy # returns metadata for scan (at start of scan) 
+    >> p16.checkexp() # experiment dates + scans numbers
+    >> num = p16.latest() # Latest scan number
 
 **********************
-Functions:
+Some Useful Functions:
     d = readscan(num) 
     x,y,dy,varx,vary,ttl,d = getdata(num/d,'varx','vary',save=None)
     x,y,z,varx,vary,varz,ttl = joindata([nums],'varx','vary','varz')
     vol = getvol(num)
     ROI_sum,ROI_maxval,ROI_bkg = pilroi(num,ROIcen,ROIsize,findpeak,peakregion)
+    A = getmeta([nums],'Field')
     
     num = latest()
     checkexp()
@@ -62,6 +65,10 @@ Functions:
     
     out,err = peakfit(x,y,dy,type='dVoight')
     
+    HHH,KKK,LLL = pixel2hkl(num)
+    XXX,YYY,ZZZ = pixel2xyz(num)
+    TTH,INT = pixel2tth(num)
+    
     ROIcen_ij,ROIcen_frame = pilpeak(Y,test = 1,disp=False)
     ispeak(Y,test = 1,disp=False)
     peak = peakfind(Y,cutoff=0.01)*
@@ -71,8 +78,8 @@ Functions:
     str = stfm(val,err)
     
 
-Version 3.0
-Last updated: 06/10/17
+Version 3.2
+Last updated: 23/10/17
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -98,6 +105,8 @@ Version History:
 01/08/17 2.9    Added check for large pilatus arrays.
 02/10/17 2.9    Added various misc functions, other bugs fixed
 06/10/17 3.0    Added pixel2hkl functions, incluing plots, other bug fixes
+17/10/17 3.1    Added choice of temperature sensor, d.metadata.temperature
+23/10/17 3.2    Added new plotting features, better multi-dimensional fits
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -161,7 +170,7 @@ exp_monitor = 800.0 # Standard ic1monitor value for current experiment for norma
 normby = 'rc' # Incident beam normalisation option: 'rc','ic1' or 'none'
 dont_normalise = ['Ta','Tb','Tc','Td','ic1monitor','rc','Cmes','Vmes','Rmes']
 detectors = ['APD','sum','maxval'] # error bars are only calculated for counting detectors
-default_sensor = 'Ta'
+default_sensor = 'Ta' # d.metadata.temperature will read this sensor as the standard
 
 "----------------------------Pilatus Parameters---------------------------"
 #pil_centre = [103,244] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
@@ -806,8 +815,9 @@ def getvol(num,ROIcen=None,ROIsize=None):
     tif=pilpath % d.path[0]
     file = os.path.join(filedir,tif)
     file=file.replace('/',os.path.sep)
-    im=misc.imread(file)
+    im=misc.imread(file,flatten=True) # flatten required to read zylar 16 bit files
     pil_size = im.shape
+    
     
     """
     if 'pilatus100k_path_template' in d.metadata.keys():
@@ -844,7 +854,7 @@ def getvol(num,ROIcen=None,ROIsize=None):
         " Load image "
         #t=dnp.io.load(file,warn=False)
         #vol[:,:,n] = t.image0 #"image0" varies for some reason
-        im=misc.imread(file) # this is more reliable than dnp.io.load
+        im=misc.imread(file,flatten=True) # this is more reliable than dnp.io.load
         
         " Flip image"
         #im = np.flipud(im)
@@ -976,6 +986,7 @@ def pixel2hkl(num,detdim=[195,487],UB=None):
         d = readscan(num)
     except TypeError:
         d = num
+        num = d.metadata.SRSRUN
     
     varx = auto_varx(d)
     numimag = len(d.path)
@@ -986,7 +997,6 @@ def pixel2hkl(num,detdim=[195,487],UB=None):
     
     if varx not in ['delta','gam','eta','mu','chi','phi']:
         print("Doesnt work on this type of scan!")
-        return
     
     # Rotation functions
     def R_x_r(alpha):
@@ -1174,7 +1184,7 @@ def pixel2hkl(num,detdim=[195,487],UB=None):
         LLL[:,:,index_r]=invUBinvZ[2,0]*k[:,:,0] + invUBinvZ[2,1]*k[:,:,1] + invUBinvZ[2,2]*k[:,:,2];
     
     t2=time.clock()
-    print("time spent generating hkl positions={}".format(t2-t1))
+    print("#{} Time spent generating hkl positions={}".format(num,t2-t1))
     return HHH,KKK,LLL
 
 def pixel2xyz(num,detdim=[195,487]):
@@ -1213,6 +1223,7 @@ def pixel2tth(num,detdim=[195,487],centre_only=False):
     """
     
     XXX,YYY,ZZZ = pixel2xyz(num,detdim)
+    t1=time.clock()
     Qmag = np.sqrt(XXX**2 + YYY**2 + ZZZ**2)
     
     TTH = q2tth(Qmag,getmeta(num,'Energy'))
@@ -1228,6 +1239,9 @@ def pixel2tth(num,detdim=[195,487],centre_only=False):
     sortindex = np.argsort(TTH)
     TTH = TTH[sortindex]
     vol = vol[sortindex]
+    
+    t2=time.clock()
+    print("time spent sorting tth values={}".format(t2-t1))
     
     return TTH,vol
 
@@ -1346,8 +1360,6 @@ def checkscan(num1=None,num2=None,showval=None):
     m = d.metadata
     ks = d.keys()
     
-    if m.Ta == 0: m.Ta = 300
-    
     # Print information
     print( '-----------Run ', m.SRSRUN, '-----------' )
     print( '  File Dir: ',filedir )
@@ -1355,7 +1367,7 @@ def checkscan(num1=None,num2=None,showval=None):
     print( '   Npoints: ',len(d.TimeSec) )
     print( '       HKL: ({0},{1},{2})'.format(m.h,m.k,m.l) )
     print( '    Energy: {0} keV'.format(m.Energy) )
-    print( '      Temp: {0} K'.format(m.Ta) )
+    print( '      Temp: {0} K'.format(m.temperature) )
     print()
     
     # Check for vertical or horizontal geopmetry
@@ -1463,10 +1475,12 @@ def checkscans(num1=None,num2=None,showval=None,find_scans=None):
         num1 = range(num1,num2)
     nums = np.asarray(num1,dtype=int).reshape(-1)
     
+    showvals = np.asarray(showval).reshape(-1)
+    
     # Print brief info
     #fmt = '{nums} | {date} | {mode:4s} {energy:5.3g}keV {temp:5.3g}K ({h:1.2g},{k:1.2g},{l:1.2g}) | {cmd}'
-    fmt = '{nums} | {date} | {mode:4s} {ss} {ds} {energy:5.3g}keV {temp:5.3g}K {hkl:17s} {show}{equal}{val} | {cmd}'
-    showval_dict = {'show':'','equal':'','val':''}
+    fmt = '{nums} | {date} | {mode:4s} {ss} {ds} {energy:5.3g}keV {temp:s} {hkl:17s} {showval} | {cmd}'
+    #showval_dict = {'show':'','equal':'','val':''}
     for n in range(len(nums)):
         d = readscan(nums[n])
         if d is None:
@@ -1509,9 +1523,10 @@ def checkscans(num1=None,num2=None,showval=None,find_scans=None):
                     pol = pol+'p'
             mode = mode+pol
         
-        if showval is not None:
-            if type(showval) is list:
-                blibblab
+        showvaltxt = []
+        for showval in showvals:
+            if showval is None: continue
+            
             if showval == 'hkl':
                 val = scanhkl(m.SRSRUN)
             elif showval in ks:
@@ -1520,11 +1535,10 @@ def checkscans(num1=None,num2=None,showval=None,find_scans=None):
                 val = getattr(m,showval)
             else:
                 val = 'No Data'
-            showval_dict['show'] = showval
-            showval_dict['equal'] = '='
-            showval_dict['val'] = val
+            showvaltxt += ['{} = {}'.format(showval,val)]
+        showvaltxt = ', '.join(showvaltxt)
         
-        print( fmt.format(nums=m.SRSRUN,date=m.date,mode=mode,ss=sampsl,ds=detsl,energy=m.Energy,temp=m.Ta,hkl=hkl,cmd=m.cmd_short,**showval_dict) )
+        print( fmt.format(nums=m.SRSRUN,date=m.date,mode=mode,ss=sampsl,ds=detsl,energy=m.Energy,temp=m.temperature,hkl=hkl,showval=showvaltxt,cmd=m.cmd_short) )
 
 def checklog(time=None,mins=2,cmd=False,find=None):
     """Look at experiment log file 
@@ -1795,13 +1809,16 @@ def scanhkl(num):
     
     return '({0:1.3g},{1:1.3g},{2:1.3g})'.format(round(h,2)+0.0,round(k,2)+0.0,round(l,2)+0.0)
 
-def scantemp(num,sensor='Ta'):
+def scantemp(num,sensor=None):
     "Returns the average temperature of the chosen scan as a formatted string"
     
     try:
         d = readscan(num)
     except TypeError:
         d = num
+    
+    if sensor is None:
+        sensor = default_sensor
     
     m = d.metadata
     if sensor in d.keys():
@@ -2066,6 +2083,7 @@ def polflip(sigsig,sigpi,fit='Gauss',output=False,plot=False):
     if plot:
         plotscan([nprN,prN],fit=fit,fits=True)
         plt.legend([r'#{}: $\sigma-\sigma$'.format(nprN),r'#{}: $\sigma-\pi$'.format(prN)])
+        plt.show()
         saveplot('POLFLIP '+saveable(ttl1))
 
 def polenergy(sigsig,sigpi,background=None,vary='',bkg_scale=None,flipping_ratio=None,low_points=5,save=False):
@@ -2084,7 +2102,7 @@ def polenergy(sigsig,sigpi,background=None,vary='',bkg_scale=None,flipping_ratio
     m = d2.metadata
     cmd = m.cmd_short # Scan command
     hkl = '({:3.1f},{:3.1f},{:3.1f})'.format(m.h,m.k,m.l)
-    T = '{:1.3g}K'.format(m.Ta)
+    T = m.temperature
     sampsl = '{0:4.2g}x{1:<4.2g}'.format(m.s5xgap,m.s5ygap)
     detsl = '{0:4.2g}x{1:<4.2g}'.format(m.s6xgap,m.s6ygap)
     atten1 = '{0:1.0f}'.format(m.Atten)
@@ -2204,6 +2222,7 @@ def polenergy(sigsig,sigpi,background=None,vary='',bkg_scale=None,flipping_ratio
     plt.xlabel('Energy (keV)', fontsize=18)
     #plttl = ttl2+'\n'+cmd+'\npsi={}, ss ={}, ds ={}, atten = {}'.format(sampsl,detsl,atten1)
     plt.title(ttl, fontsize=14)
+    plt.show()
     
     if save not in [None, False, '']:
         if type(save) is str:
@@ -2534,6 +2553,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
          fit_type : ('pVoight): Type of fit to perform e.g. 'Simple','pVoight','Lorentz','Gauss'
          bkg_type : ('flat')  : Type of background to use e.g. 'flat','slope','step'
          peaktest : (10)      : Parameter to determine whether a peak exists, see help(ispeak) 
+             norm : (True)    : Data normalised by time, transmission + ring current
            abscor : (None)    : Absorption coefficient for material, None switches off correction
              plot : ('all')   : Create plot of fits at end. 'all' plots all paramters, 'int' plot integrated area, None doesn't plot
         show_fits : (False)   : Generate plots for all scans and show fits (True/False)
@@ -2576,6 +2596,14 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
          > if data has been saved with saveFIT=True, fitted values can be regained using:
              val,err = load_fits(scans,depvar='Ta',fit_type='pVoight')
     
+    PLOTS:
+        "plot" keyword accepts the following as a single string or list of strings:
+            > 'all' - a single figure with subplots of integrated intensity, width, centre, background etc.
+            > 'int' - a figure with a single axis showing the integrated intensity
+            > 'wid' - a figure with a single axis showing the fitted FWHM
+            > 'cen' - a figure with a single axis showing the fitted centre
+            > 'surface' - *2D fits only!* plots integrated intensities vs x and y data
+    
     MASKS:
         > Masks define regions of each scan to remove
         > input "mask_cmd" takes string arguments that will be evaluated 
@@ -2595,6 +2623,9 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
         > E.G. For gaussian + slope:
         >    estvals = [height,cen,wid,bkg,slope] # same for all scans
         >    estvals = [[height1,cen1,wid1,bkg1,slope1],[height2,cen2,wid2,bkg2,slope2],...] # Different for each scan
+    
+    FITTING PROCEDURE:
+        >
     """
     
     # Turn depvar into a list
@@ -2733,6 +2764,8 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
                     saveplot('{0} ScansFIT {1:1.0f}-{2:1.0f} {3} FITS {4}'.format(' '.join(depvar),scans[0],scans[-1],fit_type,n))
                 
     # Sort by depvar
+    unsorted_valstore = 1.0*valstore
+    unsorted_errstore = 1.0*errstore
     if sortdep:
         idx = np.argsort(valstore[:,1])
         valstore = valstore[idx,:]
@@ -2740,18 +2773,18 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
     
     # Save valstore & errstore values in text files
     if saveFIT not in [None, False, '']:
-        header = ','.join(dict_names)
+        header = fttl+'\n'+','.join(dict_names)
         if type(saveFIT) is str:
             savefile = os.path.join(savedir, '{}.dat'.format(saveFIT))
             esavefile = os.path.join(savedir, '{}_errors.dat'.format(saveFIT))
-            np.savetxt(savefile,valstore,header=header)
-            np.savetxt(esavefile,errstore,header=header)
+            np.savetxt(savefile,unsorted_valstore,header=header)
+            np.savetxt(esavefile,unsorted_errstore,header=header)
             print( 'Saved as {}'.format(savefile) )
         else:
             savefile = os.path.join(savedir, '{0} ScansFIT {1:1.0f}-{2:1.0f} {3}.dat'.format(' '.join(depvar),scans[0],scans[-1],fit_type))
             esavefile = os.path.join(savedir, '{0} ScansFIT {1:1.0f}-{2:1.0f} {3}_errors.dat'.format(' '.join(depvar),scans[0],scans[-1],fit_type))
-            np.savetxt(savefile,valstore,header=header)
-            np.savetxt(esavefile,errstore,header=header)
+            np.savetxt(savefile,unsorted_valstore,header=header)
+            np.savetxt(esavefile,unsorted_errstore,header=header)
             print( 'Saved as {}'.format(savefile) )
             print( 'Reload this scan with:\n val,err = load_fits([{},{}],depvar={},fit_type=\'{}\')'.format(scans[0],scans[-1],depvar,fit_type) )
         
@@ -2818,12 +2851,10 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
         elif nplot == 'int':
             # 2D Plots of area
             fig = plt.figure(figsize=[8,8])
-            fig.add_subplot(111) # Area
             #plt.plot(valstore[:,0],valstore[:,6],'-o',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+6],errstore[:,Ndep+6],fmt='-o',linewidth=2)
             plt.xlabel(depvar[0],fontsize=18)
             plt.ylabel('Integrated Sum('+labvary+')',fontsize=18)
-            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd_short
             plt.title(fttl,fontsize=14)
             plt.xlim(xrange)
             plt.ylim([0,max(valstore[:,Ndep+6])*1.1])
@@ -2831,27 +2862,50 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
         elif nplot == 'cen':
             # 2D Plots of centre
             fig = plt.figure(figsize=[8,8])
-            fig.add_subplot(111) # Area
             #plt.plot(valstore[:,0],valstore[:,2],'-+',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+2],errstore[:,Ndep+2],fmt='-o',linewidth=2)
             plt.xlabel(depvar[0],fontsize=18)
             plt.ylabel(labvarx+' Centre',fontsize=18)
-            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd_short
             plt.title(fttl,fontsize=14)
             plt.xlim(xrange)
             fig.subplots_adjust(left=0.15)
         elif nplot == 'wid':
             # 2D Plots of width
             fig = plt.figure(figsize=[8,8])
-            fig.add_subplot(111) # Area
             #plt.plot(valstore[:,0],valstore[:,3],'-+',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+3],errstore[:,Ndep+3],fmt='-o',linewidth=2)
             plt.xlabel(depvar[0],fontsize=18)
             plt.ylabel(labvarx+' Width',fontsize=18)
-            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd_short
             plt.title(fttl,fontsize=14)
             plt.xlim(xrange)
             fig.subplots_adjust(left=0.15)
+        elif nplot == 'surface':
+            # 2D surface plot of multi-dimension scans
+            sx = unsorted_valstore[:,Ndep-1]
+            sy = unsorted_valstore[:,Ndep]
+            inte = unsorted_valstore[:,Ndep+6]
+            
+            # Determine the repeat length of the scans
+            delta = np.abs(np.diff(sx))
+            ch_idx = np.where(delta > delta.max()*0.9) # find biggest changes
+            ch_delta = np.diff(ch_idx)
+            rep_len = np.round(np.mean(ch_delta))
+            print('Scans are repeating every {} iterations'.format(rep_len))
+            
+            # Reshape into square arrays
+            # If this is problematic, look at scipy.interpolate.griddata
+            sx_squareA = sx[:rep_len*(len(sx)//rep_len)].reshape(-1,rep_len)
+            sy_squareA = sy[:rep_len*(len(sy)//rep_len)].reshape(-1,rep_len)
+            int_squareA = inte[:rep_len*(len(inte)//rep_len)].reshape(-1,rep_len)
+            
+            plt.figure(figsize=[12,10])
+            plt.pcolor(sx_squareA,sy_squareA,int_squareA)
+            plt.axis('image')
+            cb = plt.colorbar()
+            plt.xlabel(dict_names[Ndep-1],fontsize=18)
+            plt.ylabel(dict_names[Ndep],fontsize=18)
+            plt.title(fttl,fontsize=14)
+            cb.set_label('Integrated Area')
         
         "---Save Figure---"
         if savePLOT not in [None, False, '']:
@@ -2859,6 +2913,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
                 saveplot('{} {}'.format(savePLOT,nplot))
             else:
                 saveplot('{0} ScansFIT {1} {2:1.0f}-{3:1.0f} {4}'.format(' '.join(depvar),nplot,scans[0],scans[-1],fit_type))
+    plt.show()
     
     " Prepare output dicts"
     out_values = {}
@@ -2922,6 +2977,7 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
     Ndep = len(depvar)
     
     if type(scans) is str:
+        # scans == filename
         if scans[-4:] == '.dat':
             scans = scans[:-4]
         file = os.path.join(savedir,scans+'.dat')
@@ -2939,16 +2995,20 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
     errstore = np.loadtxt(efile)
     with open(file,'r') as ff:
         first_line = ff.readline().strip()
+        # if title given in header, get next line
+        while 'Scan Number' not in first_line:
+            first_line = ff.readline().strip()
     
     first_line = first_line.strip('# ')
     names = first_line.split(',')
-    #depvar = names[0]
-    print( names )
-    
     "-----Printing-----"
     if disp:
+        fmt = '{:3.0f}/{:<3.0f} '
+        for name in names:
+            fmt += name+'={:<8.2g} '
         for n in range(len(valstore)):
-            print( '{0:3.0f}/{1} {2} {3}: Amp={5:<8.0f}  Cen={6:<6.2f}  Wid={7: <5.2g}  Frac={8:<5.2g}  Bkg={9:<8.2g}  Int={10:<8.2g}    CHI{11:8.2g}'.format(n,len(scans)-1,*valstore[n,Ndep+1:]) )
+            #print( '{0:3.0f}/{1} {2} {3}: Amp={5:<8.0f}  Cen={6:<6.2f}  Wid={7: <5.2g}  Frac={8:<5.2g}  Bkg={9:<8.2g}  Int={10:<8.2g}    CHI{11:8.2g}'.format(n,len(scans)-1,*valstore[n,Ndep+1:]) )
+            print( fmt.format(n,len(scans)-1,*valstore[n,:]) )
     
     "------Plotting------"
     try:
@@ -2956,6 +3016,8 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
     except AttributeError:
         plot = [plot]
     fttl = '#{} {}'.format(numbers2string(scans),fit_type)
+    xrange = [valstore[:,1].min(),valstore[:,1].max()]
+    depvar = names[1:]
     for nplot in plot:
         if nplot is None:
             break
@@ -3019,8 +3081,7 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
             #plt.plot(valstore[:,0],valstore[:,6],'-o',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+6],errstore[:,Ndep+6],fmt='-o',linewidth=2)
             plt.xlabel(depvar[0],fontsize=18)
-            plt.ylabel('Integrated Sum('+labvary+')',fontsize=18)
-            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd_short
+            plt.ylabel('Integrated Sum',fontsize=18)
             plt.title(fttl,fontsize=14)
             plt.xlim(xrange)
             plt.ylim([0,max(valstore[:,Ndep+6])*1.1])
@@ -3032,8 +3093,7 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
             #plt.plot(valstore[:,0],valstore[:,2],'-+',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+2],errstore[:,Ndep+2],fmt='-o',linewidth=2)
             plt.xlabel(depvar[0],fontsize=18)
-            plt.ylabel(labvarx+' Centre',fontsize=18)
-            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd_short
+            plt.ylabel('Centre',fontsize=18)
             plt.title(fttl,fontsize=14)
             plt.xlim(xrange)
             fig.subplots_adjust(left=0.15)
@@ -3044,11 +3104,37 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
             #plt.plot(valstore[:,0],valstore[:,3],'-+',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+3],errstore[:,Ndep+3],fmt='-o',linewidth=2)
             plt.xlabel(depvar[0],fontsize=18)
-            plt.ylabel(labvarx+' Width',fontsize=18)
-            fttl = '{0} #{1:1.0f}-'.format(fit_type,scans[0])+ttl+'\n'+d.metadata.cmd_short
+            plt.ylabel('Width',fontsize=18)
             plt.title(fttl,fontsize=14)
             plt.xlim(xrange)
             fig.subplots_adjust(left=0.15)
+        elif nplot == 'surface':
+            # 2D surface plot of multi-dimension scans
+            sx = valstore[:,Ndep-1]
+            sy = valstore[:,Ndep]
+            inte = valstore[:,Ndep+6]
+            
+            # Determine the repeat length of the scans
+            delta = np.abs(np.diff(sx))
+            ch_idx = np.where(delta > delta.max()*0.9) # find biggest changes
+            ch_delta = np.diff(ch_idx)
+            rep_len = np.round(np.mean(ch_delta))
+            print('Scans are repeating every {} iterations'.format(rep_len))
+            
+            # Reshape into square arrays
+            # If this is problematic, look at scipy.interpolate.griddata
+            sx_squareA = sx[:rep_len*(len(sx)//rep_len)].reshape(-1,rep_len)
+            sy_squareA = sy[:rep_len*(len(sy)//rep_len)].reshape(-1,rep_len)
+            int_squareA = inte[:rep_len*(len(inte)//rep_len)].reshape(-1,rep_len)
+            
+            plt.figure(figsize=[12,10])
+            plt.pcolor(sx_squareA,sy_squareA,int_squareA)
+            plt.axis('image')
+            cb = plt.colorbar()
+            plt.xlabel(names[Ndep-1],fontsize=22)
+            plt.ylabel(names[Ndep],fontsize=22)
+            plt.title(fttl,fontsize=28)
+            cb.set_label('Integrated Area',fontsize=22)
         
         "---Save Figure---"
         if save not in [None, False, '']:
@@ -3056,6 +3142,7 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
                 saveplot('{} {}'.format(save,nplot))
             else:
                 saveplot('{0} ScansFIT {1} {2:1.0f}-{3:1.0f} {4}'.format(' '.join(depvar),nplot,scans[0],scans[-1],fit_type))
+    plt.show()
     
     " Prepare output dicts"
     out_values = {}
@@ -3196,17 +3283,19 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
         lbl = str(m.SRSRUN)
         if len(varys)>0: lbl=vary
     else:
-        if type(labels) is not str:
-            labels = labels[0]
+        # make list
+        labels = np.asarray(labels).reshape(-1)
         
-        if labels in m.keys():
-            lbl = '{}, {} = {}'.format(str(m.SRSRUN),labels,getattr(m,labels))
-        elif labels in d.keys():
-            lbl = '{}, {} = {}'.format(str(m.SRSRUN),labels,np.mean(getattr(d,labels)))
-        elif labels is 'hkl':
-            lbl = '{}, {}'.format(str(m.SRSRUN),scanhkl(d))
-        else:
-            lbl = str(m.SRSRUN)
+        lbl = '{:6.0f}'.format(m.SRSRUN)
+        for label in labels:
+            if label in m.keys():
+                lbl += ', {} = {}'.format(label,getattr(m,label))
+            elif label in d.keys():
+                lbl += ', {} = {}'.format(label,np.mean(getattr(d,label)))
+            elif label == 'hkl':
+                lbl += ', {}'.format(scanhkl(d))
+            elif label == 'T':
+                lbl += ', {}'.format(scantemp(d))
     
     " Get data" 
     x,y,dy,varx,varynew,ttl = getdata(d,vary=vary,varx=varx,norm=norm)[:6]
@@ -3322,15 +3411,16 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
             if labels is None:
                 lbl = str(mn.SRSRUN)
             else:
-                if labels in dn.keys():
-                    lab_val = np.mean(getattr(dn,labels))
-                elif labels in mn.keys():
-                    lab_val = getattr(mn,labels)
-                elif labels is 'hkl':
-                    lab_val = scanhkl(dn)
-                else:
-                    lab_val = '?'
-                lbl = '{}, {} = {}'.format(str(mn.SRSRUN),labels,lab_val)
+                lbl = '{:6.0f}'.format(mn.SRSRUN)
+                for label in labels:
+                    if label in m.keys():
+                        lbl += ', {} = {}'.format(label,getattr(mn,label))
+                    elif label in d.keys():
+                        lbl += ', {} = {}'.format(label,np.mean(getattr(dn,label)))
+                    elif label == 'hkl':
+                        lbl += ', {}'.format(scanhkl(dn))
+                    elif label == 'T':
+                        lbl += ', {}'.format(scantemp(dn))
             
             " Subtract ROIs"
             if len(varys) > 0 and subtract==True:
@@ -3460,7 +3550,7 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
             saveplot(save)
         else:
             saveplot(ttl)
-    return
+    plt.show()
 
 def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75,67],show_ROIbkg=False,show_peakregion=False,log_colors=False,save=False):
     """
@@ -3618,10 +3708,18 @@ def plotscans(scans=[],depvar=None,vary='',varx='',fit=None,norm=True,logplot=Fa
     
     Plotting with fits: plotscans([#1,#2,...],fit='Gauss'), fit can also be 'Lorentz' or 'pVoight'
     
+    Good for plotting many scans as a continuous colormap is used to vary the line colours.
+    
     """
     
     "---Create plot---"
     fig = plt.figure(figsize=[10,8])
+    
+    " Define Colourmap"
+    cm_plot = plt.get_cmap('rainbow')
+    cm_fit = plt.get_cmap('spring') 
+    depvals = getmeta(scans,depvar)
+    colrange = (depvals-depvals.min())/(depvals.max()-depvals.min())
     
     "---Load data---"
     for n,num in enumerate(scans):
@@ -3647,8 +3745,7 @@ def plotscans(scans=[],depvar=None,vary='',varx='',fit=None,norm=True,logplot=Fa
         x,y,dy,varxnew,varynew,ttl = getdata(d,vary=vary,varx=varx,norm=norm)[:6]
         
         " Plot data"
-        plotcol = plot_colors[(n)-(n)//len(plot_colors)*len(plot_colors)]
-        plt.errorbar(x,y,dy,fmt='-o',c=plotcol,linewidth=2,label=lbl)
+        plt.errorbar(x,y,dy,fmt='-o',c=cm_plot(colrange[n]),linewidth=2,label=lbl)
         
         "---Fit Data---"
         if fit != None:
@@ -3664,29 +3761,7 @@ def plotscans(scans=[],depvar=None,vary='',varx='',fit=None,norm=True,logplot=Fa
             " add to plot"
             ax = plt.gca()
             #txtcol = 'k'
-            ax.plot(xfit,yfit,':',linewidth=2,c=plotcol,label='#{} Fit'.format(str(m.SRSRUN)))
-            
-            " Print results on plot"
-#             t0 = '   ---- {} Fit ----    '.format(fit)
-#             t1 = ' Amp = {}'.format(stfm(amp,damp))
-#             t2 = ' Cen = {}'.format(stfm(cen,dcen))
-#             t3 = ' Wid = {}'.format(stfm(wid,dwid))
-#             t4 = ' Bkg = {}'.format(stfm(bkg,dbkg))
-#             t5 = ' Int = {}'.format(stfm(ara,dara))
-#             
-#             axs = ax.axis()
-#             axw = axs[1]-axs[0]
-#             axh = axs[3]-axs[2]
-#             if cen > axs[0] + axw/2.:
-#                 tx = axs[0] + axw*0.05
-#             else:
-#                 tx = axs[0] + axw*0.65
-#             ty = min(yfit) + 0.9*(max(yfit)-min(yfit))
-#             txt = t0+'\n'+t1+'\n'+t2+'\n'+t3+'\n'+t4+'\n'+t5
-#             plt.text(tx,ty,txt,color=txtcol,
-#              horizontalalignment = 'left',
-#              verticalalignment   = 'top',
-#              multialignment      = 'left')
+            ax.plot(xfit,yfit,':',linewidth=2,c=cm_fit(colrange[n]),label='#{} Fit'.format(str(m.SRSRUN)))
     
     plt.xlabel(varxnew, fontsize=18)
     plt.ylabel(varynew, fontsize=18)
@@ -3702,17 +3777,25 @@ def plotscans(scans=[],depvar=None,vary='',varx='',fit=None,norm=True,logplot=Fa
     # Change formats in x & y axes so they are nicer
     plt.gca().get_yaxis().set_major_formatter(mtick.FormatStrFormatter('%8.3g'))
     plt.gca().get_xaxis().get_major_formatter().set_useOffset(False)
-        
-    plt.legend(loc='best')
-    #plt.legend(loc='upper left')
-    #plt.legend(loc='upper right')
+    
+    if n < 6:
+        # Legend
+        plt.legend(loc='best')
+        #plt.legend(loc='upper left')
+        #plt.legend(loc='upper right')
+    else:
+        # Colorbar
+        sm = plt.cm.ScalarMappable(cmap=cm_plot)
+        sm.set_array(depvals)
+        cbar = plt.colorbar(sm)
+        cbar.set_label(depvar,fontsize=24)
     
     if save not in [None, False, '']:
         if type(save) is str:
             saveplot(save)
         else:
             saveplot(ttl)
-    return
+    plt.show()
 
 def plotscans3D(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=False):
     " Plot 3D eta scans of energy or temp dependence"
@@ -3765,6 +3848,7 @@ def plotscans3D(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=F
             saveplot(save)
         else:
             saveplot('{0} Scans {1:1.0f}-{2:1.0f} 3D'.format(depvar,scans[0],scans[-1]))
+    plt.show()
 
 def plotscans2D(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=False):
     " Plot pcolor of multiple scans"
@@ -3795,6 +3879,7 @@ def plotscans2D(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=F
             saveplot(save)
         else:
             saveplot('{0} Scans {1:1.0f}-{2:1.0f} 2D'.format(depvar,scans[0],scans[-1]))
+    plt.show()
     
 def plotscansSURF(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=False):
     " Plot surface of multiple scans"
@@ -3828,6 +3913,7 @@ def plotscansSURF(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save
             saveplot(save)
         else:
             saveplot('{0} Scans {1:1.0f}-{2:1.0f} SURF'.format(depvar,scans[0],scans[-1]))
+    plt.show()
 
 def plotpilSURF(num,varx='',ROIcen=None,wid=10,save=False):
     """ 
@@ -3866,6 +3952,7 @@ def plotpilSURF(num,varx='',ROIcen=None,wid=10,save=False):
             saveplot(save)
         else:
             saveplot('{0} PILSURF'.format(num))
+    plt.show()
 
 def plotpilhkl(num):
     """
@@ -3905,6 +3992,7 @@ def plotpilhkl(num):
     
     ttl = scantitle(num)
     labels(ttl,'h','k','l',size='normal')
+    plt.show()
 
 def plotpilxyz(num):
     """
@@ -3944,24 +4032,39 @@ def plotpilxyz(num):
     
     ttl = scantitle(num)
     labels(ttl,'Q$_x$ [$\AA^{-1}$]','Q$_y$ [$\AA^{-1}$]','Q$_z$ [$\AA^{-1}$]',size='normal')
+    plt.show()
 
 def plotpiltth(num,binsep=0.1,centre_only=False):
     """
     Plot binned two-theta representation of pilatus frames
-       plotpiltth(num)
+       plotpiltth(num,binsep,centre_only)
+        num = scan number or list of scan numbers for muliplt overlaid plots
+        binsep = width of bins
+        centre_only = if True, only bins pixels around the centre of the pilatus.
     
     pixel2tth used to generate reciprocal space coordinates, using UB matrix stored
     in metadata. Detector position calibration defined by locals: pilpara
     """
     
-    # Load hkl matrices
-    tth,ival = pixel2tth(num,centre_only=centre_only)
-    tth,ival = bindata(tth,ival,binsep)
+    "---Handle inputs---"
+    if num is None:
+        num = latest()
+    
+    " Multiple nums given"
+    try:
+        nums = num[1:]
+    except:
+        nums=[]
     
     plt.figure(figsize=[10,8])
-    plt.plot(tth,ival,'-o',lw=2,ms=12)
-    ttl = scantitle(num)
+    for num in nums:
+        # Load hkl matrices
+        tth,ival = pixel2tth(num,centre_only=centre_only)
+        tth,ival = bindata(tth,ival,binsep)
+        plt.plot(tth,ival,'-o',lw=2,ms=12)
+    ttl = scantitle(nums)
     labels(ttl,'Two-Theta [Deg]','Pilatus Intensity',size='normal')
+    plt.show()
 
 
 "-----------------------Peak Fitting Functions----------------------------"
@@ -5194,22 +5297,36 @@ def c2th(HKL=[0,0,1],scan=0):
     d = 1/np.sqrt(dd)
     return d2tth(d,m.Energy)
 
-def bindata(X,Y,binsep=0.01):
+def bindata(X,Y,binsep=0.01,bin_cen=None,bin_func=np.nanmean):
         """
-        Bins the data into bins separated by binsep. Values within the bin are summed 
+        Bins the data into bins separated by binsep. Values within the bin are averaged 
           CEN,INT = bindata(X,Y,binsep=0.01)
+        or:
+          CEN,INT = bindata(X,Y,bin_cen=CEN)
+        
+        Note that np.nanmean is used to average values within each bin, which can be used
+        to only average values with signal in. Other functions can be used by specifying bin_func:
+          CEN,INT = bindata(X,Y,0.01,bin_func=np.max)
+        
+        E.G.
+            tth,ival = pixel2tth(num)
+            ival[ival<1] = np.nan
+            CEN,INT = bindata(tth,ival,0.01)
         """
         
         t0 = time.clock()
         
-        mxdata = np.max(X)
-        mndata = np.min(X)
-        
-        bin_edge = np.arange(mndata,mxdata+binsep,binsep)
-        bin_cen = bin_edge - binsep/2.0
-        bin_cen = bin_cen[1:] # remove unused bin
-        bin_int = np.zeros(bin_cen.shape)
-        #bin_var = np.zeros(bin_cen.shape)
+        if bin_cen is None:
+            mxdata = np.max(X)
+            mndata = np.min(X)
+            
+            bin_edge = np.arange(mndata,mxdata+binsep,binsep)
+            bin_cen = bin_edge - binsep/2.0
+            bin_cen = bin_cen[1:] # remove unused bin
+        else:
+            bin_cen = np.asarray(bin_cen)
+            bin_sep = bin_cen[1] - bin_cen[0]
+            bin_edge = bin_cen + binsep/2.0 
         
         # Histogram the th values
         bin_pos = np.digitize(X,bin_edge) - 1 # digitize indexes values from bin_edege[i-1] to bin_edge[i], hence the - 1
@@ -5217,10 +5334,10 @@ def bindata(X,Y,binsep=0.01):
         print('Digitise took {} s'.format(t1-t0))
         
         # Loop over binned angles and average the intensities
+        bin_int = np.zeros(bin_cen.shape)
         for n in range(len(bin_cen)):
             inbin = bin_pos == n
-            bin_int[n] = np.mean(Y[inbin]) # mean
-            #bin_var[n] = np.var(Y[inbin])
+            bin_int[n] = bin_func(Y[inbin])
         
         t2 = time.clock()
         print('Bin average took {} s'.format(t2-t1))
@@ -5231,12 +5348,56 @@ def saveplot(name,dpi=None):
     "Saves current figure as a png in the savedir directory"
     
     if type(name) is int:
-        name = str(aa)
+        name = str(name)
     
     gcf = plt.gcf()
     savefile = os.path.join(savedir, '{}.png'.format(saveable(name)))
     gcf.savefig(savefile,dpi=dpi)
     print( 'Saved Figure {} as {}'.format(gcf.number,savefile) )
+
+def savedata(name,x,y,dy=None,header=None):
+    """
+    Save data as a formated text file in the analysis directory
+      savedata( name, x, y, dy, header )
+    
+    name = name of file, not including extention (.dat will be added)
+    x,y,dy = equal length arrays, dy can be left out
+    header = header info can be added if required
+    
+    Uses: np.savetxt(savefile,(x,y,dy),header=head)
+    
+    E.G.
+        x = [1,2,3,4]
+        y = [2.4,56,43,1e6]
+        dy = np.sqrt(y)
+        savedata('test',x,y,dy,header='lovely data')
+    """
+    
+    savefile = os.path.join(savedir, '{}.dat'.format(saveable(name)))
+    if dy is None:
+        np.savetxt(savefile,(x,y),header=header)
+    else:
+        np.savetxt(savefile,(x,y,dy),header=header)
+    print( 'Data has been saved as {}'.format(savefile) )
+
+def loaddata(name):
+    """
+    Load data saved using savedata
+      x,y,dy = loaddata(name)
+    
+    name = str as given to savedata, no extention
+    x,y,dy = arrays of data as saved
+    
+    E.G.
+        x = [1,2,3,4]
+        y = [2.4,56,43,1e6]
+        dy = np.sqrt(y)
+        savedata('test',x,y,dy,header='lovely data')
+        x,y,dy = loaddata('test')
+    """
+    
+    savefile = os.path.join(savedir, '{}.dat'.format(saveable(name)))
+    return np.loadtxt(savefile)
 
 def frange(start,stop=None,step=1):
     "Like np.arange but ends at stop, rather than stop-step"
