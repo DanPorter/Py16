@@ -1401,7 +1401,7 @@ class I16_Data_Viewer():
         varx = self.varx.get()
         vary = self.vary.get()
         try:
-            x,y,dy,varx,vary,ttl,d = pp.getdata(scanno,varx=varx,vary=vary,norm=norm)
+            x,y,dy,testvarx,testvary,ttl,d = pp.getdata(scanno,varx=varx,vary=vary,norm=norm)
         except AttributeError:
             varx = ''
             vary = ''

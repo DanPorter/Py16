@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 3.2
-Last updated: 23/10/17
+Version 3.3
+Last updated: 17/11/17
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -107,6 +107,7 @@ Version History:
 06/10/17 3.0    Added pixel2hkl functions, incluing plots, other bug fixes
 17/10/17 3.1    Added choice of temperature sensor, d.metadata.temperature
 23/10/17 3.2    Added new plotting features, better multi-dimensional fits
+17/11/17 3.3    Added normalisation to pixel2tth, added default bpm behaviour
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -343,6 +344,8 @@ def readscan(num):
     " Correct psi values"
     if d.metadata.psi < -1000: d.metadata.psi = 0.0
     if d.metadata.psi == 'Unavailable': d.metadata.psi = 0.0
+    " Add azimuth string"
+    d.metadata.azimuth = scanazimuth(d)
     " Array items"
     d.scannables = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
     " Update keys"
@@ -589,8 +592,7 @@ def getmeta(nums=None,field='Energy'):
             Any scans that do not contain field are returned 0
     """
     
-    if type(nums) is int:
-        nums = [nums]
+    nums = np.asarray(nums).reshape([-1])
     
     # Prepare output array
     metavals = np.zeros(len(nums))
@@ -798,7 +800,7 @@ def getvol(num,ROIcen=None,ROIsize=None):
     """
     
     " Load data"
-    if type(num)==int or type(num)==np.int64:
+    if type(num)==int or type(num)==np.int64 or type(num)==np.int32:
         d = readscan(num)
     else:
         d = num
@@ -1206,7 +1208,7 @@ def pixel2xyz(num,detdim=[195,487]):
     XXX,YYY,ZZZ = pixel2hkl(num,detdim,UB)
     return XXX,YYY,ZZZ
 
-def pixel2tth(num,detdim=[195,487],centre_only=False):
+def pixel2tth(num,detdim=[195,487],centre_only=False,norm=True):
     """
     Generate two-theta coordinates of detector pixel positions
       TTH,INT = pixel2hkl(#/d, detdim)
@@ -1228,6 +1230,11 @@ def pixel2tth(num,detdim=[195,487],centre_only=False):
     
     TTH = q2tth(Qmag,getmeta(num,'Energy'))
     vol = getvol(num)
+    norm_val,norm_txt = normalise(num)
+    
+    # Normalise vs time etc
+    if norm:
+        vol = vol/norm_val
     
     if centre_only:
         cen = pil_centre[0]
@@ -1479,7 +1486,7 @@ def checkscans(num1=None,num2=None,showval=None,find_scans=None):
     
     # Print brief info
     #fmt = '{nums} | {date} | {mode:4s} {energy:5.3g}keV {temp:5.3g}K ({h:1.2g},{k:1.2g},{l:1.2g}) | {cmd}'
-    fmt = '{nums} | {date} | {mode:4s} {ss} {ds} {energy:5.3g}keV {temp:s} {hkl:17s} {showval} | {cmd}'
+    fmt = '{nums} | {date} | {mode:4s} {ss} {ds} {energy:5.3g}keV {temp:6s} {hkl:17s} {showval} | {cmd}'
     #showval_dict = {'show':'','equal':'','val':''}
     for n in range(len(nums)):
         d = readscan(nums[n])
@@ -1501,7 +1508,7 @@ def checkscans(num1=None,num2=None,showval=None,find_scans=None):
         k = round(m.k*10)/10.0 + 0.0
         l = round(m.l*10)/10.0 + 0.0
         hkl = '({h:1.2g},{k:1.2g},{l:1.2g})'.format(h=h,k=k,l=l)
-        if m.gam>0.0:
+        if m.gam>0.1:
             mode= 'H'
             pol = 'p'
         else:
@@ -1674,7 +1681,7 @@ def auto_vary(num):
     
     
     "---Get metadata---"
-    keys = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
+    keys = d.scannables
     m = d.metadata
     cmd = m.cmd # Scan command
     
@@ -1689,6 +1696,8 @@ def auto_vary(num):
         vary = 'APD'
     elif 'xmapc' in keys:
         vary = 'xmroi2'
+    elif 'bpm' in cmd:
+        vary = 'sum'
     
     if vary not in keys:
         vary = keys[-1]
@@ -1808,6 +1817,19 @@ def scanhkl(num):
         l = m.l
     
     return '({0:1.3g},{1:1.3g},{2:1.3g})'.format(round(h,2)+0.0,round(k,2)+0.0,round(l,2)+0.0)
+
+def scanazimuth(num):
+    "Returns the azimuthal angle and zero reference as a formatted string"
+    
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    m = d.metadata
+    psi = m.psi
+    h,k,l = m.azih,m.azik,m.azil
+    return '{:7.2f} ({:1.3g},{:1.3g},{:1.3g})'.format(psi,h,k,l)
 
 def scantemp(num,sensor=None):
     "Returns the average temperature of the chosen scan as a formatted string"
@@ -2310,7 +2332,7 @@ def savescan(num=None,varx='',vary='',norm=True,abscor=None):
     # save data to file
     savefile = os.path.join(savedir, '{}_{}.dat'.format(num,saveable(vary)))
     head = '{}\n{}\n{}, {}, {}'.format(ttl,d.metadata.cmd_short,varx,vary,'error_'+vary)
-    np.savetxt(savefile,(x,y,dy),header=head)
+    np.savetxt(savefile,np.transpose([x,y,dy]),header=head)
     print( 'Scan #{} has been saved as {}'.format(num,savefile) )
 
 def loadscan(num,vary=None):
@@ -2341,7 +2363,13 @@ def loadscan(num,vary=None):
         varx,vary,dvary = ff.readline().strip('# ').split(', ')
         
     # Get x, y, dy data
-    x,y,dy = np.loadtxt(filename)
+    data = np.loadtxt(filename)
+    if data.shape[0] == 3:
+        # old files - saved as 3 rows
+        x,y,dy = data
+    else:
+        # new files - saved as 3 columns
+        x,y,dy = data.T
     
     return x,y,dy,varx,vary,ttl
 
@@ -2996,7 +3024,7 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
     with open(file,'r') as ff:
         first_line = ff.readline().strip()
         # if title given in header, get next line
-        while 'Scan Number' not in first_line:
+        while 'Scan' not in first_line:
             first_line = ff.readline().strip()
     
     first_line = first_line.strip('# ')
@@ -4051,10 +4079,7 @@ def plotpiltth(num,binsep=0.1,centre_only=False):
         num = latest()
     
     " Multiple nums given"
-    try:
-        nums = num[1:]
-    except:
-        nums=[]
+    nums = np.asarray(num,dtype=int)
     
     plt.figure(figsize=[10,8])
     for num in nums:
@@ -4998,6 +5023,53 @@ def ispeak(Y,dY=None,test = 1,disp=False,return_rat=False):
 
 
 "----------------------------Misc Functions-------------------------------"
+
+def normalise(num):
+    """
+    Automatically determine normalisation factor for given scan
+        Returns norm_factor, norm_txt
+        
+        In = Io/norm_factor
+        dIn = dIo/norm_factor
+        vary += norm_txt
+    """
+    
+    "---Load data---"
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    "---Get metadata---"
+    keys = d.scannables
+    m = d.metadata
+    cmd = m.cmd # Scan command
+    
+    "---Get count time---"
+    # Count time can have several names
+    if 't' in keys:
+        cnt = 1.0*d.t
+    elif 'counttime' in keys:
+        cnt = 1.0*d.counttime
+    elif 'count_time' in keys:
+        cnt = 1.0*d.count_time
+    else:
+        cnt=1.0
+    
+    "---Get incident beam normalisation---"
+    if normby.lower() in ['ic1','ic1monitor']:
+        inorm = d.ic1monitor/exp_monitor
+        normtxt = '('+normby+'/'+str(exp_monitor)+')'
+    elif normby.lower() in ['rc','ring current']:
+        inorm = d.rc/exp_ring_current
+        normtxt = '('+normby+'/'+str(exp_ring_current)+')'
+    else:
+        inorm = np.ones(len(d.rc))
+        normtxt = ''
+    
+    full_norm = d.metadata.Transmission*cnt*inorm
+    normtxt = '/Tran./t/'+normtxt
+    return full_norm,normtxt
 
 def abscor(eta=0,chi=90,delta=0,mu=0,gamma=0,u=1.0,disp=False,plot=False):
     """
