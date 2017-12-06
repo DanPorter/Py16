@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 3.3
-Last updated: 17/11/17
+Version 3.4
+Last updated: 06/12/17
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -108,6 +108,7 @@ Version History:
 17/10/17 3.1    Added choice of temperature sensor, d.metadata.temperature
 23/10/17 3.2    Added new plotting features, better multi-dimensional fits
 17/11/17 3.3    Added normalisation to pixel2tth, added default bpm behaviour
+06/12/17 3.4    Added new plots for pixel2tth
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -750,6 +751,7 @@ def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,abscor=None,save=
         storedz = np.delete(storedz,skip,1)
     
     "Generate title"
+    """
     vals=ttl.split()
     ettl = vals[0]
     rn = vals[1]
@@ -768,6 +770,8 @@ def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,abscor=None,save=
     out_ttl = fmt.format(ttl=ettl,rn1=nums[0],rn2=nums[-1],
                          xvar=out_varx,yvar=vary,
                          hkl=hkl,en=energy,temp=temp,pol=pol).strip()
+    """
+    out_ttl = scantitle(nums)
     
     " Save a .dat file"
     " Data can be loaded with x,y,z,dz = np.loadtxt(file.dat)"
@@ -1479,7 +1483,7 @@ def checkscans(num1=None,num2=None,showval=None,find_scans=None):
     if num1 is None:
         num1 = range(-10,1)
     if num2 is not None:
-        num1 = range(num1,num2)
+        num1 = range(num1,num2+1)
     nums = np.asarray(num1,dtype=int).reshape(-1)
     
     showvals = np.asarray(showval).reshape(-1)
@@ -1737,6 +1741,7 @@ def scantitle(num):
     HKL = m.hkl_str
     Energy = scanenergy(d)
     Temp = scantemp(d)
+    #psi = scanazimuth(d)
     pol = ''
     if m.delta_axis_offset < 1 and m.thp > 10:
         if m.gam > 0.:
@@ -1766,7 +1771,7 @@ def scantitle(num):
         
         " Use last scan to determine what has changed between scans"
         last_title = scantitle(nums[-1]).split()
-        " individula scantitle may have no etitle and no pol"
+        " individual scantitle may have no etitle and no pol"
         last_temp = last_title[-1]
         last_energy = last_title[-2]
         last_HKL = last_title[-3]
@@ -2392,6 +2397,12 @@ def create_analysis_file(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',
     ttl = saveable(exp_title)
     filename = savedir + '/I16_Analysis_{}_{}.py'.format(ttl,depvar[0])
     
+    # Add str quotes for printing, but not if list
+    if type(vary) is str:
+        vary = '\''+vary+'\''
+    if type(plot) is str:
+        plot = '\''+plot+'\''
+    
     # Check file doesn't already exist, if it does, create new file name
     n = 1
     while os.path.isfile(filename):
@@ -2458,8 +2469,8 @@ def create_analysis_file(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',
         f.write('# Fitting\n')
         f.write('mask_cmd = {}\n'.format(mask_cmd))
         f.write('estvals = {}\n'.format(str(estvals)))
-        f.write('fitopt = dict(depvar={},vary=\'{}\',varx=\'{}\',fit_type = \'{}\',bkg_type=\'{}\',peaktest={},\n'.format(depvar,vary,varx,fit_type,bkg_type,peaktest))
-        f.write('              norm={},abscor={},plot=\'{}\',show_fits={},mask_cmd=mask_cmd,estvals=estvals,xrange={},sortdep={},\n'.format(norm,abscor,plot,show_fits,xrange,sortdep))
+        f.write('fitopt = dict(depvar={},vary={},varx=\'{}\',fit_type = \'{}\',bkg_type=\'{}\',peaktest={},\n'.format(depvar,vary,varx,fit_type,bkg_type,peaktest))
+        f.write('              norm={},abscor={},plot={},show_fits={},mask_cmd=mask_cmd,estvals=estvals,xrange={},sortdep={},\n'.format(norm,abscor,plot,show_fits,xrange,sortdep))
         f.write('              Nloop={}, Binit={}, Tinc={}, change_factor={}, converge_max={}, min_change={},\n'.format(Nloop,Binit,Tinc,change_factor,converge_max,min_change))
         f.write('              savePLOT={},saveFIT={})\n\n'.format(savePLOT,saveFIT))
         f.write('fit,err = dp.fit_scans(scans,**fitopt)\n\n')
@@ -2773,7 +2784,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
         # Plot each scan in an axis of a 16*16 figure
         Nplots = 25
         for n in range(int(np.ceil(len(scans)/float(Nplots)))):
-            fig, axs = plt.subplots(5,5,figsize=[24,14])
+            fig, axs = plt.subplots(5,5,figsize=[24,14],dpi=80)
             fig.subplots_adjust(hspace = 0.35,wspace=0.32,left=0.07,right=0.97)
             plt.suptitle(fttl,fontsize=14)
             #fig.subplots_adjust(wspace = 0.25)
@@ -2825,7 +2836,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
     for nplot in plot:
         if nplot == 'all':
             # 2D Plots of area, width and position
-            fig = plt.figure(figsize=[18,12])
+            fig = plt.figure(figsize=[18,12],dpi=80)
             ax1 = fig.add_subplot(231) # Area
             #plt.plot(valstore[:,0],valstore[:,6],'-o',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+6],errstore[:,Ndep+6],fmt='-o',linewidth=2)
@@ -3051,7 +3062,7 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
             break
         if nplot == 'all':
             # 2D Plots of area, width and position
-            fig = plt.figure(figsize=[18,12])
+            fig = plt.figure(figsize=[18,12],dpi=80)
             ax1 = fig.add_subplot(231) # Area
             #plt.plot(valstore[:,0],valstore[:,6],'-o',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+6],errstore[:,Ndep+6],fmt='-o',linewidth=2)
@@ -3191,7 +3202,7 @@ def pil_peaks(scans,depvar='Ta',ROIsize=[31,31],cax=None,save=False):
     Nplots = 25
     ROIcenvals=np.zeros([len(scans),2])
     for n in range(int(np.ceil(len(scans)/float(Nplots)))):
-        fig, axs = plt.subplots(5,5,figsize=[24,14])
+        fig, axs = plt.subplots(5,5,figsize=[24,14],dpi=80)
         fig.subplots_adjust(hspace = 0.35,wspace=0.32,left=0.07,right=0.97)
         plt.suptitle(ttl,fontsize=14)
         #fig.subplots_adjust(wspace = 0.25)
@@ -3698,7 +3709,7 @@ def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75
     " Slider update function"
     def update(val):
         "Update function for pilatus image"
-        imgno = round(sldr.val)
+        imgno = int(round(sldr.val))
         p.set_data(vol[:,:,imgno-1]+log_colors)
         txt.set_text('{0} = {1}'.format(varx,x[imgno-1]))
         #p.set_clim(cax)
@@ -3829,7 +3840,7 @@ def plotscans3D(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=F
     " Plot 3D eta scans of energy or temp dependence"
     
     "---Create Figure---"
-    fig = plt.figure(figsize=[14,12])
+    fig = plt.figure(figsize=[14,12],dpi=80)
     ax = fig.add_subplot(111,projection='3d')
     
     "-----Load & Plot-----"
@@ -3885,7 +3896,7 @@ def plotscans2D(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=F
     x,y,z,varx,vary,varz,ttl = joindata(scans,varx,depvar,vary,norm)
     
     # Create Plot
-    fig = plt.figure(figsize=[14,12])
+    fig = plt.figure(figsize=[14,12],dpi=80)
     ax = plt.subplot(1,1,1)
     if logplot:
         plt.pcolor(x,y,np.log10(z))
@@ -3916,7 +3927,7 @@ def plotscansSURF(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save
     x,y,z,varx,vary,varz,ttl = joindata(scans,varx,depvar,vary,norm)
     
     # Create Plot
-    fig = plt.figure(figsize=[14,12])
+    fig = plt.figure(figsize=[14,12],dpi=80)
     ax = plt.subplot(1,1,1,projection='3d')
     if logplot:
         surf = ax.plot_surface(y,x,np.log10(z),rstride=1,cstride=1, cmap=plt.cm.jet)
@@ -3982,15 +3993,129 @@ def plotpilSURF(num,varx='',ROIcen=None,wid=10,save=False):
             saveplot('{0} PILSURF'.format(num))
     plt.show()
 
-def plotpilhkl(num):
+def plotpilhkl_cuts(num,hkl_centre=None,sum_tolarance=[0.05,0.05,0.05],cut_points=[101,101,101]):
+    """
+    Generate h,k,l cuts through a pilatus image scan
+        plotpilhkl_cuts(num, [h,k,l], [0.01,0.01,0.01],[101,101,101])
+    Inputs:
+      num = scan number
+      hkl_centre = [h,k,l] or None* - centre of the cuts, if None the peak position will be used
+      sum_tolarance = [dh,dk,dl] - distance around hkl position to sum, in reciprocal lattice units
+      cut_points = [nh,nk,nl] - number of points in each cut
+    
+    If hkl_centre is None, the peak position will be determined using pp.pilpeak
+    
+    At a choosen central (h,k,l), 3 cuts are generated:
+            Cut 1: (H, k-dk:k+dk, l-dl:l+dl)
+            Cut 2: (h-dh:h+dh, K, l-dl:l+dl)
+            Cut 3: (h-dh:h+dh, k-dk:k+dk, L)
+    At each point H/K/L along each cut, pixels matching the following are summed:
+            Pixel sum at H:
+                abs(h_pixels-H) < H_step/2
+                abs(k_pixels-k) < dk
+                abs(l_pixels-l) < dl
+            Where H_step is defined by the number of cut_points
+    cut_points defines the number of points along axis H/K/L, generated from the minimum to maximum h,k,l
+    
+    A single figure with 3 subplots is created.
+    """
+    
+     # Load hkl matrices
+    hhh,kkk,lll = pixel2hkl(num)
+    print('Max hkl: (%1.3g,%1.3g,%1.3g)'%(hhh.max(),kkk.max(),lll.max()))
+    print('Min hkl: (%1.3g,%1.3g,%1.3g)'%(hhh.min(),kkk.min(),lll.min()))
+    
+    # Load pilatus volume
+    vol = getvol(num)
+    
+    # Load data
+    x,y,dy,varx,vary,ttl,d = getdata(num)
+    
+    # h,k,l min tol
+    min_tol_h = np.max(np.abs(np.diff(hhh)))
+    min_tol_k = np.max(np.abs(np.diff(kkk)))
+    min_tol_l = np.max(np.abs(np.diff(lll)))
+    print('Maximum hkl step per pixel = [%1.3g, %1.3g, %1.3g]' % (min_tol_h,min_tol_k,min_tol_l))
+    
+    # Centre of cuts
+    if hkl_centre is None:
+        [i,j],k = pilpeak(vol,disp=True)
+        h_centre = hhh[i,j,k]
+        k_centre = kkk[i,j,k]
+        l_centre = lll[i,j,k]
+        print('Peak Centre: (%1.3g,%1.3g,%1.3g)'%(h_centre,k_centre,l_centre))
+    else:
+        h_centre,k_centre,l_centre = hkl_centre
+    
+    # Pixels close to centre
+    h_cen_idx = np.abs(hhh-h_centre) < sum_tolarance[0]
+    k_cen_idx = np.abs(kkk-k_centre) < sum_tolarance[1]
+    l_cen_idx = np.abs(lll-l_centre) < sum_tolarance[2]
+    
+    kl_cen_idx = k_cen_idx*l_cen_idx
+    hl_cen_idx = h_cen_idx*l_cen_idx
+    hk_cen_idx = h_cen_idx*k_cen_idx
+    
+    # cut ranges
+    h_list = np.linspace(hhh[kl_cen_idx].min(),hhh[kl_cen_idx].max(),cut_points[0])
+    k_list = np.linspace(kkk[hl_cen_idx].min(),kkk[hl_cen_idx].max(),cut_points[1])
+    l_list = np.linspace(lll[hk_cen_idx].min(),lll[hk_cen_idx].max(),cut_points[2])
+    h_step = h_list[1]-h_list[0]
+    k_step = k_list[1]-k_list[0]
+    l_step = l_list[1]-l_list[0]
+    
+    h_scan = np.zeros(len(h_list))
+    k_scan = np.zeros(len(k_list))
+    l_scan = np.zeros(len(l_list))
+    print('Binning h axis at (H,%1.3g,%1.3g) in %1.0f steps, summing <%1.0f pixels per step' % (k_centre,l_centre,len(h_list),np.sum(kl_cen_idx)))
+    for n in range(len(h_list)):
+        hval = h_list[n]
+        hidx = np.abs(hhh-hval) < h_step/2
+        small_vol = vol[ hidx*kl_cen_idx ]
+        h_scan[n] = np.sum(small_vol)
+    print('Binning k axis at (%1.3g,K,%1.3g) in %1.0f steps, summing <%1.0f pixels per step' % (h_centre,l_centre,len(k_list),np.sum(hl_cen_idx)))
+    for n in range(len(k_list)):
+        kval = k_list[n]
+        kidx = np.abs(kkk-kval) < k_step/2
+        small_vol = vol[ kidx*hl_cen_idx ]
+        k_scan[n] = np.sum(small_vol)
+    print('Binning l axis at (%1.3g,%1.3g,L) in %1.0f steps, summing <%1.0f pixels per step' % (h_centre,k_centre,len(l_list),np.sum(hk_cen_idx)))
+    for n in range(len(l_list)):
+        lval = l_list[n]
+        lidx = np.abs(lll-lval) < l_step/2
+        small_vol = vol[ lidx*hk_cen_idx ]
+        l_scan[n] = np.sum(small_vol)
+    
+    plt.figure(figsize=[8,12],dpi=80)
+    plt.subplot(311)
+    plt.errorbar(h_list,h_scan,np.sqrt(h_scan+1),fmt='-o',lw=2,ms=12)
+    labels(None,'(h,0,0)','Intensity')
+    plt.subplot(312)
+    plt.errorbar(k_list,k_scan,np.sqrt(k_scan+1),fmt='-o',lw=2,ms=12)
+    labels(None,'(0,k,0)','Intensity')
+    plt.subplot(313)
+    plt.errorbar(l_list,l_scan,np.sqrt(l_scan+1),fmt='-o',lw=2,ms=12)
+    labels(None,'(0,0,l)','Intensity')
+    add_title = '\n(%6.3f,%6.3f,%6.3f) +/- (%1.1g,%1.1g,%1.1g)' %(h_centre,k_centre,l_centre,sum_tolarance[0],sum_tolarance[1],sum_tolarance[2])
+    plt.suptitle(ttl+add_title,fontsize=20,fontweight='bold')
+    plt.subplots_adjust(left=0.2,hspace=0.25,top=0.91)
+
+def plotpilhkl_surf3d(num,cax=None,log_colors=False,initial_image=None):
     """
     Plot pilatus frames as 3D surface in reciprocal space
-       plotpilhkl(num)
+       plotpilhkl_surf3d(num)
+    
+    Options:
+        cax = [min,max] or None* | Intensity cut offs
+        log_colors = True/False* | Log the intensities
+        initial_image = int or None | Number of initial image to display, None = half way
     
     pixel2hkl used to generate reciprocal space coordinates, using UB matrix stored
     in metadata. Detector position calibration defined by locals: pilpara
     
     The images are rebinned to allow fast plotting.
+    
+    A slider is used to move through the images. If the slider is unresponsive, try running the program again.
     """
     
     # Load hkl matrices
@@ -4000,37 +4125,91 @@ def plotpilhkl(num):
     vol = getvol(num)
     vol = rebin(vol,[2,2,1])
     
+    x,y,dy,varx,vary,ttl,d = getdata(num)
+    
     cm = plt.get_cmap('jet')
     nframes = vol.shape[2]
-    slice_h = hhh[::2,::2,nframes//2]
-    slice_k = kkk[::2,::2,nframes//2]
-    slice_l = lll[::2,::2,nframes//2]
-    slice_v = vol[:,:,nframes//2]
-    slice_c = cm(slice_v)
+    if initial_image is None:
+        initial_image = nframes//2
+    slice_h = hhh[::2,::2,initial_image]
+    slice_k = kkk[::2,::2,initial_image]
+    slice_l = lll[::2,::2,initial_image]
+    #slice_h = hhh[:,:,initial_image]
+    #slice_k = kkk[:,:,initial_image]
+    #slice_l = lll[:,:,initial_image]
+    #slice_v = vol[:,:,initial_image]
+    
+    if cax is None:
+        if log_colors:
+            cax = [1,vol.max()]
+        else:
+            md = np.median(vol[:,:,initial_image])
+            mx = np.max(vol[:,:,initial_image])
+            cmax = md + 10**(0.7*np.log10(mx-md))
+            if cmax <= 0: cmax = 1
+            cax = [0,cmax]
+        print( 'caxis set at [{0:1.3g},{1:1.3g}]'.format(cax[0],cax[1]) )
+    
+    # Normalise
+    norm = plt.Normalize(cax[0],cax[1])
+    colours = []
+    for imgno in range(nframes):
+        colours += [cm(norm(vol[:,:,imgno]))]
+    slice_c = colours[imgno]
     
     # Create Plot
     fig = plt.figure(figsize=[14,12])
     ax = plt.subplot(1,1,1,projection='3d')
     surf = ax.plot_surface(slice_h,slice_k,slice_l,rstride=2,cstride=2, facecolors=slice_c)
-    #cmap=plt.cm.ScalarMappable(cmap=plt.cm.jet)
-    #cmap.set_array(slice)
     plt.axis('tight')
-    ax.view_init(30, 60) # elev, azim
-    #cb = plt.colorbar()
+    #ax.view_init(30, 60) # elev, azim
+    ax.set_position([0.1,0.2,0.8,0.7])
     
     ttl = scantitle(num)
     labels(ttl,'h','k','l',size='normal')
     plt.show()
+    
+    " Create slider on plot"
+    axsldr = plt.axes([0.15, 0.15, 0.65, 0.03], axisbg='lightgoldenrodyellow')
+    sldr = plt.Slider(axsldr, varx, 1, vol.shape[2], \
+            valinit=initial_image, valfmt = '%0.0f')
+    txt = plt.xlabel('{0} = {1} [{2:1.0f}]'.format(varx,x[initial_image],initial_image),\
+                   fontsize=18 )
+    
+    " Slider update function"
+    def update(val):
+        "Update function for pilatus image"
+        imgno = int(round(sldr.val))
+        slice_h = hhh[::2,::2,imgno]
+        slice_k = kkk[::2,::2,imgno]
+        slice_l = lll[::2,::2,imgno]
+        slice_c = colours[imgno]
+        ax.collections[0].remove() # ax.collections is location of surface object
+        #surf.remove()
+        #ax.clear()
+        ax.plot_surface(slice_h,slice_k,slice_l,rstride=2,cstride=2, facecolors=slice_c)
+        txt.set_text('{0} = {1}'.format(varx,x[imgno-1]))
+        plt.show()
+        #plt.draw()
+        #fig.canvas.draw()
+    sldr.on_changed(update)
 
-def plotpilxyz(num):
+def plotpilxyz_surf3d(num,cax=None,log_colors=False,initial_image=None):
     """
-    Plot pilatus frames as 3D surface in wavevector-transfer space
-       plotpilxyz(num)
+    Plot pilatus frames as 3D surface in reciprocal space
+       plotpilxyz_surf3d(num)
+    
+    Options:
+        cax = [min,max] or None* | Intensity cut offs
+        log_colors = True/False* | Log the intensities
+        initial_image = int or None | Number of initial image to display, None = half way
     
     pixel2xyz used to generate reciprocal space coordinates, using UB matrix stored
     in metadata. Detector position calibration defined by locals: pilpara
     
     The images are rebinned to allow fast plotting.
+    
+    A slider is used to move through the images. If the slider is unresponsive, try running the program again.
     """
     
     # Load hkl matrices
@@ -4040,27 +4219,67 @@ def plotpilxyz(num):
     vol = getvol(num)
     vol = rebin(vol,[2,2,1])
     
+    x,y,dy,varx,vary,ttl,d = getdata(num)
+    
     cm = plt.get_cmap('jet')
     nframes = vol.shape[2]
-    slice_x = xxx[::2,::2,nframes//2]
-    slice_y = yyy[::2,::2,nframes//2]
-    slice_z = zzz[::2,::2,nframes//2]
-    slice_v = vol[:,:,nframes//2]
-    slice_c = cm(slice_v)
+    if initial_image is None:
+        initial_image = nframes//2
+    slice_x = xxx[::2,::2,initial_image]
+    slice_y = yyy[::2,::2,initial_image]
+    slice_z = zzz[::2,::2,initial_image]
+    
+    if cax is None:
+        if log_colors:
+            cax = [1,vol.max()]
+        else:
+            md = np.median(vol[:,:,initial_image])
+            mx = np.max(vol[:,:,initial_image])
+            cmax = md + 10**(0.7*np.log10(mx-md))
+            if cmax <= 0: cmax = 1
+            cax = [0,cmax]
+        print( 'caxis set at [{0:1.3g},{1:1.3g}]'.format(cax[0],cax[1]) )
+    
+    # Normalise
+    norm = plt.Normalize(cax[0],cax[1])
+    colours = []
+    for imgno in range(nframes):
+        colours += [cm(norm(vol[:,:,imgno]))]
+    slice_c = colours[imgno]
     
     # Create Plot
     fig = plt.figure(figsize=[14,12])
     ax = plt.subplot(1,1,1,projection='3d')
     surf = ax.plot_surface(slice_x,slice_y,slice_z,rstride=2,cstride=2, facecolors=slice_c)
-    #cmap=plt.cm.ScalarMappable(cmap=plt.cm.jet)
-    #cmap.set_array(slice)
     plt.axis('tight')
-    ax.view_init(30, 60) # elev, azim
-    #cb = plt.colorbar()
+    #ax.view_init(30, 60) # elev, azim
+    ax.set_position([0.1,0.2,0.8,0.7])
     
     ttl = scantitle(num)
     labels(ttl,'Q$_x$ [$\AA^{-1}$]','Q$_y$ [$\AA^{-1}$]','Q$_z$ [$\AA^{-1}$]',size='normal')
     plt.show()
+    
+    " Create slider on plot"
+    axsldr = plt.axes([0.15, 0.15, 0.65, 0.03], axisbg='lightgoldenrodyellow')
+    sldr = plt.Slider(axsldr, varx, 1, vol.shape[2], \
+            valinit=initial_image, valfmt = '%0.0f')
+    txt = plt.xlabel('{0} = {1} [{2:1.0f}]'.format(varx,x[initial_image],initial_image),\
+                   fontsize=18 )
+    
+    " Slider update function"
+    def update(val):
+        "Update function for pilatus image"
+        imgno = int(round(sldr.val))
+        slice_x = xxx[::2,::2,imgno]
+        slice_y = yyy[::2,::2,imgno]
+        slice_z = zzz[::2,::2,imgno]
+        slice_c = colours[imgno]
+        print(ax.collections)
+        ax.collections[0].remove() # ax.collections is location of surface object
+        ax.plot_surface(slice_x,slice_y,slice_z,rstride=2,cstride=2, facecolors=slice_c)
+        txt.set_text('{0} = {1}'.format(varx,x[imgno-1]))
+        plt.show()
+    sldr.on_changed(update)
 
 def plotpiltth(num,binsep=0.1,centre_only=False):
     """
@@ -4079,7 +4298,7 @@ def plotpiltth(num,binsep=0.1,centre_only=False):
         num = latest()
     
     " Multiple nums given"
-    nums = np.asarray(num,dtype=int)
+    nums = np.asarray(num,dtype=int).reshape(-1)
     
     plt.figure(figsize=[10,8])
     for num in nums:

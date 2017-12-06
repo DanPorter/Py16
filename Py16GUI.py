@@ -61,8 +61,8 @@ I16_Peak_Analysis - Plot and analyse multiple scans, including peak fitting and 
 I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
-Version 3.2
-Last updated: 23/10/17
+Version 3.4
+Last updated: 06/12/17
 
 Version History:
 07/02/16 0.9    Program created
@@ -90,6 +90,8 @@ Version History:
 06/10/17 3.0    Added log plot to multiplots, plus other fixes
 10/10/17 3.1    Added I16_Meta_Display, multiplotting from scan selector
 23/10/17 3.2    Several minor improvements, including choice of plots for fitting
+01/12/17 3.3    Update for matplotlib V2.1, reduce figure dpi, fix scaling of detector images
+06/12/17 3.4    Added buttons for pixel2hkl and pixel2tth, plus other fixes
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -147,7 +149,7 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 3.2
+Py16GUI_Version = 3.4
 
 # App Fonts
 BF= ["Times", 12]
@@ -618,7 +620,7 @@ class I16_Data_Viewer():
         frm_plt = tk.Frame(frm_rgt)
         frm_plt.pack(fill=tk.X,expand=tk.YES)
         
-        self.fig1 = plt.Figure(figsize=figsize['scan'])
+        self.fig1 = plt.Figure(figsize=figsize['scan'],dpi=80)
         self.fig1.patch.set_facecolor('w')
         self.ax1 = self.fig1.add_subplot(111)
         self.ax1.set_autoscaley_on(True)
@@ -742,13 +744,16 @@ class I16_Data_Viewer():
         frm_pil = tk.Frame(frm_rgt)
         frm_pil.pack(fill=tk.X,expand=tk.YES)
         
-        self.fig2 = plt.Figure(figsize=figsize['pilatus'])
+        self.fig2 = plt.Figure(figsize=figsize['pilatus'],dpi=80)
         self.fig2.patch.set_facecolor('w')
         self.ax2 = self.fig2.add_subplot(111)
         self.ax2.set_xticklabels([])
         self.ax2.set_yticklabels([])
+        self.ax2.set_xticks([])
+        self.ax2.set_yticks([])
         self.ax2.set_autoscaley_on(True)
         self.ax2.set_autoscalex_on(True)
+        self.ax2.set_frame_on(False)
         self.pilim = self.ax2.imshow(np.zeros([195,487]))
         #default_image = pp.misc.imread( os.path.dirname(__file__)+'\default_image.png')
         #self.pilim = self.ax2.imshow(default_image)
@@ -790,6 +795,14 @@ class I16_Data_Viewer():
         
         # Button to send data to Console
         btn_spil = tk.Button(frm_fnl, text='Export Pilatus',font=BF, command=self.f_fnl_spil)
+        btn_spil.pack(side=tk.LEFT,padx=2)
+        
+        # Button to send data to Console
+        btn_spil = tk.Button(frm_fnl, text='pil2hkl',font=BF, command=self.f_fnl_phkl)
+        btn_spil.pack(side=tk.LEFT,padx=2)
+        
+        # Button to send data to Console
+        btn_spil = tk.Button(frm_fnl, text='pil2tth',font=BF, command=self.f_fnl_ptth)
         btn_spil.pack(side=tk.LEFT,padx=2)
         
         # Row 2
@@ -1297,7 +1310,7 @@ class I16_Data_Viewer():
             x,y,dy,varx,vary,ttl,d = pp.getdata(scanno,vary=setvary,varx=setvarx,norm=norm)
             cmdstr = 'x,y,dy,varx,vary,ttl,d = pp.getdata({},varx=\'{}\',vary=\'{}\',norm={})'
             print( cmdstr.format(scanno,setvarx,setvary,norm) )
-            self.helper.set(cmdstr.format(scanno,setvarx,setvary,norm) + ' has been sent to the console')
+            self.helper.set('d = pp.readscan({})'.format(scanno) + ' has been sent to the console')
         except:
             print( 'd = pp.readscan({})'.format(scanno) )
             d = pp.readscan(scanno)
@@ -1380,6 +1393,35 @@ class I16_Data_Viewer():
         cmdstr = 'pp.plotpil({},cax={},varx={},imnum={},bkg_img={},ROIcen={},ROIsize={}, show_ROIbkg=ROIbkg)'
         print( cmdstr.format(scanno,cax,setvarx,imnum,bkg_img,ROIcen,ROIsize,ROIbkg) )
         pp.plotpil(scanno,cax=cax,varx=setvarx,imnum=imnum,bkg_img=bkg_img,ROIcen=ROIcen,ROIsize=ROIsize,show_ROIbkg=ROIbkg,log_colors=LOG)
+        plt.show()
+    
+    def f_fnl_phkl(self):
+        "Send plotpilhkl command to console"
+        
+        # Get the parameters
+        self.set_files()
+        pp.normby = self.normtype.get()
+        scanno = self.scanno.get()
+        
+        # Send the command
+        cmdstr = 'pp.plotpilhkl_cuts({},hkl_centre=None,sum_tolarance=[0.05,0.05,0.05],cut_points=[101,101,101])'
+        print( cmdstr.format(scanno) )
+        pp.plotpilhkl_cuts(scanno,hkl_centre=None,sum_tolarance=[0.05,0.05,0.05],cut_points=[101,101,101])
+        plt.show()
+    
+    def f_fnl_ptth(self):
+        "Send plotpiltth command to console"
+        
+        # Get the parameters
+        self.set_files()
+        pp.normby = self.normtype.get()
+        scanno = self.scanno.get()
+        
+        # Send the command
+        cmdstr = 'pp.plotpiltth({},binsep=0.1)'
+        print( cmdstr.format(scanno) )
+        eval(cmdstr.format(scanno))
+        #pp.plotpiltth(scanno)
         plt.show()
     
     def f_fnl_splotsave(self):
@@ -1488,7 +1530,7 @@ class I16_Data_Viewer():
         " Find the temp directory"
         tmpdir = tempfile.gettempdir()
         fname = os.path.join(tmpdir,'Py16_figure1.png')
-        plt.savefig(fname,dpi=300)
+        plt.savefig(fname)
         #plt.savefig('/home/i16user/tmp/Py16tmp.pdf')
         plt.close(plt.gcf())
         
@@ -1514,7 +1556,7 @@ class I16_Data_Viewer():
         for fn in fignos:
             fig = plt.figure(fn)
             fname = os.path.join(tmpdir,'Py16_figure%d.png' % fn)
-            fig.savefig(fname,dpi=300)
+            fig.savefig(fname)
         
         ax_layout = [3,2] # [vertical, horizontal]
         Nax = ax_layout[0]*ax_layout[1]
@@ -1862,7 +1904,14 @@ class I16_Data_Viewer():
                 self.pilim.norm = Normalize()
             
             # Update pilatus image
-            self.pilim.set_data(self.vol[:,:,imgno])
+            self.pilim.remove() # remove old image, stops memory buildup
+            self.ax2.set_ylim(self.vol.shape[0],-0.5)
+            self.ax2.set_xlim(-0.5,self.vol.shape[1])
+            #self.pilim.set_data(self.vol[:,:,imgno])
+            self.pilim = self.ax2.imshow(self.vol[:,:,imgno])
+            
+            #print(self.ax2.get_xlim(),self.ax2.get_ylim())
+            #print(self.ax2.get_position())
             
             # Remove peakregion
             self.pilp5.set_xdata([])
@@ -1902,7 +1951,7 @@ class I16_Data_Viewer():
             self.pilp4.set_ydata([])
         
         self.ax2.set_aspect('equal')
-        self.ax2.autoscale(tight=True)
+        #self.ax2.autoscale(tight=True)
         self.fig2.canvas.draw()
         
         # Update marker point on plot axis
@@ -2726,7 +2775,6 @@ class I16_Peak_Analysis:
         depvar = self.depvar.get()
         depvar = depvar.strip('[]')
         depvar = [x.strip() for x in depvar.split(',')]
-        print('{}'.format(depvar))
         return depvar
 
 
@@ -2977,7 +3025,7 @@ class I16_Advanced_Fitting:
         frm_plt = tk.Frame(frm_rgt)
         frm_plt.pack(fill=tk.X,expand=tk.YES)
         
-        self.fig1 = plt.Figure(figsize=[4,3])
+        self.fig1 = plt.Figure(figsize=[4,3],dpi=80)
         self.fig1.patch.set_facecolor('w')
         self.ax1 = self.fig1.add_subplot(111)
         self.ax1.set_autoscaley_on(True)
@@ -3480,7 +3528,7 @@ class I16_Print_Buffer():
         self.root = tk.Tk()
         self.root.wm_title('I16 Print Buffer by D G Porter [dan.porter@diamond.ac.uk]')
         self.root.minsize(width=300, height=300)
-        self.root.maxsize(width=1200, height=1200)
+        self.root.maxsize(width=1200, height=1100)
         
         frame = tk.Frame(self.root)
         frame.pack(side=tk.LEFT,anchor=tk.N)
@@ -3497,7 +3545,7 @@ class I16_Print_Buffer():
         Nfigs = np.ceil( len(fignos)/float(Nax) ).astype(np.int)
         
         " Create the buffers"
-        self.fig1 = plt.Figure(figsize=[8.27,11.69]) #[horizontal, vertical]
+        self.fig1 = plt.Figure(figsize=[8.27,11.69],dpi=80) #[horizontal, vertical]
         self.fig1.patch.set_facecolor('w')
         self.fig1.subplots_adjust(left=0.05,right=0.95,bottom=0.05,top=0.95,wspace=0.0,hspace=0.0)
         
@@ -3545,7 +3593,7 @@ class I16_Print_Buffer():
                 'parent':self.root,
                 'title':'Save the print buffer:'}
         filename = filedialog.asksaveasfilename(**opts)
-        self.fig1.savefig(filename,dpi=300)
+        self.fig1.savefig(filename)
         print( "Buffer Saved!" )
 
 
