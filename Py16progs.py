@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 3.4
-Last updated: 06/12/17
+Version 3.6
+Last updated: 26/02/18
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -109,6 +109,8 @@ Version History:
 23/10/17 3.2    Added new plotting features, better multi-dimensional fits
 17/11/17 3.3    Added normalisation to pixel2tth, added default bpm behaviour
 06/12/17 3.4    Added new plots for pixel2tth
+23/01/18 3.5    Added d.counter to scans, made pixel2hkl work for hkl scans
+23/02/18 3.6    Added bin_pixel_hkl_cut, new fit methods
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -155,7 +157,7 @@ from collections import OrderedDict
 # Variable filedir is called from the namespace and can be changed at any 
 # time,even once the module has been imported, if you change it in the current namespace
 
-filedir = '/dls/i16/data/2017' 
+filedir = '/dls/i16/data/2018' 
 savedir = '/home/i16user/Desktop'
 
 "-----------------------------Data file format----------------------------"
@@ -336,6 +338,8 @@ def readscan(num):
     if 'l' not in d.metadata.keys(): d.metadata.l = 0.0
     if 'Ta' not in d.metadata.keys(): d.metadata.Ta = 300.0
     
+    " Add a scan position counter"
+    d.counter = np.arange(0,len(d.TimeSec))
     " Add the scan time value"
     d.ScanTime = d.TimeSec - d.TimeSec[0]
     " Add a hkl string"
@@ -347,6 +351,8 @@ def readscan(num):
     if d.metadata.psi == 'Unavailable': d.metadata.psi = 0.0
     " Add azimuth string"
     d.metadata.azimuth = scanazimuth(d)
+    " Add title string"
+    d.metadata.title = scantitle(d)
     " Array items"
     d.scannables = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
     " Update keys"
@@ -1001,7 +1007,32 @@ def pixel2hkl(num,detdim=[195,487],UB=None):
     pi=np.pi
     t1=time.clock()
     
-    if varx not in ['delta','gam','eta','mu','chi','phi']:
+    if varx in ['h','k','l','hkl']:
+        # for hkl scans, convert motor angles to eulerian
+        # Calculate eulerian angles
+        # Taken from: /dls_sw/i16/software/gda/config/scripts/EulerianKconversion.py
+        Kalpha=np.radians(50) # alpha angle on Kappa stage
+        kap = np.radians(d.kap)
+        alpha = -np.degrees(np.arctan( np.cos(Kalpha)*np.tan(kap/2) ))
+        chi = -2*np.degrees(np.arcsin( np.sin(Kalpha)*np.sin(kap/2) ))
+        theta = d.kth - alpha
+        phi = d.kphi - alpha
+        
+        if 'delta' not in scan_arrays:
+            d.delta = d.kdelta
+        if 'gam' not in scan_arrays:
+            d.gam = d.kgam
+        if 'mu' not in scan_arrays:
+            d.mu = d.kmu
+        if 'eta' not in scan_arrays:
+            d.eta = theta
+        if 'chi' not in scan_arrays:
+            d.chi = chi
+        if 'phi' not in scan_arrays:
+            d.phi = phi
+        d.update(d.__dict__)
+        scan_arrays = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
+    elif varx not in ['delta','gam','eta','mu','chi','phi']:
         print("Doesnt work on this type of scan!")
     
     # Rotation functions
@@ -3993,22 +4024,24 @@ def plotpilSURF(num,varx='',ROIcen=None,wid=10,save=False):
             saveplot('{0} PILSURF'.format(num))
     plt.show()
 
-def plotpilhkl_cuts(num,hkl_centre=None,sum_tolarance=[0.05,0.05,0.05],cut_points=[101,101,101]):
+def plotpilhkl_cuts(num,hkl_centre=None,image_centre=None,sum_tolarance=[0.05,0.05,0.05],max_points=301,fit_type='Gauss'):
     """
     Generate h,k,l cuts through a pilatus image scan
-        plotpilhkl_cuts(num, [h,k,l], [0.01,0.01,0.01],[101,101,101])
+        plotpilhkl_cuts(num, [h,k,l], None, [0.01,0.01,0.01],301
     Inputs:
       num = scan number
-      hkl_centre = [h,k,l] or None* - centre of the cuts, if None the peak position will be used
+      image_centre = [i,j,k] or None* - centre of the cuts on the detector e.g. [104,205,31]
+      hkl_centre = [h,k,l] or None* - centre of the cuts in hkl, if None the peak position will be used
       sum_tolarance = [dh,dk,dl] - distance around hkl position to sum, in reciprocal lattice units
-      cut_points = [nh,nk,nl] - number of points in each cut
+      max_points = 100 - maximum number of points in each cut (reduces calculation time)
     
-    If hkl_centre is None, the peak position will be determined using pp.pilpeak
+    If image_centre is None, the centre of the detector and scan will be used.
     
     At a choosen central (h,k,l), 3 cuts are generated:
             Cut 1: (H, k-dk:k+dk, l-dl:l+dl)
             Cut 2: (h-dh:h+dh, K, l-dl:l+dl)
             Cut 3: (h-dh:h+dh, k-dk:k+dk, L)
+    The step dh,dk,dl are determined by the maximum step size between pixels
     At each point H/K/L along each cut, pixels matching the following are summed:
             Pixel sum at H:
                 abs(h_pixels-H) < H_step/2
@@ -4020,6 +4053,24 @@ def plotpilhkl_cuts(num,hkl_centre=None,sum_tolarance=[0.05,0.05,0.05],cut_point
     A single figure with 3 subplots is created.
     """
     
+    [h_list,h_scan],[k_list,k_scan],[l_list,l_scan] = bin_pixel_hkl_cut(num,hkl_centre,image_centre,sum_tolarance,max_points)
+    h_centre = np.mean(h_list)
+    k_centre = np.mean(k_list)
+    l_centre = np.mean(l_list)
+    
+    # Fitting
+    if fit_type is not None:
+        # Fit h
+        print('Binned hkl fitting #{}'.format(num))
+        print('h fit:')
+        fit_h,err_h = peakfit(h_list,h_scan,type=fit_type,disp=True)
+        print('\nk fit:')
+        fit_k,err_k = peakfit(k_list,k_scan,type=fit_type,disp=True)
+        print('\nl fit:')
+        fit_l,err_l = peakfit(l_list,l_scan,type=fit_type,disp=True)
+        
+    
+    """
      # Load hkl matrices
     hhh,kkk,lll = pixel2hkl(num)
     print('Max hkl: (%1.3g,%1.3g,%1.3g)'%(hhh.max(),kkk.max(),lll.max()))
@@ -4039,7 +4090,11 @@ def plotpilhkl_cuts(num,hkl_centre=None,sum_tolarance=[0.05,0.05,0.05],cut_point
     
     # Centre of cuts
     if hkl_centre is None:
-        [i,j],k = pilpeak(vol,disp=True)
+        if image_centre is None:
+            i,j = pil_centre
+            k = len(x)//2
+        else:
+            i,j,k = image_centre
         h_centre = hhh[i,j,k]
         k_centre = kkk[i,j,k]
         l_centre = lll[i,j,k]
@@ -4085,17 +4140,27 @@ def plotpilhkl_cuts(num,hkl_centre=None,sum_tolarance=[0.05,0.05,0.05],cut_point
         lidx = np.abs(lll-lval) < l_step/2
         small_vol = vol[ lidx*hk_cen_idx ]
         l_scan[n] = np.sum(small_vol)
-    
+    """
     plt.figure(figsize=[8,12],dpi=80)
     plt.subplot(311)
     plt.errorbar(h_list,h_scan,np.sqrt(h_scan+1),fmt='-o',lw=2,ms=12)
     labels(None,'(h,0,0)','Intensity')
+    if fit_type is not None:
+        plt.plot(fit_h['x'],fit_h['y'],'r-')
+        plt.text(0.55,0.5, fit_h['Results'],transform=plt.gca().transAxes,fontsize=12)
     plt.subplot(312)
     plt.errorbar(k_list,k_scan,np.sqrt(k_scan+1),fmt='-o',lw=2,ms=12)
     labels(None,'(0,k,0)','Intensity')
+    if fit_type is not None:
+        plt.plot(fit_k['x'],fit_k['y'],'r-')
+        plt.text(0.55,0.5, fit_k['Results'],transform=plt.gca().transAxes,fontsize=12)
     plt.subplot(313)
     plt.errorbar(l_list,l_scan,np.sqrt(l_scan+1),fmt='-o',lw=2,ms=12)
     labels(None,'(0,0,l)','Intensity')
+    if fit_type is not None:
+        plt.plot(fit_l['x'],fit_l['y'],'r-')
+        plt.text(0.55,0.5, fit_l['Results'],transform=plt.gca().transAxes,fontsize=12)
+    ttl = scantitle(num)
     add_title = '\n(%6.3f,%6.3f,%6.3f) +/- (%1.1g,%1.1g,%1.1g)' %(h_centre,k_centre,l_centre,sum_tolarance[0],sum_tolarance[1],sum_tolarance[2])
     plt.suptitle(ttl+add_title,fontsize=20,fontweight='bold')
     plt.subplots_adjust(left=0.2,hspace=0.25,top=0.91)
@@ -4281,7 +4346,7 @@ def plotpilxyz_surf3d(num,cax=None,log_colors=False,initial_image=None):
         plt.show()
     sldr.on_changed(update)
 
-def plotpiltth(num,binsep=0.1,centre_only=False):
+def plotpiltth(num=None,binsep=0.1,centre_only=False):
     """
     Plot binned two-theta representation of pilatus frames
        plotpiltth(num,binsep,centre_only)
@@ -4294,7 +4359,7 @@ def plotpiltth(num,binsep=0.1,centre_only=False):
     """
     
     "---Handle inputs---"
-    if num is None:
+    if num is None or num == 0:
         num = latest()
     
     " Multiple nums given"
@@ -4616,7 +4681,7 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
         valnames= ['Peak Height','Peak Centre','FWHM','Background']+valnames
         minvals = [0,min(x),abs(x[1]-x[0]),-np.inf]+minvals
         maxvals = [5*amp,max(x),2*(max(x)-min(x)),np.inf]+maxvals
-    elif type.lower() in ['simp','simple','basic','s']:
+    elif type.lower() in ['simp','simple','basic','s','sum','total','max','maxval','maximum']:
         fitfunc = simpplt
         defestvals = [amp,cen,wid,bkg]
         valnames= ['Peak Height','Peak Centre','FWHM','Background']
@@ -4644,7 +4709,24 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
         fitvals = [amp,cen,wid,bkg]
         errvals = [damp,dcen,dwid,dbkg]
         chi=0
-        
+    
+    elif type.lower() in ['sum','total']:
+        amp,cen,wid,bkg,ara,damp,dcen,dwid,dbkg,dara = simpfit(xold,y)
+        ara = y.sum()
+        dara = np.sqrt(ara)
+        fitvals = [amp,cen,wid,bkg]
+        errvals = [damp,dcen,dwid,dbkg]
+        chi=0
+    
+    elif type.lower() in ['max','maxval','maximum']:
+        amp,cen,wid,bkg,ara,damp,dcen,dwid,dbkg,dara = simpfit(xold,y)
+        ara = y.max()
+        dara = np.sqrt(ara)
+        cen = xold[y.argmax()]
+        fitvals = [amp,cen,wid,bkg]
+        errvals = [damp,dcen,dwid,dbkg]
+        chi=0
+    
     # Perform fitting
     else:
         # Check if a peak exists to fit
@@ -4856,15 +4938,18 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
     output['CHI**2'] = chi
     output['CHI2 per dof'] = chinfp
     
+    # Results String
+    res_str = ' ------{} Fit:----- \n'.format(type)
+    for estn in range(len(fitvals)):
+        res_str +='{0:12s} = {1:20s}\n'.format(valnames[estn],stfm(fitvals[estn],errvals[estn]))
+    res_str +='        Area = {0:20s}\n'.format(stfm(ara,dara))
+    output['Results'] = res_str
     
     # Print Results
     if disp:
-        print( ' ------{} Fit:----- '.format(type) )
-        for estn in range(len(fitvals)):
-            print( '{0:10s} = {1:10.3G} +/- {2:10.3G}'.format(valnames[estn],fitvals[estn],errvals[estn]) )
-        print( '      Area = {0:10.3G} +/- {1:10.3G}'.format(ara,dara) )
-        print( '     CHI^2 = {0:10.8G}'.format(chi) )
-        print( '  CHI^2 per free par = {0:10.3G}'.format(chinfp) )
+        res_str += '       CHI^2 = {0:10.8G}\n'.format(chi)
+        res_str += 'CHI^2 per free par = {0:10.3G}\n'.format(chinfp) 
+        print(res_str)
     
     # Plot Results
     if plot:
@@ -5634,6 +5719,363 @@ def bindata(X,Y,binsep=0.01,bin_cen=None,bin_func=np.nanmean):
         print('Bin average took {} s'.format(t2-t1))
         
         return bin_cen,bin_int
+
+def bin_pixel_hkl_cut(num,hkl_centre=None,image_centre=None,sum_tolarance=[0.05,0.05,0.05],max_points=301):
+    """
+    Generate h,k,l cuts through a pilatus image scan
+        H,K,L = bin_pixel_hkl_cut(num, [h,k,l], None, [0.01,0.01,0.01],[101,101,101])
+    Inputs:
+      num = scan number
+      image_centre = [i,j,k] or None* - centre of the cuts on the detector e.g. [104,205,31]
+      hkl_centre = [h,k,l] or None* - centre of the cuts in hkl, if None the peak position will be used
+      sum_tolarance = [dh,dk,dl] - distance around hkl position to sum, in reciprocal lattice units
+      max_points = n - maximum number of points in each cut
+    Returns:
+      H = [h,Ih] - list of values and binned intensities along h
+      K = [k,Ik] - list of values and binned intensities along k
+      L = [l,Il] - list of values and binned intensities along l
+    
+    If image_centre is None, the centre of the detector and scan will be used.
+    
+    At a choosen central (h,k,l), 3 cuts are generated:
+            Cut 1: (H, k-dk:k+dk, l-dl:l+dl)
+            Cut 2: (h-dh:h+dh, K, l-dl:l+dl)
+            Cut 3: (h-dh:h+dh, k-dk:k+dk, L)
+    At each point H/K/L along each cut, pixels matching the following are summed:
+            Pixel sum at H:
+                abs(h_pixels-H) < H_step/2
+                abs(k_pixels-k) < dk
+                abs(l_pixels-l) < dl
+            Where H_step is defined by the number of cut_points
+    cut_points defines the number of points along axis H/K/L, generated from the minimum to maximum h,k,l
+    
+    A single figure with 3 subplots is created.
+    """
+    
+     # Load hkl matrices
+    hhh,kkk,lll = pixel2hkl(num)
+    print('Max hkl: (%1.3g,%1.3g,%1.3g)'%(hhh.max(),kkk.max(),lll.max()))
+    print('Min hkl: (%1.3g,%1.3g,%1.3g)'%(hhh.min(),kkk.min(),lll.min()))
+    
+    # Load pilatus volume
+    vol = getvol(num)
+    
+    # Load data
+    x,y,dy,varx,vary,ttl,d = getdata(num)
+    
+    # h,k,l min tol
+    # diff only works along rows, doesn't calcualte difference between rows
+    #min_tol_h = np.max(np.abs(np.diff(hhh)))
+    #min_tol_k = np.max(np.abs(np.diff(kkk)))
+    #min_tol_l = np.max(np.abs(np.diff(lll)))
+    min_tol_h = np.max([np.max(np.abs(np.diff(hhh,axis=0))),np.max(np.abs(np.diff(hhh,axis=1))),np.max(np.abs(np.diff(hhh,axis=2)))])
+    min_tol_k = np.max([np.max(np.abs(np.diff(kkk,axis=0))),np.max(np.abs(np.diff(kkk,axis=1))),np.max(np.abs(np.diff(kkk,axis=2)))])
+    min_tol_l = np.max([np.max(np.abs(np.diff(lll,axis=0))),np.max(np.abs(np.diff(lll,axis=1))),np.max(np.abs(np.diff(lll,axis=2)))])
+    print('Maximum hkl step per pixel = [%1.3g, %1.3g, %1.3g]' % (min_tol_h,min_tol_k,min_tol_l))
+    
+    # Centre of cuts
+    if hkl_centre is None:
+        if image_centre is None:
+            i,j = pil_centre
+            k = len(x)//2
+        else:
+            i,j,k = image_centre
+        h_centre = hhh[i,j,k]
+        k_centre = kkk[i,j,k]
+        l_centre = lll[i,j,k]
+        print('Peak Centre: (%1.3g,%1.3g,%1.3g)'%(h_centre,k_centre,l_centre))
+    else:
+        h_centre,k_centre,l_centre = hkl_centre
+    
+    # Pixels close to centre
+    h_cen_idx = np.abs(hhh-h_centre) < sum_tolarance[0]
+    k_cen_idx = np.abs(kkk-k_centre) < sum_tolarance[1]
+    l_cen_idx = np.abs(lll-l_centre) < sum_tolarance[2]
+    
+    kl_cen_idx = k_cen_idx*l_cen_idx
+    hl_cen_idx = h_cen_idx*l_cen_idx
+    hk_cen_idx = h_cen_idx*k_cen_idx
+    
+    # cut ranges
+    h_len = (hhh[kl_cen_idx].max()-hhh[kl_cen_idx].min())/min_tol_h
+    print('n h points = %1.0f'%h_len)
+    if h_len > max_points:
+        print('Reducing h range to %i points' %max_points)
+        h_list = np.arange(h_centre-min_tol_h*(max_points//2),h_centre+min_tol_h*(max_points//2)+min_tol_h,min_tol_h)
+    else: 
+        h_list = np.arange(hhh[kl_cen_idx].min(),hhh[kl_cen_idx].max(),min_tol_h)
+    k_len = (kkk[hl_cen_idx].max()-kkk[hl_cen_idx].min())/min_tol_k 
+    print('n k points = %1.0f'%k_len)
+    if k_len > max_points:
+        print('Reducing k range to %i points' %max_points)
+        k_list = np.arange(k_centre-min_tol_k*(max_points//2),k_centre+min_tol_k*(max_points//2)+min_tol_k,min_tol_k)
+    else:
+        k_list = np.arange(kkk[hl_cen_idx].min(),kkk[hl_cen_idx].max(),min_tol_k) 
+    l_len = (lll[hk_cen_idx].max()-lll[hk_cen_idx].min())/min_tol_l 
+    print('n l points = %1.0f'%l_len)
+    if l_len > max_points:
+        print('Reducing l range to %i points' %max_points)
+        l_list = np.arange(l_centre-min_tol_l*(max_points//2),l_centre+min_tol_l*(max_points//2)+min_tol_l,min_tol_l)
+    else: 
+        l_list = np.arange(lll[hk_cen_idx].min(),lll[hk_cen_idx].max(),min_tol_l)
+    h_step = h_list[1]-h_list[0]
+    k_step = k_list[1]-k_list[0]
+    l_step = l_list[1]-l_list[0]
+    
+    h_scan = np.zeros(len(h_list))
+    k_scan = np.zeros(len(k_list))
+    l_scan = np.zeros(len(l_list))
+    print('Binning h axis at (H,%1.3g,%1.3g) in %1.0f steps, summing <%1.0f pixels per step' % (k_centre,l_centre,len(h_list),np.sum(kl_cen_idx)))
+    for n in range(len(h_list)):
+        hval = h_list[n]
+        hidx = np.abs(hhh-hval) < h_step/2
+        small_vol = vol[ hidx*kl_cen_idx ]
+        h_scan[n] = np.sum(small_vol)
+    print('Binning k axis at (%1.3g,K,%1.3g) in %1.0f steps, summing <%1.0f pixels per step' % (h_centre,l_centre,len(k_list),np.sum(hl_cen_idx)))
+    for n in range(len(k_list)):
+        kval = k_list[n]
+        kidx = np.abs(kkk-kval) < k_step/2
+        small_vol = vol[ kidx*hl_cen_idx ]
+        k_scan[n] = np.sum(small_vol)
+    print('Binning l axis at (%1.3g,%1.3g,L) in %1.0f steps, summing <%1.0f pixels per step' % (h_centre,k_centre,len(l_list),np.sum(hk_cen_idx)))
+    for n in range(len(l_list)):
+        lval = l_list[n]
+        lidx = np.abs(lll-lval) < l_step/2
+        small_vol = vol[ lidx*hk_cen_idx ]
+        l_scan[n] = np.sum(small_vol)
+    
+    return [h_list,h_scan],[k_list,k_scan],[l_list,l_scan]
+
+def bin_pixel_h_cut(num,hkl_centre=None,image_centre=None,sum_tolarance=0.05,max_points=301):
+    """
+    Generate h cut through a pilatus image scan
+        h,Ih = bin_pixel_hkl_cut(num, [h,k,l], None, 0.01,1001)
+    Inputs:
+      num = scan number
+      image_centre = [i,j,k] or None* - centre of the cuts on the detector e.g. [104,205,31]
+      hkl_centre = [h,k,l] or None* - centre of the cuts in hkl, if None the peak position will be used
+      sum_tolarance = dk - distance around hkl position to sum, in reciprocal lattice units
+      max_points = nk - maximum number of points in cut, to reduce calculation time
+    Returns:
+      h - list of values
+      Ih - binned intensities along l
+    
+    If image_centre is None, the centre of the detector and scan will be used.
+    """
+    
+     # Load hkl matrices
+    hhh,kkk,lll = pixel2hkl(num)
+    print('Max hkl: (%1.3g,%1.3g,%1.3g)'%(hhh.max(),kkk.max(),lll.max()))
+    print('Min hkl: (%1.3g,%1.3g,%1.3g)'%(hhh.min(),kkk.min(),lll.min()))
+    
+    # Load pilatus volume
+    vol = getvol(num)
+    
+    # Load data
+    x,y,dy,varx,vary,ttl,d = getdata(num)
+    
+    # h,k,l min tol
+    # diff only works along rows, doesn't calcualte difference between rows
+    #min_tol_h = np.max(np.abs(np.diff(hhh)))
+    #min_tol_k = np.max(np.abs(np.diff(kkk)))
+    #min_tol_l = np.max(np.abs(np.diff(lll)))
+    min_tol_h = np.max([np.max(np.abs(np.diff(hhh,axis=0))),np.max(np.abs(np.diff(hhh,axis=1))),np.max(np.abs(np.diff(hhh,axis=2)))])
+    min_tol_k = np.max([np.max(np.abs(np.diff(kkk,axis=0))),np.max(np.abs(np.diff(kkk,axis=1))),np.max(np.abs(np.diff(kkk,axis=2)))])
+    min_tol_l = np.max([np.max(np.abs(np.diff(lll,axis=0))),np.max(np.abs(np.diff(lll,axis=1))),np.max(np.abs(np.diff(lll,axis=2)))])
+    print('Maximum hkl step per pixel = [%1.3g, %1.3g, %1.3g]' % (min_tol_h,min_tol_k,min_tol_l))
+    
+    # Centre of cuts
+    if hkl_centre is None:
+        if image_centre is None:
+            i,j = pil_centre
+            k = len(x)//2
+        else:
+            i,j,k = image_centre
+        h_centre = hhh[i,j,k]
+        k_centre = kkk[i,j,k]
+        l_centre = lll[i,j,k]
+        print('Peak Centre: (%1.3g,%1.3g,%1.3g)'%(h_centre,k_centre,l_centre))
+    else:
+        h_centre,k_centre,l_centre = hkl_centre
+    
+    # Pixels close to centre
+    h_cen_idx = np.abs(hhh-h_centre) < sum_tolarance
+    k_cen_idx = np.abs(kkk-k_centre) < sum_tolarance
+    l_cen_idx = np.abs(lll-l_centre) < sum_tolarance
+    
+    kl_cen_idx = k_cen_idx*l_cen_idx
+    
+    # cut ranges
+    h_list = np.arange(hhh[kl_cen_idx].min(),hhh[kl_cen_idx].max(),min_tol_h) 
+    if len(h_list) > max_points:
+        print('Reducing range to %i points' %max_points)
+        h_list = np.arange(h_centre-min_tol_h*(max_points//2),h_centre+min_tol_h*(max_points//2)+min_tol_h,min_tol_h)
+        #h_list = np.linspace(hhh[kl_cen_idx].min(),hhh[kl_cen_idx].max(),max_points) 
+    h_step = h_list[1]-h_list[0]
+    
+    h_scan = np.zeros(len(h_list))
+    print('Binning h axis at (H,%1.3g,%1.3g) in %1.0f steps, summing <%1.0f pixels per step' % (k_centre,l_centre,len(h_list),np.sum(kl_cen_idx)))
+    for n in range(len(h_list)):
+        hval = h_list[n]
+        hidx = np.abs(hhh-hval) < h_step/2
+        small_vol = vol[ hidx*kl_cen_idx ]
+        h_scan[n] = np.sum(small_vol)
+    
+    return h_list,h_scan
+
+def bin_pixel_k_cut(num,hkl_centre=None,image_centre=None,sum_tolarance=0.05,max_points=301):
+    """
+    Generate h,k,l cuts through a pilatus image scan
+        k,Ik = bin_pixel_hkl_cut(num, [h,k,l], None, 0.01,1001)
+    Inputs:
+      num = scan number
+      image_centre = [i,j,k] or None* - centre of the cuts on the detector e.g. [104,205,31]
+      hkl_centre = [h,k,l] or None* - centre of the cuts in hkl, if None the peak position will be used
+      sum_tolarance = dk - distance around hkl position to sum, in reciprocal lattice units
+      max_points = nk - maximum number of points in each cut, to reduce calculatio time
+    Returns:
+      k - list of values
+      Ik - binned intensities along l
+    
+    If image_centre is None, the centre of the detector and scan will be used.
+    """
+    
+     # Load hkl matrices
+    hhh,kkk,lll = pixel2hkl(num)
+    print('Max hkl: (%1.3g,%1.3g,%1.3g)'%(hhh.max(),kkk.max(),lll.max()))
+    print('Min hkl: (%1.3g,%1.3g,%1.3g)'%(hhh.min(),kkk.min(),lll.min()))
+    
+    # Load pilatus volume
+    vol = getvol(num)
+    
+    # Load data
+    x,y,dy,varx,vary,ttl,d = getdata(num)
+    
+    # h,k,l min tol
+    # diff only works along rows, doesn't calcualte difference between rows
+    #min_tol_h = np.max(np.abs(np.diff(hhh)))
+    #min_tol_k = np.max(np.abs(np.diff(kkk)))
+    #min_tol_l = np.max(np.abs(np.diff(lll)))
+    min_tol_h = np.max([np.max(np.abs(np.diff(hhh,axis=0))),np.max(np.abs(np.diff(hhh,axis=1))),np.max(np.abs(np.diff(hhh,axis=2)))])
+    min_tol_k = np.max([np.max(np.abs(np.diff(kkk,axis=0))),np.max(np.abs(np.diff(kkk,axis=1))),np.max(np.abs(np.diff(kkk,axis=2)))])
+    min_tol_l = np.max([np.max(np.abs(np.diff(lll,axis=0))),np.max(np.abs(np.diff(lll,axis=1))),np.max(np.abs(np.diff(lll,axis=2)))])
+    print('Maximum hkl step per pixel = [%1.3g, %1.3g, %1.3g]' % (min_tol_h,min_tol_k,min_tol_l))
+    
+    # Centre of cuts
+    if hkl_centre is None:
+        if image_centre is None:
+            i,j = pil_centre
+            k = len(x)//2
+        else:
+            i,j,k = image_centre
+        h_centre = hhh[i,j,k]
+        k_centre = kkk[i,j,k]
+        l_centre = lll[i,j,k]
+        print('Peak Centre: (%1.3g,%1.3g,%1.3g)'%(h_centre,k_centre,l_centre))
+    else:
+        h_centre,k_centre,l_centre = hkl_centre
+    
+    # Pixels close to centre
+    h_cen_idx = np.abs(hhh-h_centre) < sum_tolarance
+    k_cen_idx = np.abs(kkk-k_centre) < sum_tolarance
+    l_cen_idx = np.abs(lll-l_centre) < sum_tolarance
+    
+    hl_cen_idx = h_cen_idx*l_cen_idx
+    
+    # cut ranges
+    k_list = np.arange(kkk[hl_cen_idx].min(),kkk[hl_cen_idx].max(),min_tol_k)
+    if len(k_list) > max_points:
+        print('Reducing range to %i points' %max_points)
+        k_list = np.arange(k_centre-min_tol_k*(max_points//2),k_centre+min_tol_k*(max_points//2)+min_tol_k,min_tol_k)
+        #k_list = np.linspace(kkk[hl_cen_idx].min(),kkk[hl_cen_idx].max(),max_points)
+    k_step = k_list[1]-k_list[0]
+    
+    k_scan = np.zeros(len(k_list))
+    print('Binning k axis at (%1.3g,K,%1.3g) in %1.0f steps, summing <%1.0f pixels per step' % (h_centre,l_centre,len(k_list),np.sum(hl_cen_idx)))
+    for n in range(len(k_list)):
+        kval = k_list[n]
+        kidx = np.abs(kkk-kval) < k_step/2
+        small_vol = vol[ kidx*hl_cen_idx ]
+        k_scan[n] = np.sum(small_vol)
+    
+    return k_list,k_scan
+
+def bin_pixel_l_cut(num,hkl_centre=None,image_centre=None,sum_tolarance=0.05,max_points=301):
+    """
+    Generate h,k,l cuts through a pilatus image scan
+        l,Il = bin_pixel_hkl_cut(num, [h,k,l], None, 0.01,101)
+    Inputs:
+      num = scan number
+      image_centre = [i,j,k] or None* - centre of the cuts on the detector e.g. [104,205,31]
+      hkl_centre = [h,k,l] or None* - centre of the cuts in hkl, if None the peak position will be used
+      sum_tolarance = dl - distance around hkl position to sum, in reciprocal lattice units
+      max_points = nl - maximum number of points in each cut, to reduce calcualtion time
+    Returns:
+      l - list of values
+      Il - binned intensities along l
+    
+    If image_centre is None, the centre of the detector and scan will be used.
+    """
+    
+     # Load hkl matrices
+    hhh,kkk,lll = pixel2hkl(num)
+    print('Max hkl: (%1.3g,%1.3g,%1.3g)'%(hhh.max(),kkk.max(),lll.max()))
+    print('Min hkl: (%1.3g,%1.3g,%1.3g)'%(hhh.min(),kkk.min(),lll.min()))
+    
+    # Load pilatus volume
+    vol = getvol(num)
+    
+    # Load data
+    x,y,dy,varx,vary,ttl,d = getdata(num)
+    
+    # h,k,l min tol
+    # diff only works along rows, doesn't calcualte difference between rows
+    #min_tol_h = np.max(np.abs(np.diff(hhh)))
+    #min_tol_k = np.max(np.abs(np.diff(kkk)))
+    #min_tol_l = np.max(np.abs(np.diff(lll)))
+    min_tol_h = np.max([np.max(np.abs(np.diff(hhh,axis=0))),np.max(np.abs(np.diff(hhh,axis=1))),np.max(np.abs(np.diff(hhh,axis=2)))])
+    min_tol_k = np.max([np.max(np.abs(np.diff(kkk,axis=0))),np.max(np.abs(np.diff(kkk,axis=1))),np.max(np.abs(np.diff(kkk,axis=2)))])
+    min_tol_l = np.max([np.max(np.abs(np.diff(lll,axis=0))),np.max(np.abs(np.diff(lll,axis=1))),np.max(np.abs(np.diff(lll,axis=2)))])
+    print('Maximum hkl step per pixel = [%1.3g, %1.3g, %1.3g]' % (min_tol_h,min_tol_k,min_tol_l))
+    
+    # Centre of cuts
+    if hkl_centre is None:
+        if image_centre is None:
+            i,j = pil_centre
+            k = len(x)//2
+        else:
+            i,j,k = image_centre
+        h_centre = hhh[i,j,k]
+        k_centre = kkk[i,j,k]
+        l_centre = lll[i,j,k]
+        print('Peak Centre: (%1.3g,%1.3g,%1.3g)'%(h_centre,k_centre,l_centre))
+    else:
+        h_centre,k_centre,l_centre = hkl_centre
+    
+    # Pixels close to centre
+    h_cen_idx = np.abs(hhh-h_centre) < sum_tolarance
+    k_cen_idx = np.abs(kkk-k_centre) < sum_tolarance
+    l_cen_idx = np.abs(lll-l_centre) < sum_tolarance
+    
+    hk_cen_idx = h_cen_idx*k_cen_idx
+    
+    # cut ranges
+    l_list = np.arange(lll[hk_cen_idx].min(),lll[hk_cen_idx].max(),min_tol_l)
+    if len(l_list) > max_points:
+        print('Reducing range to %i points' %max_points)
+        l_list = np.arange(l_centre-min_tol_l*(max_points//2),l_centre+min_tol_l*(max_points//2)+min_tol_l,min_tol_l)
+        #l_list = np.linspace(lll[hk_cen_idx].min(),lll[hk_cen_idx].max(),max_points)
+    l_step = l_list[1]-l_list[0]
+    
+    l_scan = np.zeros(len(l_list))
+    print('Binning l axis at (%1.3g,%1.3g,L) in %1.0f steps, summing <%1.0f pixels per step' % (h_centre,k_centre,len(l_list),np.sum(hk_cen_idx)))
+    for n in range(len(l_list)):
+        lval = l_list[n]
+        lidx = np.abs(lll-lval) < l_step/2
+        small_vol = vol[ lidx*hk_cen_idx ]
+        l_scan[n] = np.sum(small_vol)
+    
+    return l_list,l_scan
 
 def saveplot(name,dpi=None):
     "Saves current figure as a png in the savedir directory"

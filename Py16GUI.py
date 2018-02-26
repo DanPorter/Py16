@@ -62,7 +62,7 @@ I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
 Version 3.4
-Last updated: 06/12/17
+Last updated: 23/01/18
 
 Version History:
 07/02/16 0.9    Program created
@@ -92,6 +92,7 @@ Version History:
 23/10/17 3.2    Several minor improvements, including choice of plots for fitting
 01/12/17 3.3    Update for matplotlib V2.1, reduce figure dpi, fix scaling of detector images
 06/12/17 3.4    Added buttons for pixel2hkl and pixel2tth, plus other fixes
+26/02/18 3.5    Added Custom Details plus improvements to image plotting, more fit functions
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -367,7 +368,7 @@ class I16_Data_Viewer():
         opt_nrm.pack(side=tk.LEFT,padx=0,pady=5)
         
         # fit menu
-        fitopts = ['None','Gauss','Lorentz','pVoight']
+        fitopts = ['None','Gauss','Lorentz','pVoight','Max','Sum']
         self.fittype = tk.StringVar(frm_popt, fitopts[0])
         lbl_fit = tk.Label(frm_popt, text='Fit: ', font=SF)
         lbl_fit.pack(side=tk.LEFT,padx=0,pady=5)
@@ -519,7 +520,7 @@ class I16_Data_Viewer():
         lbl_sz2 = tk.Label(frm_sx, textvariable=self.sz,
                            font=SF, width= 7, anchor=tk.W)
         lbl_sz2.pack(side=tk.LEFT)
-        # sperp
+        # sperp, spara
         frm_sp = tk.Frame(frm_detl)
         frm_sp.pack(fill=tk.X)
         lbl_sp1 = tk.Label(frm_sp, text='sperp:',
@@ -535,7 +536,7 @@ class I16_Data_Viewer():
                            font=SF, width= 7, anchor=tk.W)
         lbl_sr2.pack(side=tk.LEFT)
         
-        # Sample Slits
+        # Sample Slits, Detector Slits
         frm_ss = tk.Frame(frm_detl)
         frm_ss.pack(fill=tk.X, pady=(10,0))
         lbl_ss1 = tk.Label(frm_ss, text='Sample Slits: ',
@@ -545,13 +546,36 @@ class I16_Data_Viewer():
                            font=SF, width= 12, anchor=tk.W)
         lbl_ss2.pack(side=tk.LEFT)
         frm_ds = tk.Frame(frm_detl)
-        frm_ds.pack(fill=tk.X, pady=(0,20))
+        frm_ds.pack(fill=tk.X, pady=(0,10))
         lbl_ds1 = tk.Label(frm_ds, text='Detector Slits: ',
                            font=SF, width= 16, anchor=tk.E)
         lbl_ds1.pack(side=tk.LEFT)
         lbl_ds2 = tk.Label(frm_ds, textvariable=self.ds,
                            font=SF, width= 12, anchor=tk.W)
         lbl_ds2.pack(side=tk.LEFT)
+        
+        # Custom 1,2
+        frm_cst1 = tk.Frame(frm_detl)
+        frm_cst1.pack(fill=tk.X, pady=(0,0))
+        self.custom1 = tk.StringVar(frm_cst1,'Custom')
+        self.custom1_val = tk.StringVar(frm_cst1,'--')
+        ylist = ['Custom']
+        self.opt_cust1 = tk.OptionMenu(frm_cst1, self.custom1, *ylist,command=self.f_detl_custom1)
+        self.opt_cust1.config(width=15)
+        self.opt_cust1.pack(side=tk.LEFT,padx=(10,3))
+        lbl_cust = tk.Label(frm_cst1, textvariable=self.custom1_val,font=SF)
+        lbl_cust.pack(side=tk.LEFT,padx=(5,2))
+        
+        frm_cst2 = tk.Frame(frm_detl)
+        frm_cst2.pack(fill=tk.X, pady=(0,10))
+        self.custom2 = tk.StringVar(frm_cst2,'Custom')
+        self.custom2_val = tk.StringVar(frm_cst2,'--')
+        ylist = ['Custom']
+        self.opt_cust2 = tk.OptionMenu(frm_cst2, self.custom2, *ylist,command=self.f_detl_custom2)
+        self.opt_cust2.config(width=15)
+        self.opt_cust2.pack(side=tk.LEFT,padx=(10,3))
+        lbl_cust = tk.Label(frm_cst2, textvariable=self.custom2_val,font=SF)
+        lbl_cust.pack(side=tk.LEFT,padx=(5,2))
         
         # Time Info
         self.writeval(frm_detl,'Ran on',self.runtime)
@@ -1012,6 +1036,16 @@ class I16_Data_Viewer():
         "Plot scan with fit"
         self.update_plot()
     
+    def f_detl_custom1(self,x):
+        "Asign value to custom detail"
+        self.custom1.set(x)
+        self.update_details()
+    
+    def f_detl_custom2(self,x):
+        "Asign value to custom detail"
+        self.custom2.set(x)
+        self.update_details()
+    
     def f_log_dn(self):
         "Decrease Scan number"
         num = self.logmins.get()
@@ -1160,6 +1194,7 @@ class I16_Data_Viewer():
         self.pilp5.set_ydata([pry1,pry1,pry2,pry2,pry1])
         
         self.update_pilatus()
+        self.update_plot()
     
     def f_pilopt_nroi(self):
         "Send pil values to vary"
@@ -1402,11 +1437,13 @@ class I16_Data_Viewer():
         self.set_files()
         pp.normby = self.normtype.get()
         scanno = self.scanno.get()
+        ROIcen = [self.pilcen_i.get(),self.pilcen_j.get()]
+        ijk = [ROIcen[0],ROIcen[1],int(self.N.get())//2]
         
         # Send the command
-        cmdstr = 'pp.plotpilhkl_cuts({},hkl_centre=None,sum_tolarance=[0.05,0.05,0.05],cut_points=[101,101,101])'
+        cmdstr = 'pp.plotpilhkl_cuts({},hkl_centre=None,sum_tolarance=[0.05,0.05,0.05],max_points=301)'
         print( cmdstr.format(scanno) )
-        pp.plotpilhkl_cuts(scanno,hkl_centre=None,sum_tolarance=[0.05,0.05,0.05],cut_points=[101,101,101])
+        pp.plotpilhkl_cuts(scanno,image_centre=ijk,sum_tolarance=[0.05,0.05,0.05],max_points=301)
         plt.show()
     
     def f_fnl_ptth(self):
@@ -1643,12 +1680,16 @@ class I16_Data_Viewer():
             self.ss.set('')
             self.ds.set('')
             
+            self.custom1_val.set('')
+            self.custom2_val.set('')
+            
             self.runtime.set('')
             self.timetaken.set('')
             return
         
         keys = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
         keysx = ['Auto']+keys
+        keys_all = ['Custom']+keys+d.metadata.keys()
         
         # Add Cutsom ROI to keys for image files
         if hasattr(d,'path'):
@@ -1672,6 +1713,13 @@ class I16_Data_Viewer():
         for key in keysy:
             #self.opt_vary['menu'].add_command(label=key, command=tk._setit(self.vary, key))
             self.opt_vary['menu'].add_command(label=key, command=lambda k=key: self.f_popt_vary(k))
+        
+        # Set Custom1 and custom 2 option menu entrys
+        self.opt_cust1['menu'].delete(0, 'end')
+        self.opt_cust2['menu'].delete(0, 'end')
+        for key in keys_all:
+            self.opt_cust1['menu'].add_command(label=key, command=lambda k=key: self.f_detl_custom1(k))
+            self.opt_cust2['menu'].add_command(label=key, command=lambda k=key: self.f_detl_custom2(k))
         
         m = d.metadata
         
@@ -1714,6 +1762,22 @@ class I16_Data_Viewer():
         
         # Analyser
         self.pol.set('thp: {}     tthp: {}     pol: {}'.format(m.thp,m.tthp,m.stoke))
+        
+        # Custom
+        custom1 = self.custom1.get()
+        custom2 = self.custom2.get()
+        if custom1 in d.metadata.keys():
+            self.custom1_val.set('{}'.format(getattr(d.metadata,custom1)))
+        elif custom1 in keys:
+            self.custom1_val.set('{}'.format(np.mean(getattr(d,custom1))))
+        else:
+            self.custom1_val.set('--')
+        if custom2 in d.metadata.keys():
+            self.custom2_val.set('{}'.format(getattr(d.metadata,custom2)))
+        elif custom1 in keys:
+            self.custom2_val.set('{}'.format(np.mean(getattr(d,custom2))))
+        else:
+            self.custom2_val.set('--')
         
         # Timing
         time = d.TimeSec[-1]-d.TimeSec[0]
@@ -1876,7 +1940,7 @@ class I16_Data_Viewer():
             
             # Set pilatus position
             if self.livemode.get():
-                self.pilpos = len(x)
+                self.pilpos = len(x)-1
             else:
                 self.pilpos = int(len(x)//2)
             
@@ -1950,6 +2014,8 @@ class I16_Data_Viewer():
             self.pilp4.set_xdata([])
             self.pilp4.set_ydata([])
         
+        # Update pilatus image
+        self.pilim.set_data(self.vol[:,:,self.pilpos])
         self.ax2.set_aspect('equal')
         #self.ax2.autoscale(tight=True)
         self.fig2.canvas.draw()
@@ -2358,7 +2424,7 @@ class I16_Peak_Analysis:
         opt_nrm.pack(side=tk.LEFT,padx=5,pady=5)
         
         # fit menu
-        fitopts = ['Simple','Gauss','Lorentz','pVoight']
+        fitopts = ['Simple','Gauss','Lorentz','pVoight','Sum','Max']
         self.fittype = tk.StringVar(frm_opt, fitopts[3])
         lbl_fit = tk.Label(frm_opt, text='Fit: ', font=SF)
         lbl_fit.pack(side=tk.LEFT,padx=0,pady=5)
@@ -2893,7 +2959,7 @@ class I16_Advanced_Fitting:
         opt_nrm.pack(side=tk.LEFT,padx=5,pady=5)
         
         # fit menu
-        fitopts = ['Simple','Gauss','Lorentz','pVoight']
+        fitopts = ['Simple','Gauss','Lorentz','pVoight','Sum','Max']
         self.fittype = tk.StringVar(frm_opt, ini_fit)
         lbl_fit = tk.Label(frm_opt, text='Fit: ', font=SF)
         lbl_fit.pack(side=tk.LEFT,padx=0,pady=5)
@@ -3909,7 +3975,7 @@ class I16_Params:
         frame1c.pack()
         
         # Errors
-        tempopts = ['Ta','Tb','Tc','Td']
+        tempopts = ['Ta','Tb','Tc','Td','tgas']
         self.sensortype = tk.StringVar(frame1, pp.default_sensor)
         lbl_sen = tk.Label(frame1c,text='Temp Sensor:',font=SF, justify=tk.RIGHT, width=dwid)
         lbl_sen.pack(side=tk.LEFT,padx=5,pady=5)
