@@ -61,8 +61,8 @@ I16_Peak_Analysis - Plot and analyse multiple scans, including peak fitting and 
 I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
-Version 3.4
-Last updated: 23/01/18
+Version 3.7
+Last updated: 18/03/18
 
 Version History:
 07/02/16 0.9    Program created
@@ -93,6 +93,8 @@ Version History:
 01/12/17 3.3    Update for matplotlib V2.1, reduce figure dpi, fix scaling of detector images
 06/12/17 3.4    Added buttons for pixel2hkl and pixel2tth, plus other fixes
 26/02/18 3.5    Added Custom Details plus improvements to image plotting, more fit functions
+09/03/18 3.6    Updated to correct for python3.6 test errors
+18/03/18 3.7    Default savedir directory, save Py16 parameter files to savedir directory
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -106,7 +108,6 @@ Future Ideas:
 - Convert to Qt
 - Add hover boxes over buttons
 - During live mode, show last line of log file in info bar
-- add option for temperature reading by different sensor (Tb,Tc,Td)
 - Advanced plot allow different estimates
 - Advanced plot multi peak fitting
 """
@@ -120,7 +121,7 @@ if sys.version_info[0] < 3:
     import tkMessageBox as messagebox
 else:
     import tkinter as tk
-    import filedialog
+    from tkinter import filedialog
     from tkinter import messagebox
 import matplotlib
 matplotlib.use("TkAgg")
@@ -150,7 +151,7 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 3.4
+Py16GUI_Version = 3.7
 
 # App Fonts
 BF= ["Times", 12]
@@ -852,8 +853,8 @@ class I16_Data_Viewer():
         
         # Check widget size vs screen size
         if self.root.winfo_height() > self.root.winfo_screenheight()-80:
-            print 'Screen Height = ',self.root.winfo_screenheight()
-            print 'App Height = ',self.root.winfo_height()
+            print('Screen Height = ',self.root.winfo_screenheight())
+            print('App Height = ',self.root.winfo_height())
             print('Oh... this is a small screen. I\'ll just make the viewer smaller...')
             # App Fonts
             BF[1] -= 2
@@ -887,7 +888,8 @@ class I16_Data_Viewer():
         inidir = self.filedir.get()
         dir = filedialog.askdirectory(initialdir=inidir)
         self.filedir.set(dir)
-        self.helper.set('Now set the analysis folder - saved images and scripts will be stored here')
+        self.savedir.set(dir +os.path.sep+'processing')
+        #self.helper.set('Now set the analysis folder - saved images and scripts will be stored here')
     
     def f_fldr_find(self):
         "Search for data directory"
@@ -1624,6 +1626,7 @@ class I16_Data_Viewer():
         if pp.savedir != self.savedir.get():
             pp.savedir = self.savedir.get()
             pp.sav_list_add()
+            pp.exp_parameters_load() # load Py16 parameters
     
     def writeval(self,mstr,label_str,label_var,wid=27):
         frame = tk.Frame(mstr)
@@ -1687,9 +1690,11 @@ class I16_Data_Viewer():
             self.timetaken.set('')
             return
         
+        m = d.metadata
+        mkeys = list(m.keys())
         keys = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
         keysx = ['Auto']+keys
-        keys_all = ['Custom']+keys+d.metadata.keys()
+        keys_all = ['Custom']+keys+mkeys
         
         # Add Cutsom ROI to keys for image files
         if hasattr(d,'path'):
@@ -1721,11 +1726,10 @@ class I16_Data_Viewer():
             self.opt_cust1['menu'].add_command(label=key, command=lambda k=key: self.f_detl_custom1(k))
             self.opt_cust2['menu'].add_command(label=key, command=lambda k=key: self.f_detl_custom2(k))
         
-        m = d.metadata
         
         # Initilise frame variables
         self.cmd.set(m.cmd_short)
-        self.N.set(str(len(d[d.keys()[0]])))
+        self.N.set(str(len(d[keys[0]])))
         self.HKL.set(m.hkl_str)
         self.ENG.set('{} keV'.format(m.Energy))
         self.T.set(m.temperature)
@@ -1774,7 +1778,7 @@ class I16_Data_Viewer():
             self.custom1_val.set('--')
         if custom2 in d.metadata.keys():
             self.custom2_val.set('{}'.format(getattr(d.metadata,custom2)))
-        elif custom1 in keys:
+        elif custom2 in keys:
             self.custom2_val.set('{}'.format(np.mean(getattr(d,custom2))))
         else:
             self.custom2_val.set('--')
@@ -4108,6 +4112,9 @@ class I16_Params:
         else:
             pp.error_func = lambda x: 0*x
         
+        # Save parameter file
+        pp.exp_parameters_save()
+        
         # Close window
         self.root.destroy()
 
@@ -4257,6 +4264,6 @@ if __name__ == '__main__':
     
     
     pp.recall_last_exp()
-    I16_Data_Viewer()
+    dv=I16_Data_Viewer()
     #colour_cutoffs()
     

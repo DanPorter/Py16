@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 3.6
-Last updated: 26/02/18
+Version 3.7
+Last updated: 18/03/18
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -111,6 +111,8 @@ Version History:
 06/12/17 3.4    Added new plots for pixel2tth
 23/01/18 3.5    Added d.counter to scans, made pixel2hkl work for hkl scans
 23/02/18 3.6    Added bin_pixel_hkl_cut, new fit methods
+09/03/18 3.6    Added, scanpol, updated to correct for python3.6 test errors
+18/03/18 3.7    Added exp_parameters_save and _load
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -1084,7 +1086,7 @@ def pixel2hkl(num,detdim=[195,487],UB=None):
     n0=n0.transpose()
     
     #UB initialization 
-    if UB==None:
+    if UB is None:
         UB=np.matrix([[m.UB11,m.UB12,m.UB13],[m.UB21,m.UB22,m.UB23],[m.UB31,m.UB32,m.UB33]])
         invUB=UB.I
     else:
@@ -1773,18 +1775,7 @@ def scantitle(num):
     Energy = scanenergy(d)
     Temp = scantemp(d)
     #psi = scanazimuth(d)
-    pol = ''
-    if m.delta_axis_offset < 1 and m.thp > 10:
-        if m.gam > 0.:
-            if m.stoke < 45.:
-                pol = ' p-p'
-            else:
-                pol = ' p-s'
-        else:
-            if m.stoke < 45.:
-                pol = ' s-s'
-            else:
-                pol = ' s-p'
+    pol = scanpol(d)
     
     "---exp_title---"
     if exp_title is '':
@@ -1867,6 +1858,35 @@ def scanazimuth(num):
     h,k,l = m.azih,m.azik,m.azil
     return '{:7.2f} ({:1.3g},{:1.3g},{:1.3g})'.format(psi,h,k,l)
 
+def scanpol(num,latex=False):
+    "Returns the polarisation of the current scan"
+    
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    m = d.metadata
+    pol = ''
+    if m.delta_axis_offset < 1 and m.thp > 10:
+        if m.gam > 0.01:
+            if m.stoke < 45.:
+                pol = ' p-p'
+                ltx = '$\pi-\pi$'
+            else:
+                pol = ' p-s'
+                ltx = '$\pi-\sigma$'
+        else:
+            if m.stoke < 45.:
+                pol = ' s-s'
+                ltx = '$\sigma-\sigma$'
+            else:
+                pol = ' s-p'
+                ltx = '$\sigma-\pi$'
+    if latex:
+        return ltx
+    return pol
+
 def scantemp(num,sensor=None):
     "Returns the average temperature of the chosen scan as a formatted string"
     
@@ -1881,8 +1901,10 @@ def scantemp(num,sensor=None):
     m = d.metadata
     if sensor in d.keys():
         T = np.mean(getattr(d,sensor))
-    else:
+    elif sensor in d.metadata.keys():
         T = getattr(m,sensor)
+    else:
+        T = 300
     
     # temperature given as 0 if lakeshore not connected
     if T < 0.1:
@@ -2599,6 +2621,88 @@ def clear_prev_exp():
     with open(os.path.join(tmpdir,'Py16_analysis_directories.txt'),'w') as f:
         f.write('')
 
+def exp_parameters_save(saveto=None):
+    """
+    Save experimental parameters in savedir directory
+    """
+    
+    if saveto is None:
+        saveto = savedir
+    
+    if os.path.isdir(saveto) is False:
+        print('This directory doesn\'t exist')
+        return
+    
+    savefile = os.path.join(saveto, 'Py16_parameters.txt')
+    txt = ''
+    txt += 'exp_title %s\n' %exp_title
+    txt += 'filedir %s\n' %filedir
+    txt += 'savedir %s\n' %savedir
+    txt += 'datfile_format %s\n' %datfile_format
+    txt += 'exp_ring_current %6.2f\n' %exp_ring_current
+    txt += 'exp_monitor %6.2f\n' %exp_monitor
+    txt += 'normby %s\n' %normby
+    txt += 'dont_normalise %s\n' %(' '.join(dont_normalise))
+    txt += 'detectors %s\n' %(' '.join(detectors))
+    txt += 'default_sensor %s\n' %default_sensor
+    txt += 'pil_centre %3.0f %3.0f\n' %(pil_centre[0],pil_centre[1])
+    txt += 'hot_pixel %i\n' %hot_pixel
+    txt += 'peakregion %i %i %i %i\n' %(peakregion[0],peakregion[1],peakregion[2],peakregion[3])
+    txt += 'pilpara %f %f %f %f %f %f %f %f\n' %(pilpara[0],pilpara[1],pilpara[2],pilpara[3],pilpara[4],pilpara[5],pilpara[6],pilpara[7])
+    txt += 'pil_max_size %f\n' %pil_max_size
+    txt += 'plot_colors %s\n' %(' '.join(plot_colors))
+    
+    with open(savefile,'w') as file:
+        file.write(txt)
+    
+    print('Py16 parameters written to %s' %(savefile))
+
+def exp_parameters_load(loadfrom=None):
+    """
+    Load Py16 parameters from file
+    """
+    
+    global filedir,savedir,datfile_format,exp_ring_current,exp_monitor,normby,dont_normalise
+    global detectors,default_sensor,pil_centre,hot_pixel,peakregion,pilpara,pil_max_size,plot_colors
+    
+    if loadfrom is None:
+        loadfrom = savedir
+    
+    savefile = os.path.join(loadfrom, 'Py16_parameters.txt')
+    
+    if not os.path.isfile(savefile):
+        print('No Parameter file in this directory!')
+        return
+    
+    print('Loading Py16 parameters from %s' %(savefile))
+    
+    with open(savefile) as file:
+        lines = file.readlines()
+    
+    params = {}
+    for line in lines:
+        split_line = line.split()
+        params[split_line[0]] = split_line[1:]
+    
+    exp_title = ' '.join(params['exp_title'])
+    filedir = ' '.join(params['filedir'])
+    savedir = ' '.join(params['savedir'])
+    datfile_format = ' '.join(params['datfile_format'])
+    exp_ring_current = float(params['exp_ring_current'][0])
+    exp_monitor = float(params['exp_monitor'][0])
+    normby = params['normby'][0]
+    dont_normalise = params['dont_normalise']
+    detectors = params['detectors']
+    default_sensor = params['default_sensor'][0]
+    pil_centre = [int(x) for x in params['pil_centre']]
+    hot_pixel = int(params['hot_pixel'][0])
+    peakregion=[int(x) for x in params['peakregion']]
+    pilpara=[float(x) for x in params['pilpara']]
+    #dead_pixel_func = np.median # Define how to choose the replaced intensity for hot/broken pixels 
+    pil_max_size = float(params['pil_max_size'][0])
+    #pilatus_dead_pixels = np.zeros(shape=(0,2),dtype=int) # Blank
+    plot_colors = params['plot_colors']
+    
 
 "----------------------------Analysis Functions---------------------------"
 
@@ -4637,8 +4741,20 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
     def create_peak_fun(text_fn,params):
         inputs = ','.join(params)
         funcstr = 'def func(x,{}):\n    return {}'.format(inputs,text_fn)
-        exec funcstr in globals(),locals()
+        #container = {'np':np}
+        #exec(funcstr,container) 
+        #return container['func']
+        
+        if sys.version_info[0] < 3:
+            # Python 2.x
+            exec funcstr in globals(),locals() # python <3
+        else:
+            # Both versions, but throws an errror < 2.7.9
+            #exec(funcstr,globals(),locals()) # python >2.7.9
+            #exec(funcstr,locals()) # python >2.7.9
+            pass
         return func
+        
     
     # Define background function
     if bkg_type.lower() in ['slope','sloping','grad']:
@@ -4911,7 +5027,7 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
         outerr['FWHM'] = 0.0
         output['Peak Centre'] = np.nan
         outerr['Peak Centre'] = 0.0
-        output['Background'] = fitfunc(xold[len(xold)/2],*fitvals)
+        output['Background'] = fitfunc(xold[len(xold)//2],*fitvals)
         outerr['Background'] = np.std(y)
         ara = 0.0
         ara = 0.0
@@ -5065,8 +5181,9 @@ def fittest(x,y,dy=None,tryall=False,disp=False):
     minval = np.argmin(chival)
     return fitname[minval]
 
-def gauss2D((X,Y),height=1,cen_x=0,cen_y=0,FWHM_x=.5,FWHM_y=.5,bkg=0):
+def gauss2D(XY,height=1,cen_x=0,cen_y=0,FWHM_x=.5,FWHM_y=.5,bkg=0):
     "Define 2D Gaussian"
+    X,Y = XY
     G= height*np.exp(-np.log(2)*( ((X-cen_x)/(FWHM_x/2.0))**2 + ((Y-cen_y)/(FWHM_y/2.0))**2 )) + bkg
     return G.ravel()
 
@@ -6151,38 +6268,61 @@ def stfm(val,err):
           '110 (5)' = stfm(110.25,5)
           '0.0015300 (5)' = stfm(0.00153,0.0000005)
           '1.56(2)E+6' = stfm(1.5632e6,1.53e4)
+    
+    Notes:
+     - Errors less than 0.01% of values will be given as 0
+     - The maximum length of string is 13 characters
+     - Errors greater then 10x the value will cause the value to be rounded to zero
     """
-    if np.log10(np.abs(err)) >= 0.:
+    
+    # Determine the number of significant figures from the error
+    if err == 0. or val/float(err) >= 1E5:
+        # Zero error - give value to 4 sig. fig.
+        out = '{:1.5G}'.format(val)
+        if 'E' in out:
+            out = '{}(0)E{}'.format(*out.split('E'))
+        else:
+            out = out + ' (0)'
+        return out
+    elif np.log10(np.abs(err)) > 0.:
+        # Error > 0
         sigfig = np.ceil(np.log10(np.abs(err)))-1
         dec = 0.
-    elif err == 0.:
-        return '{} (0)'.format(val)
     elif np.isnan(err):
+        # nan error
         return '{} (-)'.format(val)
     else:
+        # error < 0
         sigfig = np.floor(np.log10(np.abs(err))+0.025)
         dec = -sigfig
     
+    # Round value and error to the number of significant figures
     rval = round(val/(10.**sigfig))*(10.**sigfig)
     rerr = round(err/(10.**sigfig))*(10.**sigfig)
-    if np.log10(rval) > 0:
-        ln = np.ceil(np.log10(rval))
-    else:
-        ln = sigfig
+    # size of value and error
+    pw = np.floor(np.log10(np.abs(rval)))
+    pwr = np.floor(np.log10(np.abs(rerr)))
+    
+    max_pw = max(pw,pwr)
+    ln = max_pw - sigfig # power difference
     
     if np.log10(np.abs(err)) < 0:
         rerr = err/(10.**sigfig)
-        ln = ln + dec + 1
+    
+    # Small numbers - exponential notation
+    if max_pw < -3.:
+        rval = rval/(10.**max_pw)
+        fmt = '{'+'0:1.{:1.0f}f'.format(ln)+'}({1:1.0f})E{2:1.0f}'
+        return fmt.format(rval,rerr,max_pw)
     
     # Large numbers - exponential notation
-    if np.log10(np.abs(rval)) > 4.:
-        pw = np.floor(np.log10(np.abs(rval)))
-        rval = rval/(10.**pw)
+    if max_pw >= 4.:
+        rval = rval/(10.**max_pw)
         rerr = rerr/(10.**sigfig)
-        fmt = '{0:1.2f}({1:1.0f})E{2:+1.0f}'
-        return fmt.format(rval,rerr,pw)
+        fmt = '{'+'0:1.{:1.0f}f'.format(ln)+'}({1:1.0f})E+{2:1.0f}'
+        return fmt.format(rval,rerr,max_pw)
     
-    fmt = '{'+'0:{0:1.0f}.{1:1.0f}f'.format(ln,dec+0)+'} ({1:1.0f})'
+    fmt = '{'+'0:0.{:1.0f}f'.format(dec+0)+'} ({1:1.0f})'
     return fmt.format(rval,rerr)
 
 def saveable(string):
