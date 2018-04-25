@@ -1,7 +1,7 @@
 Py16 programs for data viewing and analysis of I16 data
-By Dan Porter, 2016, Version 3.2
+By Dan Porter, 2016, Version 3.7
 
-These programs workin work in any python environment, as long as you have numpy, scipy and matplotlib installed and matplotlib initialised in the tkinter backend. The software has been extensivley tested in Python 2.7+ but should also work in Python 3+ environments.
+These programs workin work in any python environment, as long as you have numpy, scipy, pil, and matplotlib installed and matplotlib initialised in the tkinter backend. The software has been extensivley tested in Python 2.7+ but will not currently work in python 3+ environments.
 
 #### INSTALLATION ####
 1. On an I16 Workstation as I16user:
