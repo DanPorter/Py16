@@ -14,7 +14,7 @@ import sys
 sys.path.insert(0,'/dls_sw/i16/software/python/Py16') # location of Py16Progs
 import Py16Progs as p16
 p16.filedir = '/dls/i16/data/2015/mt0000-1' # your experiment folder
-p16.savedir = '' # where to save output
+p16.savedir = '/dls/i16/data/2015/mt0000-1/processing' # where to save output
 
 # Use functions:
 p16.checkexp()
@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 3.7
-Last updated: 18/03/18
+Version 3.9
+Last updated: 13/07/18
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -113,6 +113,9 @@ Version History:
 23/02/18 3.6    Added bin_pixel_hkl_cut, new fit methods
 09/03/18 3.6    Added, scanpol, updated to correct for python3.6 test errors
 18/03/18 3.7    Added exp_parameters_save and _load
+01/05/18 3.8    Added sort to joinscans, updated for new PA + pilatus3, added scanimage
+21/05/18 3.8    Changed automatic titles to include psi angle and reference
+13/07/18 3.9    Removed psutil, added getRAM, various updates and fixes
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -134,7 +137,6 @@ from __future__ import print_function
 import sys,os
 import glob # find files
 import re # regular expressions
-import psutil # get RAM available
 import datetime # Dates and times
 import time # For timing
 import tempfile # Find system temp directory
@@ -179,13 +181,12 @@ detectors = ['APD','sum','maxval'] # error bars are only calculated for counting
 default_sensor = 'Ta' # d.metadata.temperature will read this sensor as the standard
 
 "----------------------------Pilatus Parameters---------------------------"
-#pil_centre = [103,244] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
-pil_centre = [104,205] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
+pil_centre = [96,243] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
 hot_pixel = 2**20-100 # Pixels on the pilatus greater than this are set to the intensity chosen by dead_pixel_func
 peakregion=[7,153,186,332] # Search for peaks within this area of the detector [min_y,min_x,max_y,max_x]
 pilpara=[119.536,1904.17,44.4698,0.106948,-0.738038,412.19,-0.175,-0.175] # pilatus position parameters for pixel2hkl
 dead_pixel_func = np.median # Define how to choose the replaced intensity for hot/broken pixels 
-pil_max_size = psutil.virtual_memory()[1]*0.5 # Maximum volume size that will be loaded. 1e8~1679*1475*41 -> 41 points of pil2M, ~ 800MB
+pil_max_size = 1e8 # Maximum volume size that will be loaded. 1e8~1679*1475*41 -> 41 points of pil2M, ~ 800MB
 # pilatus_dead_pixels = np.array([[101, 244],
 #        [102, 242],
 #        [102, 243],
@@ -210,6 +211,7 @@ pilatus_dead_pixels = np.zeros(shape=(0,2),dtype=int) # Blank
 plot_colors = ['b','g','m','c','y','k','r'] # change the default colours of plotscan 
 exp_title = '' # Experiment title
 #plt.xkcd() # cool plots!
+
 
 ###########################################################################
 ##############################FUNCTIONS####################################
@@ -329,6 +331,7 @@ def readscan(num):
     " For some reason, parameter names change occsaionaly, add correction here"
     if 'en' in d.metadata.keys(): d.metadata.Energy = d.metadata.en
     if 'pgm_energy' in d.metadata.keys(): d.metadata.Energy = d.metadata.pgm_energy
+    if 'stokes' in d.metadata.keys(): d.metadata.stoke = d.metadata.stokes
     if 'count_time' in d.keys(): d.t = d.count_time
     if 'energy2' in d.keys(): d.energy = d.energy2
     if 'rc' not in d.keys(): d.rc = exp_ring_current*np.ones(len(d[d.keys()[0]]))
@@ -340,6 +343,8 @@ def readscan(num):
     if 'l' not in d.metadata.keys(): d.metadata.l = 0.0
     if 'Ta' not in d.metadata.keys(): d.metadata.Ta = 300.0
     
+    " Add filename"
+    d.metadata.filename = file
     " Add a scan position counter"
     d.counter = np.arange(0,len(d.TimeSec))
     " Add the scan time value"
@@ -587,8 +592,10 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
     if abscor is not None:
         # Absorption correction based on a flat plate perpendicular to the scattering plane
         # Requires abscor = absorption coefficient of material
-        print( 'Not done yet!' )
-
+        A = scanabscor(d,abscor)
+        y = y/A
+        dy = dy/A
+        vary += '/A'
     return x,y,dy,varx,vary,ttl,d
 
 def getmeta(nums=None,field='Energy'):
@@ -672,7 +679,7 @@ def getmetas(nums=[0],fields=['Energy']):
         metavals += [fieldvals]
     return metavals
 
-def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,abscor=None,save=False):
+def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,sort=False,abscor=None,save=False):
     """
     Get useful values from scans, join multiple scans together, output joined arrays
      x,y,z,varx,vary,varz,ttl = joindata([nums],'varx','vary','varz')
@@ -757,6 +764,14 @@ def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,abscor=None,save=
         storey = np.delete(storey,skip,1)
         storez = np.delete(storez,skip,1)
         storedz = np.delete(storedz,skip,1)
+        
+        " Sort y"
+        if sort:
+            sort_index = np.argsort(storey[0,:])
+            storex = storex[:,sort_index]
+            storey = storey[:,sort_index]
+            storez = storez[:,sort_index]
+            storedz = storedz[:,sort_index]
     
     "Generate title"
     """
@@ -1036,6 +1051,10 @@ def pixel2hkl(num,detdim=[195,487],UB=None):
         scan_arrays = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
     elif varx not in ['delta','gam','eta','mu','chi','phi']:
         print("Doesnt work on this type of scan!")
+    
+    ########
+    # Everything below here is from Alessandro's readpil.hklmatrix()
+    ########
     
     # Rotation functions
     def R_x_r(alpha):
@@ -1431,8 +1450,8 @@ def checkscan(num1=None,num2=None,showval=None):
     print( '       Sy: {0} mm'.format(m.sy) )
     print( '       Sz: {0} mm'.format(m.sz) )
     print()
-    print( '  Sample Slits: {0:4.2f}x{1:4.2f} mm'.format(m.s5xgap,m.s5ygap) )
-    print( 'Detector Slits: {0:4.2f}x{1:4.2f} mm'.format(m.s6xgap,m.s6ygap) )
+    print( '  Sample Slits: {}'.format(scanss(num[0])) )
+    print( 'Detector Slits: {}'.format(scands(num[0])) )
     print()
     
     # Minimirrors
@@ -1774,7 +1793,7 @@ def scantitle(num):
     HKL = m.hkl_str
     Energy = scanenergy(d)
     Temp = scantemp(d)
-    #psi = scanazimuth(d)
+    psi = scanazimuth(d,'short')
     pol = scanpol(d)
     
     "---exp_title---"
@@ -1785,22 +1804,24 @@ def scantitle(num):
     
     "---Generate title---"
     if len(nums) < 1:
-        ttl = '{} #{} {} {} {}{}'.format(etitle,m.SRSRUN,HKL,Energy,Temp,pol).strip()
+        #ttl = '{} #{} {} {} {}{}'.format(etitle,m.SRSRUN,HKL,Energy,Temp,pol).strip()
+        ttl='{} #{} {} {} {} {}{}'.format(etitle,m.SRSRUN,Energy,Temp,HKL,psi,pol).strip()
         return ttl
     else:
         "Multiple run title"
         scan_range = numbers2string([num]+list(nums))
         
         " Use last scan to determine what has changed between scans"
-        last_title = scantitle(nums[-1]).split()
-        " individual scantitle may have no etitle and no pol"
-        last_temp = last_title[-1]
-        last_energy = last_title[-2]
-        last_HKL = last_title[-3]
+        d2 = readscan(nums[-1])
+        last_HKL = d2.metadata.hkl_str
+        last_Energy = scanenergy(d)
+        last_Temp = scantemp(d)
+        last_psi = scanazimuth(d,'short')
+        last_pol = scanpol(d)
         
-        if Temp != last_temp:
+        if Temp != last_Temp:
             ttl = '{} #{} {} {} {}'.format(etitle,scan_range,HKL,Energy,pol).strip()
-        elif Energy != last_energy:
+        elif Energy != last_Energy:
             ttl = '{} #{} {} {} {}'.format(etitle,scan_range,HKL,Temp,pol).strip()
         else:
             ttl = '{} #{} {} {} {}{}'.format(etitle,scan_range,HKL,Energy,Temp,pol).strip()
@@ -1845,7 +1866,7 @@ def scanhkl(num):
     
     return '({0:1.3g},{1:1.3g},{2:1.3g})'.format(round(h,2)+0.0,round(k,2)+0.0,round(l,2)+0.0)
 
-def scanazimuth(num):
+def scanazimuth(num,style=None):
     "Returns the azimuthal angle and zero reference as a formatted string"
     
     try:
@@ -1856,6 +1877,8 @@ def scanazimuth(num):
     m = d.metadata
     psi = m.psi
     h,k,l = m.azih,m.azik,m.azil
+    if style in ['short','simple','s']:
+        return 'psi%1.0f%1.0f%1.0f=%1.1f'%(m.azih,m.azik,m.azil,m.psi)
     return '{:7.2f} ({:1.3g},{:1.3g},{:1.3g})'.format(psi,h,k,l)
 
 def scanpol(num,latex=False):
@@ -1912,6 +1935,32 @@ def scantemp(num,sensor=None):
     
     return '{:1.3g}K'.format(T)
 
+def scanss(num):
+    "Returns the sample slit gaps as a formatted string"
+    
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    m = d.metadata
+    return '{0:4.2f}x{1:4.2f} mm'.format(m.s5xgap,m.s5ygap)
+
+def scands(num):
+    "Returns the detector slit gaps as a formatted string"
+    
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    m = d.metadata
+    # analyser slits s6 changed name to s7 in April 2018
+    if 's7xgap' in m.keys():
+        return '{0:4.2f}x{1:4.2f} mm'.format(m.s7xgap,m.s7ygap)
+    else:
+        return '{0:4.2f}x{1:4.2f} mm'.format(m.s6xgap,m.s6ygap)
+
 def scanenergy(num):
     "Returns the average energy of the chosen scan as a formatted string"
     
@@ -1927,6 +1976,28 @@ def scanenergy(num):
         E = m.Energy
     
     return '{:1.4g}keV'.format(E)
+
+def scaneuler(num):
+    "Returns the euler angles eta chi phi mu delta gamma"
+    
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    # Calculate eulerian angles
+    # Taken from: /dls_sw/i16/software/gda/config/scripts/EulerianKconversion.py
+    Kalpha=np.radians(50) # alpha angle on Kappa stage
+    kap = np.radians(d.kap)
+    alpha = -np.degrees(np.arctan( np.cos(Kalpha)*np.tan(kap/2) ))
+    
+    chi = -2*np.degrees(np.arcsin( np.sin(Kalpha)*np.sin(kap/2) ))
+    eta = d.kth - alpha
+    phi = d.kphi - alpha
+    delta = d.kdelta
+    gam = d.kgam
+    mu = d.kmu
+    return eta, chi, phi, mu, delta, gam
 
 def scanwl(num):
     "Returns the initial wavelength of the given scan in Angstroms"
@@ -1958,12 +2029,56 @@ def scanfile(num):
         print( "I can't find the directory: {}".format(filedir) )
         return None
     
+    try:
+        d = readscan(num)
+        num = d.metadata.SRSRUN
+    except TypeError:
+        pass
+    
     if num < 1: 
         if latest() is None: return None
         num = latest()+num
     
+    " Load first image to get the detector size"
+    tif=pilpath % d.path[0]
+    file = os.path.join(filedir,tif)
+    file=file.replace('/',os.path.sep)
+    
     file = os.path.join(filedir, '%i.dat' %num)
     return file
+
+def scanimagefile(num, idx=0):
+    " Return the filename of an image file in the scan"
+    
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    try:
+        pilname = [s for s in d.metadata.keys() if "_path_template" in s][0]
+        pilpath = getattr(d.metadata,pilname)
+    except IndexError:
+        print( 'Not a pilatus file!' )
+        return
+    
+    " Load first image to get the detector size"
+    tif=pilpath % d.path[idx]
+    file = os.path.join(filedir,tif)
+    file=file.replace('/',os.path.sep)
+    return file
+
+def scanimage(num, idx=0):
+    "Returns a single image array from scan #num"
+    
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    file = scanimagefile(num, idx)
+    im=misc.imread(file,flatten=True) # flatten required to read zylar 16 bit files
+    return im
 
 def prend(start=0,end=None):
     "Calculate the end time of a run"
@@ -2313,7 +2428,9 @@ def polenergy(sigsig,sigpi,background=None,vary='',bkg_scale=None,flipping_ratio
 def scanabscor(num=0,u=1,eta_offset=0.0,chi_offset=0.0):
     """
     Calculate absorption correction
-     A = abscor(num,u)
+     A = scanabscor(num,u)
+     Icorrected = Iexp/A
+     See abscor for more details
     """
     
     # Get data
@@ -2322,14 +2439,10 @@ def scanabscor(num=0,u=1,eta_offset=0.0,chi_offset=0.0):
     except:
         d = num
     
-    # Get angles
-    eta = d.metadata.eta - eta_offset
-    chi = d.metadata.chi - chi_offset
-    delta = d.metadata.delta
-    #mu = np.deg2rad(d.metadata.mu)
-    #gam = np.deg2rad(d.metadata.gam)
-    
-    return abscor(eta,chi,delta,u=u)
+    # Calculate eulerian angles
+    eta, chi, phi, mu, delta, gam = scaneuler(d)
+    A = [abscor(eta[n],chi[n],delta[n],u=u) for n in range(len(eta))]
+    return A
 
 def metaprint(d1,d2=None):
     """ 
@@ -3939,9 +4052,10 @@ def plotscans(scans=[],depvar=None,vary='',varx='',fit=None,norm=True,logplot=Fa
     
     plt.xlabel(varxnew, fontsize=18)
     plt.ylabel(varynew, fontsize=18)
-    plttl = ttl+'\n'+cmd+'\nss ={}, ds ={}, atten = {}'.format(sampsl,detsl,atten1)
-    plttl = '#{} - #{}'.format(scans[0],scans[-1])
-    plt.title(plttl, fontsize=16)
+    #plttl = ttl+'\n'+cmd+'\nss ={}, ds ={}, atten = {}'.format(sampsl,detsl,atten1)
+    #plttl = '#{} - #{}'.format(scans[0],scans[-1])
+    plttl = scantitle(scans)
+    plt.suptitle(plttl, fontsize=16)
     
     if logplot: plt.gca().set_yscale(u'log')
     #if len(varys) > 0 and subtract==True: plt.legend([lgd],loc='best')
@@ -4024,11 +4138,11 @@ def plotscans3D(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=F
             saveplot('{0} Scans {1:1.0f}-{2:1.0f} 3D'.format(depvar,scans[0],scans[-1]))
     plt.show()
 
-def plotscans2D(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=False):
+def plotscans2D(scans,depvar='Ta',vary='',varx='',norm=True,sort=False,logplot=False,save=False):
     " Plot pcolor of multiple scans"
     
     "-----Loading-----"
-    x,y,z,varx,vary,varz,ttl = joindata(scans,varx,depvar,vary,norm)
+    x,y,z,varx,vary,varz,ttl = joindata(scans,varx,depvar,vary,norm,sort)
     
     # Create Plot
     fig = plt.figure(figsize=[14,12],dpi=80)
@@ -4055,11 +4169,11 @@ def plotscans2D(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=F
             saveplot('{0} Scans {1:1.0f}-{2:1.0f} 2D'.format(depvar,scans[0],scans[-1]))
     plt.show()
     
-def plotscansSURF(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=False):
+def plotscansSURF(scans,depvar='Ta',vary='',varx='',norm=True,sort=False,logplot=False,save=False):
     " Plot surface of multiple scans"
     
     "-----Loading-----"
-    x,y,z,varx,vary,varz,ttl = joindata(scans,varx,depvar,vary,norm)
+    x,y,z,varx,vary,varz,ttl = joindata(scans,varx,depvar,vary,norm,sort)
     
     # Create Plot
     fig = plt.figure(figsize=[14,12],dpi=80)
@@ -4995,7 +5109,7 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
         wid,dwid = abs(fitvals[2]),abs(errvals[2])
         ara = np.pi*amp*wid/2
         dara = ara*np.sqrt( (damp/amp)**2 + (dwid/wid)**2 )
-    elif type.lower() in ['simp','simple','basic','s']:
+    elif type.lower() in ['simp','simple','basic','s','max','maxval','maximum','sum','total']:
         output['Lorz frac'] = -1.0
         outerr['Lorz frac'] = 0.0
     elif type.lower() in ['voight','pvoight','pseudovoight','v']:
@@ -5791,51 +5905,52 @@ def c2th(HKL=[0,0,1],scan=0):
     return d2tth(d,m.Energy)
 
 def bindata(X,Y,binsep=0.01,bin_cen=None,bin_func=np.nanmean):
-        """
-        Bins the data into bins separated by binsep. Values within the bin are averaged 
-          CEN,INT = bindata(X,Y,binsep=0.01)
-        or:
-          CEN,INT = bindata(X,Y,bin_cen=CEN)
+    """
+    Bins the data into bins separated by binsep. Values within the bin are averaged 
+      CEN,INT = bindata(X,Y,binsep=0.01)
+    or:
+      CEN,INT = bindata(X,Y,bin_cen=CEN)
+    
+    Note that np.nanmean is used to average values within each bin, which can be used
+    to only average values with signal in. Other functions can be used by specifying bin_func:
+      CEN,INT = bindata(X,Y,0.01,bin_func=np.max)
+    
+    E.G.
+        tth,ival = pixel2tth(num)
+        ival[ival<1] = np.nan
+        CEN,INT = bindata(tth,ival,0.01)
+    """
+    
+    t0 = time.clock()
+    
+    # Generate bin positions
+    if bin_cen is None:
+        mxdata = np.max(X)
+        mndata = np.min(X)
         
-        Note that np.nanmean is used to average values within each bin, which can be used
-        to only average values with signal in. Other functions can be used by specifying bin_func:
-          CEN,INT = bindata(X,Y,0.01,bin_func=np.max)
-        
-        E.G.
-            tth,ival = pixel2tth(num)
-            ival[ival<1] = np.nan
-            CEN,INT = bindata(tth,ival,0.01)
-        """
-        
-        t0 = time.clock()
-        
-        if bin_cen is None:
-            mxdata = np.max(X)
-            mndata = np.min(X)
-            
-            bin_edge = np.arange(mndata,mxdata+binsep,binsep)
-            bin_cen = bin_edge - binsep/2.0
-            bin_cen = bin_cen[1:] # remove unused bin
-        else:
-            bin_cen = np.asarray(bin_cen)
-            bin_sep = bin_cen[1] - bin_cen[0]
-            bin_edge = bin_cen + binsep/2.0 
-        
-        # Histogram the th values
-        bin_pos = np.digitize(X,bin_edge) - 1 # digitize indexes values from bin_edege[i-1] to bin_edge[i], hence the - 1
-        t1 = time.clock()
-        print('Digitise took {} s'.format(t1-t0))
-        
-        # Loop over binned angles and average the intensities
-        bin_int = np.zeros(bin_cen.shape)
-        for n in range(len(bin_cen)):
-            inbin = bin_pos == n
-            bin_int[n] = bin_func(Y[inbin])
-        
-        t2 = time.clock()
-        print('Bin average took {} s'.format(t2-t1))
-        
-        return bin_cen,bin_int
+        bin_edge = np.arange(mndata,mxdata+binsep,binsep)
+        bin_cen = bin_edge - binsep/2.0
+        bin_cen = bin_cen[1:] # remove unused bin
+    else:
+        bin_cen = np.asarray(bin_cen)
+        bin_sep = bin_cen[1] - bin_cen[0]
+        bin_edge = bin_cen + binsep/2.0 
+    
+    # Histogram the th values
+    bin_pos = np.digitize(X,bin_edge) - 1 # digitize indexes values from bin_edege[i-1] to bin_edge[i], hence the - 1
+    t1 = time.clock()
+    print('Digitise took {} s'.format(t1-t0))
+    
+    # Loop over binned angles and average the intensities
+    bin_int = np.zeros(bin_cen.shape)
+    for n in range(len(bin_cen)):
+        inbin = bin_pos == n
+        bin_int[n] = bin_func(Y[inbin])
+    
+    t2 = time.clock()
+    print('Bin average took {} s'.format(t2-t1))
+    
+    return bin_cen,bin_int
 
 def bin_pixel_hkl_cut(num,hkl_centre=None,image_centre=None,sum_tolarance=[0.05,0.05,0.05],max_points=301):
     """
@@ -6441,6 +6556,17 @@ def maskvals(x,y,dy,mask_cmd):
     for m in mask_cmd:
         mask[ eval(m) ] = False
     return x[mask],y[mask],dy[mask]
+
+def getRAM():
+    """
+    Get available RAM of system, or give 1e8 bits
+    """
+    
+    try:
+        import psutil # get RAM available
+    except ImportError:
+        return 1e8
+    return psutil.virtual_memory()[1]*0.5
 
 class dict2obj(OrderedDict):
     "Convert dictionary object to class instance"

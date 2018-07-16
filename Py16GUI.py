@@ -39,10 +39,27 @@ More Operations:
     - Click "Multiplot/ Peak Analysis" to open the I16_Peak_Analysis GUI
     - Click "Export Plot" to generate an figure of the current scan
     - Click "Print Current Scan" to send an image of the current scan to the default printer
-    - Click "Print All Figures" to send all open figures to a single 2x6 page
+    - Click "Print All Figures" to send all open figures to a single 2x3 page
     - Click "Meta" to see a full list of metadata for this scan
     - Tick the box "Live Mode" to automatically update the GUI every 10s
     - Click "Params" to change default parameters, such as error bars and temperature sensor
+
+Console Commands:
+If run in an interactive terminal, there is access to more functions via the command line, using the module "Py16progs.py"
+It is already instantiated/ imported in the current session and is named "pp". For example:
+    pp.plotscan(123456) # plots the scan number 123456
+    d = pp.readscan(123456) # creates a data holder object 'd' with scan data
+    x,y,dy,varx,vary,ttl,d = pp.getdata(123456) # returns x/y data with automatic choice of variables
+    help(pp.getdata) # see the documentation on this function
+
+Scripting:
+Simple scipts can be automatically written to the analysis directory from the "MultiPlot/ Pleak Analysis" window
+Pressing "Create File" will write a script including all necessary imports and parameters.
+The script can the be altered for more complex analysis. Calls to the many functions in Py16Progs.py can be
+made using the imported name "dp", for example:
+    dp.plotscan(123456) # plots the scan number 123456
+    d = dp.readscan(123456) # creates a data holder object 'd' with scan data
+    x,y,dy,varx,vary,ttl,d = dp.getdata(123456) # returns x/y data with automatic choice of variables
 
 Custom Regions of Interest:
 It is possible to define new regions of interest on an area detector and plot these.
@@ -61,8 +78,8 @@ I16_Peak_Analysis - Plot and analyse multiple scans, including peak fitting and 
 I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
-Version 3.7
-Last updated: 18/03/18
+Version 3.9
+Last updated: 16/07/18
 
 Version History:
 07/02/16 0.9    Program created
@@ -95,6 +112,8 @@ Version History:
 26/02/18 3.5    Added Custom Details plus improvements to image plotting, more fit functions
 09/03/18 3.6    Updated to correct for python3.6 test errors
 18/03/18 3.7    Default savedir directory, save Py16 parameter files to savedir directory
+01/05/18 3.8    Updated for new PA + pilatus3
+16/07/18 3.9    Upgraded Print_Buffer, added new plot options to multi-plot, added multi_plot input
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -151,7 +170,10 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 3.7
+Py16GUI_Version = 3.9
+
+# Print layout
+default_print_layout = [3,2]
 
 # App Fonts
 BF= ["Times", 12]
@@ -959,7 +981,12 @@ class I16_Data_Viewer():
             ROIsizej = self.roisiz_j.get()
             setvary = 'nroi_bkg{}[{},{},{},{}]'.format(remfrm,ROIceni,ROIcenj,ROIsizei,ROIsizej)
         
-        I16_Peak_Analysis(self.scanno.get(),setvarx,setvary)
+        if len(self.extra_scannos) > 0:
+            multirange = [self.scanno.get()]+list(self.extra_scannos)
+        else:
+            multirange=None
+        
+        I16_Peak_Analysis(self.scanno.get(),setvarx,setvary,multirange)
     
     def f_livemode(self):
         "Activate Live Mode"
@@ -1587,18 +1614,9 @@ class I16_Data_Viewer():
         
         "Get figure numbers automatically"
         fignos = plt.get_fignums()
-            
-        " Find the temp directory"
-        tmpdir = tempfile.gettempdir()
         
-        " Save each figure as an image in the temp directory"
-        for fn in fignos:
-            fig = plt.figure(fn)
-            fname = os.path.join(tmpdir,'Py16_figure%d.png' % fn)
-            fig.savefig(fname)
-        
-        ax_layout = [3,2] # [vertical, horizontal]
-        Nax = ax_layout[0]*ax_layout[1]
+        " Determine the number of print figures to generate"
+        Nax = default_print_layout[0]*default_print_layout[1]
         Nfigs = np.ceil( len(fignos)/float(Nax) ).astype(np.int)
         
         self.helper.set('Sending {} figures to {} print buffers'.format(len(fignos),Nfigs))
@@ -1606,7 +1624,7 @@ class I16_Data_Viewer():
         " Create the buffers"
         for nfig in range(Nfigs):
             buffer_fignos = fignos[nfig*Nax:nfig*Nax+Nax]
-            I16_Print_Buffer(buffer_fignos,ax_layout)
+            I16_Print_Buffer(buffer_fignos,default_print_layout)
     
     def f_fnl_splotclose(self):
         " Close all figures"
@@ -1751,8 +1769,8 @@ class I16_Data_Viewer():
         self.spara.set(m.spara)
         self.sperp.set(m.sperp)
         
-        self.ss.set('{0:4.2f}x{1:4.2f} mm'.format(m.s5xgap,m.s5ygap))
-        self.ds.set('{0:4.2f}x{1:4.2f} mm'.format(m.s6xgap,m.s6ygap))
+        self.ss.set('{}'.format(pp.scanss(d)))
+        self.ds.set('{}'.format(pp.scands(d)))
         
         # Minimirrors
         if m.m4pitch > 0.1: 
@@ -2329,16 +2347,22 @@ class I16_Peak_Analysis:
     "------------------------------------------------------------------------"
     "--------------------------GUI Initilisation-----------------------------"
     "------------------------------------------------------------------------"
-    def __init__(self,initial_num=0,ini_varx='',ini_vary=''):
+    def __init__(self,initial_num=0,ini_varx='',ini_vary='', initial_range=None):
         # Create Tk inter instance
         root = tk.Tk()
         root.wm_title('I16 Peak Analysis by D G Porter [dan.porter@diamond.ac.uk]')
-        root.minsize(width=610, height=380)
-        root.maxsize(width=700, height=400)
+        root.minsize(width=610, height=420)
+        root.maxsize(width=700, height=500)
         
         # Get initial parameters
         initial_dir = pp.filedir
         initial_sav = pp.savedir
+        
+        # Initial scan string
+        if initial_range is None:
+            scanstr = '[{},{}]'.format(initial_num,initial_num+1)
+        else:
+            scanstr = str(initial_range)
         
         # Update default save location for exported plots
         plt.rcParams["savefig.directory"] = pp.savedir
@@ -2351,19 +2375,19 @@ class I16_Peak_Analysis:
         frm_fldr = tk.Frame(frame)
         frm_fldr.pack(fill=tk.X)
         self.filedir = tk.StringVar(frm_fldr,initial_dir)
-        lbl_fldr = tk.Label(frm_fldr, text='Data Folder: ',font=SF)
+        lbl_fldr = tk.Label(frm_fldr, text='Data Folder: ', width=15, font=SF)
         lbl_fldr.pack(side=tk.LEFT,padx=5,pady=5)
         ety_fldr = tk.Entry(frm_fldr, textvariable=self.filedir, width=72)
         ety_fldr.pack(side=tk.LEFT,padx=5,pady=5)
-        btn_fldr = tk.Button(frm_fldr, text='Browse',font=BF, command=self.f_fldr_browse)
+        btn_fldr = tk.Button(frm_fldr, text='Browse', font=BF, command=self.f_fldr_browse)
         btn_fldr.pack(side=tk.LEFT,padx=5,pady=5)
         # Save Folder
         frm_save = tk.Frame(frame)
         frm_save.pack(fill=tk.X)
         self.savedir = tk.StringVar(frm_save,initial_sav)
-        lbl_save = tk.Label(frm_save, text='Analysis Folder: ',font=SF)
+        lbl_save = tk.Label(frm_save, text='Analysis Folder: ', width=15, font=SF)
         lbl_save.pack(side=tk.LEFT,padx=5,pady=5)
-        ety_save = tk.Entry(frm_save, textvariable=self.savedir, width=68)
+        ety_save = tk.Entry(frm_save, textvariable=self.savedir, width=72)
         ety_save.pack(side=tk.LEFT,padx=5,pady=5)
         btn_save = tk.Button(frm_save, text='Browse',font=BF, command=self.f_save_browse)
         btn_save.pack(side=tk.LEFT,padx=5,pady=5)
@@ -2385,7 +2409,7 @@ class I16_Peak_Analysis:
         lbl_depv.pack(side=tk.LEFT,padx=5,pady=5)
         ety_depv = tk.Entry(frm_titl, textvariable=self.depvar, width=15)
         ety_depv.pack(side=tk.LEFT,padx=5,pady=5)
-        
+        """
         # Differentiate Plot
         self.diffplot = tk.IntVar(frm_titl,0)
         chk_diff = tk.Checkbutton(frm_titl, text='Diff.',font=BF,variable=self.diffplot)
@@ -2400,7 +2424,7 @@ class I16_Peak_Analysis:
         self.normplot = tk.IntVar(frm_titl,0)
         chk_log = tk.Checkbutton(frm_titl, text='Normalise',font=BF,variable=self.normplot)
         chk_log.pack(side=tk.RIGHT,padx=0)
-        
+        """
         frm_opt = tk.Frame(frame)
         frm_opt.pack(fill=tk.X)
         
@@ -2486,7 +2510,6 @@ class I16_Peak_Analysis:
         lbl_or = tk.Label(frm_scan2, text='Scans = ',font=SF)
         lbl_or.pack(side=tk.LEFT,padx=2,pady=[5,20])
         
-        scanstr = '[{},{}]'.format(initial_num,initial_num+1)
         self.txt_scan = tk.Text(frm_scan2,width=65,wrap=tk.WORD,height=5)
         self.txt_scan.insert(tk.INSERT,scanstr)
         scl_scan = tk.Scrollbar(frm_scan2)
@@ -2504,11 +2527,45 @@ class I16_Peak_Analysis:
         frm_space = tk.Frame(frame)
         
         
-        frm_btn1 = tk.Frame(frame)
-        frm_btn1.pack(fill=tk.X)
+        frm_btn0 = tk.Frame(frame)
+        frm_btn0.pack(fill=tk.X)
         
-        btn_plt1 = tk.Button(frm_btn1, text='Plot Scans',font=BF, width=19, height=2, command = self.f_btn_plot)
-        btn_plt1.pack(side=tk.LEFT,padx=4,pady=2)
+        btn_plt1 = tk.Button(frm_btn0, text='Plot Scans',font=BF, width=23, height=2, command = self.f_btn_plot)
+        btn_plt1.pack(side=tk.RIGHT, padx=2,pady=2)
+        
+        frm_fpt = tk.Frame(frm_btn0,borderwidth=2,relief=tk.RIDGE)
+        frm_fpt.pack(side=tk.LEFT,fill=tk.X,expand=tk.YES)
+        
+        lbl_fpt = tk.Label(frm_fpt, text='Scan Plots: ',font=SF)
+        lbl_fpt.pack(side=tk.LEFT,padx=2,pady=2)
+        
+        self.plot_indv = tk.IntVar(frm_btn0,0)
+        chk_fpt = tk.Checkbutton(frm_fpt, text='multi-figure',font=SF,variable=self.plot_indv)
+        chk_fpt.pack(side=tk.LEFT,padx=0)
+        
+        # Differentiate Plot
+        self.diffplot = tk.IntVar(frm_btn0,0)
+        chk_diff = tk.Checkbutton(frm_fpt, text='Diff.',font=BF,variable=self.diffplot)
+        chk_diff.pack(side=tk.LEFT,padx=0)
+        
+        # Log Plot
+        self.logplot = tk.IntVar(frm_btn0,0)
+        chk_log = tk.Checkbutton(frm_fpt, text='Log',font=BF,variable=self.logplot)
+        chk_log.pack(side=tk.LEFT,padx=0)
+        
+        # Normalise Plot
+        self.normplot = tk.IntVar(frm_btn0,0)
+        chk_log = tk.Checkbutton(frm_fpt, text='Eq. Area',font=BF,variable=self.normplot)
+        chk_log.pack(side=tk.LEFT,padx=0)
+        
+        # Fit plots
+        self.fitplots = tk.IntVar(frm_btn0,0)
+        chk_ftp = tk.Checkbutton(frm_fpt, text='Fit',font=BF,variable=self.fitplots)
+        chk_ftp.pack(side=tk.LEFT,padx=0)
+        
+        
+        frm_btn1 = tk.Frame(frame)
+        frm_btn1.pack()
         
         btn_plt2 = tk.Button(frm_btn1, text='Plot 3D',font=BF, width=19, height=2, command = self.f_btn_3D)
         btn_plt2.pack(side=tk.LEFT,padx=4,pady=2)
@@ -2523,8 +2580,11 @@ class I16_Peak_Analysis:
         frm_btn2 = tk.Frame(frame)
         frm_btn2.pack(fill=tk.X)
         
+        btn_plt5 = tk.Button(frm_btn2, text='Fit Peaks',font=BF, width=23, height=2, command = self.f_btn_fit)
+        btn_plt5.pack(side=tk.RIGHT, padx=2,pady=2)
+        
         frm_fpt = tk.Frame(frm_btn2,borderwidth=2,relief=tk.RIDGE)
-        frm_fpt.pack(side=tk.LEFT)
+        frm_fpt.pack(side=tk.LEFT,fill=tk.X,expand=tk.YES)
         
         lbl_fpt = tk.Label(frm_fpt, text='Fit Plots: ',font=SF)
         lbl_fpt.pack(side=tk.LEFT,padx=5,pady=5)
@@ -2549,9 +2609,6 @@ class I16_Peak_Analysis:
         chk_fpt = tk.Checkbutton(frm_fpt, text='2D',font=SF,variable=self.fitplot_2d)
         chk_fpt.pack(side=tk.LEFT,padx=0)
         
-        
-        btn_plt5 = tk.Button(frm_btn2, text='Fit Peaks',font=BF, height=2, command = self.f_btn_fit)
-        btn_plt5.pack(side=tk.LEFT,fill=tk.X,expand=tk.YES, padx=2,pady=2)
     
     "------------------------------------------------------------------------"
     "---------------------------Button Functions-----------------------------"
@@ -2698,17 +2755,29 @@ class I16_Peak_Analysis:
         yvar = self.vary.get()
         save = self.saveopt.get()
         log = self.logplot.get()
+        normarea = self.normplot.get()
+        fitplot = self.fitplots.get()
         dif = self.diffplot.get()
+        indv_plot = self.plot_indv.get()
         
         if pp.normby == 'none':
             norm = False
         else:
             norm = True
         
-        if dif == False and len(scanno) > 5:
-            pp.plotscans(scanno,depvar=depvar[0],varx=xvar,vary=yvar,norm=norm,logplot=log,save=save)
+        if fitplot:
+            fit = self.fittype.get()
         else:
-            pp.plotscan(scanno,varx=xvar,vary=yvar,norm=norm,logplot=log,diffplot=dif,labels=depvar,save=save)
+            fit = None
+        
+        if indv_plot == True:
+            for scn in scanno:
+                pp.plotscan(scn, varx=xvar, vary=yvar, norm=norm, fit=fit, logplot=log, diffplot=dif, normalise=normarea, labels=depvar, save=save)
+                plt.show()
+        elif dif == False and normarea == False and len(scanno) > 7:
+            pp.plotscans(scanno, depvar=depvar[0], varx=xvar, vary=yvar, norm=norm, fit=fit, logplot=log, save=save)
+        else:
+            pp.plotscan(scanno, varx=xvar, vary=yvar, norm=norm, fit=fit, fits=fitplot, logplot=log, diffplot=dif, normalise=normarea, labels=depvar, save=save)
         plt.show()
     
     def f_btn_3D(self):
@@ -3589,11 +3658,16 @@ class I16_Print_Buffer():
     Adds images to a series of A4 pages allowing multiple plots to be printed
     on one page.
     Activated from the "Print All Figures" button in I16_Data_Viewer
+    
+    Usage:
+        I16_Print_Buffer([fignos], [3,2])
+          fignos = list of figure numbers, e.g [1,2,3 etc] or plt.get_fignums()
+          ax_layout = [vertical figures on page, horizontal figures on page]
     """
     "------------------------------------------------------------------------"
     "--------------------------GUI Initilisation-----------------------------"
     "------------------------------------------------------------------------"
-    def __init__(self,fignos,ax_layout=[3,2]):
+    def __init__(self,fignos=None,ax_layout=None):
         # Create Tk inter instance
         self.root = tk.Tk()
         self.root.wm_title('I16 Print Buffer by D G Porter [dan.porter@diamond.ac.uk]')
@@ -3602,6 +3676,12 @@ class I16_Print_Buffer():
         
         frame = tk.Frame(self.root)
         frame.pack(side=tk.LEFT,anchor=tk.N)
+        
+        if ax_layout is None:
+            ax_layout = default_print_layout
+        
+        if fignos is None:
+            fignos = plt.get_fignums()
         
         "----------------------------Plot Window---------------------------------"
         # Create frame for plot
@@ -3613,6 +3693,18 @@ class I16_Print_Buffer():
         #ax_layout = [3,2] # [vertical, horizontal]
         Nax = ax_layout[0]*ax_layout[1]
         Nfigs = np.ceil( len(fignos)/float(Nax) ).astype(np.int)
+        
+        " Recursion of class to cover more than Nax figures"
+        for nfig in range(1,Nfigs):
+            buffer_fignos = fignos[nfig*Nax:nfig*Nax+Nax]
+            I16_Print_Buffer(buffer_fignos,default_print_layout)
+        
+        " Save figures to temp directory"
+        fignos = fignos[:Nax]
+        for fn in fignos:
+            fig = plt.figure(fn)
+            fname = os.path.join(self.tmpdir,'Py16_figure%d.png' % fn)
+            fig.savefig(fname)
         
         " Create the buffers"
         self.fig1 = plt.Figure(figsize=[8.27,11.69],dpi=80) #[horizontal, vertical]
@@ -4060,22 +4152,33 @@ class I16_Params:
         frame3a = tk.Frame(frame3)
         frame3a.pack()
         
-        # Plot colours
-        self.plot_colors = tk.StringVar(frame3,str(pp.plot_colors))
-        lbl_pltcol = tk.Label(frame3a,text='Colours:',font=SF, justify=tk.RIGHT, width=dwid)
-        lbl_pltcol.pack(side=tk.LEFT,padx=5,pady=5)
-        ety_pltcol = tk.Entry(frame3a,textvariable=self.plot_colors, width=20)
-        ety_pltcol.pack(side=tk.LEFT,padx=5,pady=5)
+        # Print layout
+        self.print_layout = tk.StringVar(frame3,str(default_print_layout))
+        lbl_pntlyt = tk.Label(frame3a,text='Print layout:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_pntlyt.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_pntlyt = tk.Entry(frame3a,textvariable=self.print_layout, width=20)
+        ety_pntlyt.pack(side=tk.LEFT,padx=5,pady=5)
         
         # Line 3b
         frame3b = tk.Frame(frame3)
         frame3b.pack()
         
+        # Plot colours
+        self.plot_colors = tk.StringVar(frame3,str(pp.plot_colors))
+        lbl_pltcol = tk.Label(frame3b,text='Colours:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_pltcol.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_pltcol = tk.Entry(frame3b,textvariable=self.plot_colors, width=20)
+        ety_pltcol.pack(side=tk.LEFT,padx=5,pady=5)
+        
+        # Line 3b
+        frame3c = tk.Frame(frame3)
+        frame3c.pack()
+        
         # Last scan
         self.exp_title = tk.StringVar(frame3,pp.exp_title)
-        lbl_titl = tk.Label(frame3b,text='Title:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_titl = tk.Label(frame3c,text='Title:',font=SF, justify=tk.RIGHT, width=dwid)
         lbl_titl.pack(side=tk.LEFT,padx=5,pady=5)
-        ety_titl = tk.Entry(frame3b,textvariable=self.exp_title, width=20)
+        ety_titl = tk.Entry(frame3c,textvariable=self.exp_title, width=20)
         ety_titl.pack(side=tk.LEFT,padx=5,pady=5)
         
         "---------------------------Button----------------------------"
@@ -4102,6 +4205,11 @@ class I16_Params:
         pp.plot_colors = eval(self.plot_colors.get())
         pp.exp_title = self.exp_title.get()
         pp.default_sensor = self.sensortype.get()
+        
+        # Print layout
+        new_print_layout = eval(self.print_layout.get())
+        default_print_layout[0] = new_print_layout[0]
+        default_print_layout[1] = new_print_layout[1]
         
         # Errors
         ch_error = self.errortype.get()
