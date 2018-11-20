@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 3.9
-Last updated: 13/07/18
+Version 4.0
+Last updated: 20/11/18
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -115,7 +115,9 @@ Version History:
 18/03/18 3.7    Added exp_parameters_save and _load
 01/05/18 3.8    Added sort to joinscans, updated for new PA + pilatus3, added scanimage
 21/05/18 3.8    Changed automatic titles to include psi angle and reference
-13/07/18 3.9    Removed psutil, added getRAM, various updates and fixes
+01/08/18 3.9    Removed psutil, added getRAM, various updates and fixes, added plotmeta and pilmaxval, corrected joinscan save
+19/10/18 3.9    Corrected type input of getvol.
+20/11/18 4.0    Output of checkscan, checklog now str
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -452,37 +454,15 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
     
     "---Determine scan variables from scan command---"
     if varx not in keys:
-        varx = auto_varx(d)
-        """
-        " Determine dependent variable from scan command - should be the second word"
-        varx = cmd.split()[1]
-        if varx == 'hkl':
-            if cmd.split()[0] == 'scan':
-                hvar,kvar,lvar=cmd.split()[8:11]
-            elif cmd.split()[0] == 'scancn':
-                hvar,kvar,lvar=cmd.split()[2:5]
-            else:
-                print( 'Error: Wrong type of scan' )
-            hvar = float(re.sub("[^0-9.]", "",hvar))
-            kvar = float(re.sub("[^0-9.]", "",kvar))
-            lvar = float(re.sub("[^0-9.]", "",lvar))
-            if hvar > 0.0:
-                varx = 'h'
-            elif kvar > 0.0:
-                varx = 'k'
-            else:
-                varx = 'l'
-        elif varx == 'sr2':
-            varx = 'phi'
-        elif varx == 'th2th':
-            varx = 'delta'
-            
-        if varx not in keys:
-            varx = keys[0]
-        """
+        try:
+            x = np.asarray(getattr(m,varx)).reshape(-1) # allow single value x
+        except:
+            varx = auto_varx(d)
+            x = getattr(d,varx)
+    else:
+        " y values from data file"
+        x = getattr(d,varx)
     
-    "***Get x values***"
-    x = getattr(d,varx)
     
     "***Get y values***"
     if 'nroi' in vary.lower():
@@ -520,6 +500,10 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
         if 'maxval' in vary.lower():
             y = ROI_maxval
         
+        " Handle single value x"
+        if len(x) < len(y) and len(x)==1:
+            y = np.asarray(np.mean(y)).reshape(-1)
+        
         " Calculate errors"
         dy = error_func(y)
         
@@ -531,27 +515,18 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
     else:
         
         if vary not in keys:
-            vary = auto_vary(d)
-            """
-            " Determine indepdendent variable from scan command - should be the last word"
-            vary = cmd.split()[-1]
-            if vary[0:3] == 'roi':
-                vary = vary + '_sum'
-            elif 'pil100k' in cmd:
-                vary = 'sum'
-            elif 'pil2m' in cmd:
-                vary = 'sum'
-            elif 'APD' in keys:
-                vary = 'APD'
-            elif 'xmapc' in keys:
-                vary = 'xmroi2'
-            
-            if vary not in keys:
-                vary = keys[-1]
-            """
+            try:
+                y = getattr(m,vary)*np.ones(len(x))
+            except:
+                vary = auto_vary(d)
+                y = getattr(d,vary)
+        else:
+            " y values from data file"
+            y = getattr(d,vary)
         
-        " y values from data file"
-        y = getattr(d,vary)
+        " Handle single value x"
+        if len(x) < len(y) and len(x)==1:
+            y = np.asarray(np.mean(y)).reshape(-1)
         
         " Only apply errors to counting detectors"
         if 'roi' in vary or vary in detectors:
@@ -589,10 +564,12 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
         vary += '/Tran./t/'+normtxt
     
     "---Apply absorption correction---"
-    if abscor is not None:
+    if abscor is not None and abscor is not False:
         # Absorption correction based on a flat plate perpendicular to the scattering plane
         # Requires abscor = absorption coefficient of material
-        A = scanabscor(d,abscor)
+        if abscor == True:
+            abscor = 1.0
+        A = scanvolcor(d,abscor)
         y = y/A
         dy = dy/A
         vary += '/A'
@@ -689,6 +666,15 @@ def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,sort=False,abscor
       z = nxm array of measured values
       varx,vary,varz = names of scan values
       ttl = title generated for these scans
+      
+      Options:
+          norm    True/False    Normalisation options as in getdata
+          sort    True/False    Sort the data by y
+          abscor  True/False    Absorption correction as in getdata
+          save    True/False    Save the resulting arrays in a numpy file
+    
+      If the output is saved as a numpy file, it can be loaded using the command:
+          x,y,z,dz = np.load('path/outputfile.npy')
     """
     
     " Single 2D scan"
@@ -796,20 +782,19 @@ def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,sort=False,abscor
     """
     out_ttl = scantitle(nums)
     
-    " Save a .dat file"
-    " Data can be loaded with x,y,z,dz = np.loadtxt(file.dat)"
+    " Save a .npy file"
+    " Data can be loaded with x,y,z,dz = np.load(file.npy)"
     if save not in [None, False, '']:
         # save data to file
         if type(save) is str:
-            savefile = os.path.join(savedir, '{}.dat'.format(save))
-            head = '{}\n{}\n{}, {}, {}, {}'.format(out_ttl,ini_cmd,varx,vary,varz,'error_'+varz)
-            np.savetxt(savefile,(x,y,z,dz),header=head)
-            print( 'Saved as {}'.format(savefile) )
+            savefile = os.path.join(savedir, '{}.npy'.format(save))
+            head = '{}\n{}\n{}, {}, {}, {}'.format(out_ttl,ini_cmd,out_varx,vary,out_varz,'error_'+out_varz)
         else:
-            savefile = os.path.join(savedir, '{} dep {}-{}.dat'.format(vary,nums[0],nums[-1]))
-            head = '{}\n{}\n{}, {}, {}, {}'.format(out_ttl,ini_cmd,varx,vary,varz,'error_'+varz)
-            np.savetxt(savefile,(x,y,z,dz),header=head)
-            print( 'Scan #{} has been saved as {}'.format(num,savefile) )
+            savefile = os.path.join(savedir, '{} dep {}-{}.npy'.format(vary,nums[0],nums[-1]))
+            head = '{}\n{}\n{}, {}, {}, {}'.format(out_ttl,ini_cmd,out_varx,vary,out_varz,'error_'+out_varz)
+        np.save(savefile,(storex,storey,storez,storedz))#,header=head)
+        print( 'Scans saved as {}'.format(savefile) )
+        print( 'Load with: x,y,z,dz = np.load(\'{}\')'.format(savefile))
     
     return storex,storey,storez,out_varx,vary,out_varz,out_ttl
 
@@ -827,9 +812,9 @@ def getvol(num,ROIcen=None,ROIsize=None):
     """
     
     " Load data"
-    if type(num)==int or type(num)==np.int64 or type(num)==np.int32:
+    try:
         d = readscan(num)
-    else:
+    except TypeError:
         d = num
     
     " Check 100k (small) or 2m (large) detector"
@@ -1267,7 +1252,7 @@ def pixel2xyz(num,detdim=[195,487]):
 def pixel2tth(num,detdim=[195,487],centre_only=False,norm=True):
     """
     Generate two-theta coordinates of detector pixel positions
-      TTH,INT = pixel2hkl(#/d, detdim)
+      TTH,INT = pixel2tth(#/d, detdim)
       
       detdim = detector dimesions def=[195,487] (Pilatus 100K)
     
@@ -1307,6 +1292,120 @@ def pixel2tth(num,detdim=[195,487],centre_only=False,norm=True):
     print("time spent sorting tth values={}".format(t2-t1))
     
     return TTH,vol
+
+def pixel2tth2(num,detdim=[195,487], norm=True, pixel_centre=[104, 205], frame_centre=0, pixel_width=10, frame_width=4):
+    """
+    Generate two-theta coordinates of detector pixel positions
+      TTH,INT = pixel2tth2(#/d, detdim, norm, pixel_centre, frame_centre, pixel_width, frame_width)
+      
+      detdim = detector dimesions def=[195,487] (Pilatus 100K)
+      pixel_centre = [i,j] coordinates of the peak on the detector
+      frame_centre = frame number of peak maximum
+      pixel_width = number of pixels to integrate over in the short direction on the detector
+      frame_width = number of frames to integrate over, around the frame_centre
+    
+    This function works differently to pixel2tth as the tth values are taken from a single frame, with
+    intensity values integrated around a central point and plotted against the long axis of the detector.
+    
+    E.G.
+        vol = getvol(12345)
+        [i,j], frame = pilpeak(vol)
+        tth, int = pixel2tth2(12345, pixel_centre=[i,j], frame_centre=frame)
+    
+    Shortcuts:
+        pixel_centre = 'peak' >> takes [i,j], frame from pilpeak
+        pixel_centre = 'centre' >> takes [i,j] from pil_centre attribute, frame as half way throught scan
+    
+    Uses the pilatus parameters local:"pilpara" to define detector distance, centre etc.
+        pilpara=[119.536,1904.17,44.4698,0.106948,-0.738038,412.19,-0.175,-0.175]
+    Only works on delta, gam, eta, chi, phi scans - not energy or hkl scans!
+    """
+    
+    XXX,YYY,ZZZ = pixel2xyz(num,detdim)
+    t1=time.clock()
+    Qmag = np.sqrt(XXX**2 + YYY**2 + ZZZ**2)
+    TTH = q2tth(Qmag,getmeta(num,'Energy'))
+    vol = getvol(num)
+    norm_val,norm_txt = normalise(num)
+    
+    # Normalise vs time etc
+    if norm:
+        vol = vol/norm_val
+    
+    if pixel_centre == 'peak':
+        pixel_centre, frame_centre = pilpeak(vol,disp=True)
+    elif pixel_centre == 'centre':
+        pixel_centre = pil_centre
+        frame = vol.shape[2]//2
+    
+    maxdif_i = np.max(TTH[:,pixel_centre[1],frame_centre])-np.min(TTH[:,pixel_centre[1],frame_centre])
+    maxdif_j = np.max(TTH[pixel_centre[0],:,frame_centre])-np.min(TTH[pixel_centre[0],:,frame_centre])
+    if maxdif_i > maxdif_j:
+        # Horizontal geometry (larger change in TTH along short axis, i)
+        tth = TTH[:,pixel_centre[1],frame_centre]
+        voltth = vol[:,pixel_centre[1]-pixel_width//2:pixel_centre[1]+pixel_width//2,frame_centre-frame_width//2:frame_centre+frame_width//2]
+        I = voltth.sum(axis=1).sum(axis=1)
+    else:
+        # Vertical geometry (larger change in TTH along long axis, j)
+        tth = TTH[pixel_centre[0],:,frame_centre]
+        voltth = vol[pixel_centre[0]-pixel_width//2:pixel_centre[0]+pixel_width//2,:,frame_centre-frame_width//2:frame_centre+frame_width//2]
+        I = voltth.sum(axis=0).sum(axis=1)
+    t2=time.clock()
+    print("time spent sorting tth values={}".format(t2-t1))
+    
+    return tth,I
+
+def pixel2chi(num,detdim=[195,487], norm=True, pixel_centre=[104, 205], frame_centre=0, pixel_width=10, frame_width=4):
+    """
+    Generate two-theta coordinates of detector pixel positions
+      TTH,INT = pixel2tth2(#/d, detdim, norm, pixel_centre, frame_centre, pixel_width, frame_width)
+      
+      detdim = detector dimesions def=[195,487] (Pilatus 100K)
+      pixel_centre = [i,j] coordinates of the peak on the detector
+      frame_centre = frame number of peak maximum
+      pixel_width = number of pixels to integrate over in the short direction on the detector
+      frame_width = number of frames to integrate over, around the frame_centre
+    
+    This function works differently to pixel2tth as the tth values are taken from a single frame, with
+    intensity values integrated around a central point and plotted against the long axis of the detector.
+    
+    E.G.
+        vol = getvol(12345)
+        [i,j], frame = pilpeak(vol)
+        tth, int = pixel2tth2(12345, pixel_centre=[i,j], frame_centre=frame)
+    
+    Shortcuts:
+        pixel_centre = 'peak' >> takes [i,j], frame from pilpeak
+        pixel_centre = 'centre' >> takes [i,j] from pil_centre attribute, frame as half way throught scan
+    
+    Uses the pilatus parameters local:"pilpara" to define detector distance, centre etc.
+        pilpara=[119.536,1904.17,44.4698,0.106948,-0.738038,412.19,-0.175,-0.175]
+    Only works on delta, gam, eta, chi, phi scans - not energy or hkl scans!
+    """
+    
+    XXX,YYY,ZZZ = pixel2xyz(num,detdim)
+    t1=time.clock()
+    CHI=90+np.rad2deg(np.arcsin(YYY/ZZZ))
+    vol = getvol(num)
+    norm_val,norm_txt = normalise(num)
+    
+    # Normalise vs time etc
+    if norm:
+        vol = vol/norm_val
+    
+    if pixel_centre == 'peak':
+        pixel_centre, frame_centre = pilpeak(vol,disp=True)
+    elif pixel_centre == 'centre':
+        pixel_centre = pil_centre
+        frame = vol.shape[2]//2
+    
+    chi = CHI[:,pixel_centre[1],frame_centre]
+    volchi = vol[:,pixel_centre[1]-pixel_width//2:pixel_centre[1]+pixel_width//2,frame_centre-frame_width//2:frame_centre+frame_width//2]
+    I = volchi.sum(axis=1).sum(axis=1)
+    t2=time.clock()
+    print("time spent sorting chi values={}".format(t2-t1))
+    
+    return chi,I
 
 "------------------------Experiment Check Functions-----------------------"
 
@@ -1379,11 +1478,10 @@ def checkexp():
     print( 'Pilatus Centre: ',pil_centre )
     return
 
-def checkscan(num1=None,num2=None,showval=None):
+def checkscan(num=None, showval=None):
     """
-    Get run number information, 
+    Get run number information,  returns a string
         checknum(#)             Display lots of information about a single scan
-        checknum(first,last)      List all the scans from first to last with brief info
         checknum([run1,run2,...]) List all the scans in the list or array
     
     if # <= 0, # will be given as latest()-#
@@ -1394,112 +1492,101 @@ def checkscan(num1=None,num2=None,showval=None):
     
     if os.path.isdir(filedir) == False: 
         print( "I can't find the directory: {}".format(filedir) )
-        return
+        return ''
     
-    if num1 is None:
-        num1 = latest()
+    if num is None:
+        num = latest()
     
-    if num2 is None:
-        num2 = num1
-    
-    #if num1 < 1: num1 = latest()+num1
-    #if num2 < 1: num2 = latest()+num2
-    
-    if type(num1) in [int,np.int64] :
-        num = range(num1,num2+1)
-    else:
-        num = num1 # num = list or array
+    # turn into array
+    num = np.asarray(num).reshape(-1)
     
     "-----------------Multi run------------------"
     if len(num)>1:
-        checkscans(num,showval=showval)
-        return
+        outstr = checkscans(num,showval=showval)
+        return outstr
     
     "----------------Single run------------------"
     d = readscan(num[0])
     if d is None:
         print( "File does not exist!" )
-        return d
+        return 'File does not exist!'
     m = d.metadata
     ks = d.keys()
     
     # Print information
-    print( '-----------Run ', m.SRSRUN, '-----------' )
-    print( '  File Dir: ',filedir )
-    print( '   Command: ',m.cmd )
-    print( '   Npoints: ',len(d.TimeSec) )
-    print( '       HKL: ({0},{1},{2})'.format(m.h,m.k,m.l) )
-    print( '    Energy: {0} keV'.format(m.Energy) )
-    print( '      Temp: {0} K'.format(m.temperature) )
-    print()
+    outstr = ''
+    outstr += '-----------Run ', m.SRSRUN, '-----------\n'
+    outstr += '  File Dir: {}\n'.format(filedir)
+    outstr += '   Command: {}\n'.format(m.cmd)
+    outstr += '   Npoints: {}\n'.format(len(d.TimeSec))
+    outstr += '       HKL: ({0},{1},{2})\n'.format(m.h,m.k,m.l)
+    outstr += '    Energy: {0} keV\n'.format(m.Energy)
+    outstr += '      Temp: {0} K\n\n'.format(m.temperature)
     
     # Check for vertical or horizontal geopmetry
     if m.gam > 0.1:
-        print( '    Horizontal Geometry' )
-        print( '        Mu: {0}'.format(m.mu) )
-        print( '       Chi: {0}'.format(m.chi) )
-        print( '     Gamma: {0}'.format(m.gam) )
+        outstr += '    Horizontal Geometry\n'
+        outstr += '        Mu: {0}\n'.format(m.mu)
+        outstr += '       Chi: {0}\n'.format(m.chi)
+        outstr += '     Gamma: {0}\n'.format(m.gam)
     else:
-        print( '      Vertical Geometry' )
-        print( '       Eta: {0}'.format(m.eta) )
-        print( '       Chi: {0}'.format(m.chi) )
-        print( '     Delta: {0}'.format(m.delta) )
-    print( 'Psi({0},{1},{2}): {3}'.format(m.azih,m.azik,m.azil,m.psi) )
-    print()
-    print( '       Sx: {0} mm'.format(m.sx) )
-    print( '       Sy: {0} mm'.format(m.sy) )
-    print( '       Sz: {0} mm'.format(m.sz) )
-    print()
-    print( '  Sample Slits: {}'.format(scanss(num[0])) )
-    print( 'Detector Slits: {}'.format(scands(num[0])) )
-    print()
+        outstr += '      Vertical Geometry'
+        outstr += '       Eta: {0}\n'.format(m.eta)
+        outstr += '       Chi: {0}\n'.format(m.chi)
+        outstr += '     Delta: {0}\n'.format(m.delta)
+    outstr += 'Psi({0},{1},{2}): {3}\n\n'.format(m.azih,m.azik,m.azil,m.psi)
+
+    outstr += '       Sx: {0} mm\n'.format(m.sx)
+    outstr += '       Sy: {0} mm\n'.format(m.sy)
+    outstr += '       Sz: {0} mm\n\n'.format(m.sz)
+    
+    outstr += '  Sample Slits: {}\n'.format(scanss(num[0]))
+    outstr += 'Detector Slits: {}\n\n'.format(scands(num[0]))
     
     # Minimirrors
     if m.m4x > 0.1: 
         mm = 'in' 
     else: 
         mm = 'out'
-    print( 'Minimirrors: {} ({:4.2f} deg)'.format(mm,m.m4pitch) )
+    outstr += 'Minimirrors: {} ({:4.2f} deg)\n'.format(mm,m.m4pitch)
     
     if 'sum' in ks:
         # Pilatus
-        print()
-        print( 'Detector: Pilatus (do={})'.format(m.delta_axis_offset) )
-        print( '   Count: {0:1.3g}s'.format(np.mean(d.t)) )
-        print( ' Max val: {0:5.3g}'.format(max(d.maxval)) )
+        outstr += '\n'
+        outstr += 'Detector: Pilatus (do={})\n'.format(m.delta_axis_offset)
+        outstr += '   Count: {0:1.3g}s\n'.format(np.mean(d.t))
+        outstr += ' Max val: {0:5.3g}\n'.format(max(d.maxval))
         
     if 'APD' in ks:
         # APD
-        print()
-        print( 'Detector: APD' )
+        outstr += '\n'
+        outstr += 'Detector: APD\n'
         if m.gam > 0.:
             # Horizontal
             if m.stoke < 45.:
-                print( '   Pol: {0} (pi-pi)'.format(m.stoke) )
+                outstr += '   Pol: {0} (pi-pi)\n'.format(m.stoke)
             else:
-                print( '   Pol: {0} (pi-sigma)'.format(m.stoke) )
+                outstr += '   Pol: {0} (pi-sigma)\n'.format(m.stoke)
         else:
             # Vertical
             if m.stoke < 45.:
-                print( '   Pol: {0} (sigma-sigma)'.format(m.stoke) )
+                outstr += '   Pol: {0} (sigma-sigma)\n'.format(m.stoke)
             else:
-                print( '   Pol: {0} (sigma-pi)'.format(m.stoke) )
-        print( '   Count: {0:1.3g}s'.format(np.mean(d.counttime)) )
-        print( ' Max val: {0:5.3g}'.format(max(d.APD)) )
+                outstr += '   Pol: {0} (sigma-pi)\n'.format(m.stoke)
+        outstr += '   Count: {0:1.3g}s\n'.format(np.mean(d.counttime))
+        outstr += ' Max val: {0:5.3g}\n'.format(max(d.APD))
     
     if 'FF' in ks:
-        print()
-        print( 'Detector: Vortex' )
-        print( '   Count: {0:1.3g}s'.format(np.mean(d.count_time)) )
-        print( '   ROIs (maxval):' )
+        outstr += '\n'
+        outstr += 'Detector: Vortex\n'
+        outstr += '   Count: {0:1.3g}s\n'.format(np.mean(d.count_time))
+        outstr += '   ROIs (maxval)\n:'
         ROIs = [n for n in d.keys() if 'Element' in n]
         for roi in ROIs:
-            print( '    {} ({})'.format(roi,max(getattr(d,roi))) )
+            outstr += '    {} ({})\n'.format(roi,max(getattr(d,roi)))
         
     # Attenuation
-    print()
-    print( '    Atten: {0} ({1}%)'.format(m.Atten,m.Transmission*100) )
-    print()
+    outstr += '\n    Atten: {0} ({1}%)\n\n'.format(m.Atten,m.Transmission*100)
     
     # additional info
     if showval is not None:
@@ -1509,21 +1596,20 @@ def checkscan(num1=None,num2=None,showval=None):
             val = getattr(m,showval)
         else:
             val = 'No Data'
-        print( showval,' = ',val )
-        print()
-    
+        outstr += '{} = {}\n\n'.format(showval, val)
+
     # Timing
     time = d.TimeSec[-1]-d.TimeSec[0]
     hours = np.int(np.floor(time/3600))
     mins = np.int(np.floor(np.remainder(time,3600)/60))
     secs = np.remainder(np.remainder(time,3600),60)
-    print( 'Ran on {}'.format(m.date) )
-    print( 'Time taken: {} hours, {} mins, {} seconds'.format(hours,mins,secs) )
-    return 
+    outstr += 'Ran on {}\n'.format(m.date)
+    outstr += 'Time taken: {} hours, {} mins, {} seconds\n'.format(hours,mins,secs)
+    return outstr
 
 def checkscans(num1=None,num2=None,showval=None,find_scans=None):
     """
-    Get brief info about each scan in a list
+    Get brief info about each scan in a list, returns a string
     
     checkscans([587892,587893,587894])
     
@@ -1541,8 +1627,9 @@ def checkscans(num1=None,num2=None,showval=None,find_scans=None):
     showvals = np.asarray(showval).reshape(-1)
     
     # Print brief info
+    outstr = ''
     #fmt = '{nums} | {date} | {mode:4s} {energy:5.3g}keV {temp:5.3g}K ({h:1.2g},{k:1.2g},{l:1.2g}) | {cmd}'
-    fmt = '{nums} | {date} | {mode:4s} {ss} {ds} {energy:5.3g}keV {temp:6s} {hkl:17s} {showval} | {cmd}'
+    fmt = '{nums} | {date} | {mode:4s} {ss} {ds} {energy:5.3g}keV {temp:6s} {hkl:17s} {showval} | {cmd}\n'
     #showval_dict = {'show':'','equal':'','val':''}
     for n in range(len(nums)):
         d = readscan(nums[n])
@@ -1601,13 +1688,18 @@ def checkscans(num1=None,num2=None,showval=None,find_scans=None):
             showvaltxt += ['{} = {}'.format(showval,val)]
         showvaltxt = ', '.join(showvaltxt)
         
-        print( fmt.format(nums=m.SRSRUN,date=m.date,mode=mode,ss=sampsl,ds=detsl,energy=m.Energy,temp=m.temperature,hkl=hkl,showval=showvaltxt,cmd=m.cmd_short) )
+        outstr += fmt.format(nums=m.SRSRUN,date=m.date,mode=mode,ss=sampsl,ds=detsl,energy=m.Energy,temp=m.temperature,hkl=hkl,showval=showvaltxt,cmd=m.cmd_short)
+    return outstr
 
 def checklog(time=None,mins=2,cmd=False,find=None):
-    """Look at experiment log file 
+    """
+    Look at experiment log file, returning specific part as str
+
+    returns log file from time-mins to time
+
     checklog(time,mins,commands,findstr)
       time = None - Uses current time (default)
-      time = scan number (uses start time of this scan), 0 gives latest scan
+      time = scan number (uses last modified time of this scan), 0 gives latest scan
       time = [hour,(min),(day),(month),(year)], () values set to default, defaults are time of last scan
       time = '2015-07-07 13:50:08,000' 
       mins = log file will display from time-mins to time
@@ -1615,12 +1707,16 @@ def checklog(time=None,mins=2,cmd=False,find=None):
       commands = True/False - only display command strings
       find = only display lines that include findstr
     """
+
+    filename = os.path.join(filedir, 'gdaterminal.log')
     
     # time is a datetime object
     if time is None:
         #date = readscan(0).metadata.date
         #time = datetime.datetime.strptime(date,'%a %b %d %H:%M:%S %Y')
-        time = datetime.datetime.now()
+        #time = datetime.datetime.now()
+        time = datetime.datetime.fromtimestamp(os.stat(filename).st_mtime) # last modified time
+
     
     if type(time) is str:
         time=datetime.datetime.strptime(time,'%Y-%m-%d %H:%M:%S,%f')
@@ -1628,8 +1724,10 @@ def checklog(time=None,mins=2,cmd=False,find=None):
     if type(time) is not type(datetime.datetime.now()):
         if type(time) is int:
             # input is a scan number (0 for latest)
-            date = readscan(time).metadata.date
-            time = datetime.datetime.strptime(date,'%a %b %d %H:%M:%S %Y')
+            #date = readscan(time).metadata.date
+            #time = datetime.datetime.strptime(date,'%a %b %d %H:%M:%S %Y')
+            file = scanfile(time)
+            time = datetime.datetime.fromtimestamp(os.stat(file).st_mtime) # last modified time
             # Add 10s for good measure
             time = time + datetime.timedelta(0,10) # days, seconds
         else:
@@ -1667,23 +1765,22 @@ def checklog(time=None,mins=2,cmd=False,find=None):
     
     mintime = time - datetime.timedelta(minutes=mins)
     
-    filename = os.path.join(filedir, 'gdaterminal.log')
-    file = open(filename)
+    outstr = ''
+    with open(filename) as file:
+        for line in file:
+            if cmd and '>>>' not in line:
+                continue
+            
+            if find is not None and find not in line:
+                continue
+            
+            spt = line.split()
+            tim=datetime.datetime.strptime(spt[0]+spt[1],'%Y-%m-%d%H:%M:%S,%f')
+            
+            if tim >= mintime and tim <= time:
+                outstr += line
     
-    for line in file:
-        if cmd and '>>>' not in line:
-            continue
-        
-        if find is not None and find not in line:
-            continue
-        
-        spt = line.split()
-        tim=datetime.datetime.strptime(spt[0]+spt[1],'%Y-%m-%d%H:%M:%S,%f')
-        
-        if tim > mintime and tim < time:
-            print( line.rstrip() )
-    
-    return
+    return outstr
 
 def auto_varx(num):
     "Determine the scanned variable"
@@ -1977,8 +2074,10 @@ def scanenergy(num):
     
     return '{:1.4g}keV'.format(E)
 
-def scaneuler(num):
-    "Returns the euler angles eta chi phi mu delta gamma"
+def scaneuler(num, mean=False):
+    """
+    Returns the euler angles eta chi phi mu delta gamma
+    """
     
     try:
         d = readscan(num)
@@ -1997,6 +2096,13 @@ def scaneuler(num):
     delta = d.kdelta
     gam = d.kgam
     mu = d.kmu
+    if mean:
+        eta = np.mean(eta)
+        chi = np.mean(chi)
+        phi = np.mean(phi)
+        delta = np.mean(delta)
+        gam = np.mean(gam)
+        mu = np.mean(mu)
     return eta, chi, phi, mu, delta, gam
 
 def scanwl(num):
@@ -2039,11 +2145,6 @@ def scanfile(num):
         if latest() is None: return None
         num = latest()+num
     
-    " Load first image to get the detector size"
-    tif=pilpath % d.path[0]
-    file = os.path.join(filedir,tif)
-    file=file.replace('/',os.path.sep)
-    
     file = os.path.join(filedir, '%i.dat' %num)
     return file
 
@@ -2081,8 +2182,9 @@ def scanimage(num, idx=0):
     return im
 
 def prend(start=0,end=None):
-    "Calculate the end time of a run"
-    
+    "Calculate the end time of a run, return str"
+
+    outstr = ''
     if end is None and ( start == 0 or start == latest() ):
         # End of current scan is required
         st = readscan(start)
@@ -2116,13 +2218,13 @@ def prend(start=0,end=None):
         trem = nrem*tperrun
         tend = t2 + trem
         
-        print( 'Scan number: #',latest() )
-        print( 'Scan Started: ',t1 )
-        print( 'Points complete: ',Ncomplete,'/',scanlen )
-        print( 'Time per point: ',tperrun )
-        print( 'Still to go: ',nrem,' (',trem,')' )
-        print( 'Scan will end: ',tend )
-        return
+        outstr += 'Scan number: #{}\n'.format(latest())
+        outstr += 'Scan Started: {}\n'.format(t1)
+        outstr += 'Points complete: {} / {}\n'.format(Ncomplete,scanlen)
+        outstr += 'Time per point: {}\n'.format(tperrun)
+        outstr += 'Still to go: {} ({})\n'.format(nrem,trem)
+        outstr += 'Scan will end: {}\n'.format(tend)
+        return outstr
     
     st = readscan(start)
     nd = readscan(end)
@@ -2137,10 +2239,10 @@ def prend(start=0,end=None):
         
         tdif = t2-t1
         
-        print( 'Run started: ',t1 )
-        print( 'Run ended: ',t2 )
-        print( 'Run took: ',tdif )
-        return
+        outstr += 'Run started: {}\n'.format(t1)
+        outstr += 'Run ended: {}\n'.format(t2)
+        outstr += 'Run took: {}\n'.format(tdif)
+        return outstr
     
     """ If run is still going """
     # Get current scan
@@ -2159,13 +2261,13 @@ def prend(start=0,end=None):
     trem = nrem*tperrun
     tend = t2 + trem
     
-    print( 'Run Started: ',t1 )
-    print( 'Latest scan: #',cur )
-    print( 'Time per scan: ',tperrun )
-    print( 'Runs completed: ',ndif,' (',tdif,')' )
-    print( 'Still to go: ',nrem,' (',trem,')' )
-    print( 'Run will end: ',tend )
-    return
+    outstr += 'Run Started: {}\n'.format(t1)
+    outstr += 'Latest scan: #{}\n'.format(cur)
+    outstr += 'Time per scan: {}\n'.format(tperrun)
+    outstr += 'Runs completed: {} ({})\n'.format(ndif,tdif)
+    outstr += 'Still to go: {} ({})\n'.format(nrem,trem)
+    outstr += 'Run will end: {}\n'.format(tend)
+    return outstr
 
 def findfile(num,topdir=None):
     "Find the experiment directory of a scan number"
@@ -2444,6 +2546,31 @@ def scanabscor(num=0,u=1,eta_offset=0.0,chi_offset=0.0):
     A = [abscor(eta[n],chi[n],delta[n],u=u) for n in range(len(eta))]
     return A
 
+def scanvolcor(num=0,u=1,eta_offset=0.0,chi_offset=0.0):
+    """
+    Calculate absorption correction
+     A = scanvolcor(num,u)
+     Icorrected = Iexp/A
+     See abscor for more details
+    """
+    
+    # Get data
+    try: 
+        d = readscan(num)
+    except:
+        d = num
+    
+    u = np.asarray(u).reshape(-1)
+    
+    # Calculate eulerian angles
+    eta, chi, phi, mu, delta, gam = scaneuler(d)
+    
+    if len(u) == 1:
+        u = np.repeat(u, len(eta))
+    
+    A = [volcor(eta[n],chi[n],delta[n],u=u[n]) for n in range(len(eta))]
+    return A
+
 def metaprint(d1,d2=None):
     """ 
     Print metadata of a scan:
@@ -2459,7 +2586,11 @@ def metaprint(d1,d2=None):
     
     if d2 is None:
         for k in d1.metadata.keys():
-            print( '{:>20} : {:<20}'.format(k,d1.metadata[k]) )
+            if len(str(d1.metadata[k])) > 1000:
+                showstr = '...to long...'
+            else:
+                showstr = str(d1.metadata[k])
+            print( '{:>20} : {:<20}'.format(k,showstr) )
     else:
         try:
             d2= readscan(d2)
@@ -2476,7 +2607,15 @@ def metaprint(d1,d2=None):
                 if m1 != m2: 
                     diff = '***'
                     #print( m1,' does not equal ',m2 )
-                print( '{:>20} : {:10} : {:<10} {}'.format(k,d1.metadata[k],d2.metadata[k],diff) )
+                if len(str(m1)) > 1000:
+                    showstr1 = '...to long...'
+                else:
+                    showstr1 = str(m1)
+                if len(str(m2)) > 1000:
+                    showstr2 = '...to long...'
+                else:
+                    showstr2 = str(m2)
+                print( '{:>20} : {:10} : {:<10} {}'.format(k,showstr1,showstr2,diff) )
             except:
                 print( '{} does not exist in #{}'.format(k,d2.metadata.SRSRUN) )
 
@@ -2646,6 +2785,26 @@ def create_analysis_file(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',
     
     print( 'New Analysis file written to ',filename )
 
+def example_script(scanno=None):
+    """
+    Returns example script as string
+    """
+    if scanno is None:
+        scanno = latest()
+    time = datetime.datetime.now()
+
+    outstr = '# Example Python Scipt for I16_Data_Viewer\n'
+    outstr += '# {}\n\n'.format(time)
+    outstr += '#pp.filedir = ''{}''\n'.format(filedir)
+    outstr += '#pp.savedir = ''{}''\n\n'.format(savedir)
+
+    outstr += 'd = pp.readscan({}) # read scan file (e.g. d.eta, d.metadata.psi,...)\n\n'.format(scanno)
+
+    outstr += 'd = pp.plotscan({}) # automatic plot, see help(pp.plotscan)\n\n'.format(scanno)
+
+    outstr += 'x,y,dy, varx, vary, ttl, d = pp.getdata({}) # automatic axes and normalisation\n\n'.format(scanno)
+    return outstr
+
 def get_all_scannos():
     "Returns the scan numbers available in filedir"
     
@@ -2798,8 +2957,8 @@ def exp_parameters_load(loadfrom=None):
         params[split_line[0]] = split_line[1:]
     
     exp_title = ' '.join(params['exp_title'])
-    filedir = ' '.join(params['filedir'])
-    savedir = ' '.join(params['savedir'])
+    #filedir = ' '.join(params['filedir'])
+    #savedir = ' '.join(params['savedir'])
     datfile_format = ' '.join(params['datfile_format'])
     exp_ring_current = float(params['exp_ring_current'][0])
     exp_monitor = float(params['exp_monitor'][0])
@@ -3970,6 +4129,44 @@ def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75
             saveplot(save)
         else:
             saveplot(ttl+'_'+str(imnum))
+
+def plotmeta(scans, fields='Energy', use_time=False):
+    """
+    Plot a single value of metadata against run number or time
+    """
+    
+    # X-axis
+    if use_time:
+        x = getmeta(scans,'TimeSec')
+        x = x - x[0]
+        xlab = 'Time [s]'
+    else:
+        x = scans
+        xlab = 'Scan number'
+    
+    # create figure
+    fig = plt.figure(figsize=[10,8])
+    
+    # multiple fields
+    fields = np.asarray(fields).reshape(-1)
+    for field in fields:
+        # y-axis
+        y = getmeta(scans, field)
+        plt.plot(x,y,'-o',linewidth=3,label=field)
+    
+    if len(fields) > 1:
+        plt.legend(loc=0, frameon=False, fontsize=18)
+    plt.xlabel(xlab, fontsize=18)
+    plt.ylabel(fields[0], fontsize=18)
+    plt.suptitle(scantitle(scans), fontsize=20)
+    
+    plt.xticks(fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.ticklabel_format(useOffset=False)
+    plt.ticklabel_format(style='sci',scilimits=(-3,3))
+    
+    # set border space outside axes
+    plt.subplots_adjust(left=0.15,bottom=0.12)
 
 def plotdwn(num,save=None):
     "Default plot of I16 data, plotscan(#), or plotscan(#,save=1)"
@@ -5452,6 +5649,19 @@ def pilpeak(vol,disp=False):
         print( 'Peak found at [{0},{1}], frame #{2}, in region [{3},{4},{5},{6}]'.format(ROIcen[0],ROIcen[1],pos[2],peakregion[0],peakregion[1],peakregion[2],peakregion[3]) )
     return ROIcen,pos[2]
 
+def pilmaxval(vol,step=[4,4,1]):
+    """
+    Rebin the area detector images and return the array of maxvals of the rebinned image
+      maxval = pilmaxval( vol, step )
+      vol = [nxmxs] volume from getvol
+      step = [dN,dM,dS] number of steps to average over in each direction
+      maxval = [dS] array of maxvals
+    """
+    
+    bvol = rebin(vol,step) # rebin the volume and average the values (removing some noise)
+    maxvals = bvol.max(axis=0).max(axis=0)
+    return maxvals
+
 def pilpeaks(vol,rebin_step=[4,4,2],peakheight=100,disp=False):
     """
     Find peak in pilatus detector, within peakregion
@@ -5755,6 +5965,148 @@ def abscor(eta=0,chi=90,delta=0,mu=0,gamma=0,u=1.0,disp=False,plot=False):
         sldr3.on_changed(update)
     return abs(A)
 
+def volcor(eta=0,chi=90,delta=0,mu=0,gamma=0,u=1.0,disp=False,plot=False):
+    """
+    Calculate scattering volume correction, or self-absorption
+     A = volcor(eta,chi,delta,mu,gamma,u, disp, plot)
+         eta/chi/delta/mu/gamma = diffractometer angles
+         u = absoprtion coefficient
+         disp = True/False - display information
+         plot = True/False - plot diffractometer/sample orientation
+    
+    Usage:
+        scans = range(584448,584481,1)
+        eta = getmeta(scans,'eta')
+        delta = getmeta(scans,'delta')
+        chi = getmeta(scans,'chi')
+        A=np.zeros(len(eta))
+        for n in range(len(eta)): 
+            A[n] = abscor(eta[n]-4.41, chi[n]+2.43, delta[n],disp=True)
+        Icorrected = Iexp/A
+    
+     
+     
+     A = Transmission coefficient. (Absorption correction A*=1/A) 
+         "The reduction in the intensity of an x-ray reflection" 
+             Iobs = A*Iorig
+             Icorrected = Iobs/A
+     theta = Bragg angle
+     phi = "the crystal planes are inclined at an angle phi to the extended face and the normal in the plane of the incidnend and diffracted beams"
+     mu = absorption coefficient
+    """
+    
+    " Determine Wavevector, Q"
+    " Beamline coordinates z->Along beam, towards beamstop, y->upwards, x->away from synchrotron"
+    tth = delta + gamma # one of these should be zero
+    theta = tth/2.0
+    ki = np.array([0,0,1]) # incident wavevector
+    kf = rot3D(ki,0,gamma,-delta)
+    
+    Q = kf - ki # wavevector transfer
+    Q = np.sqrt( np.sum( Q**2 ) )
+    
+    N = surface_normal(eta,mu,chi)
+    phi = np.rad2deg(np.arccos(np.dot(Q,N)))
+    alpha = 90-np.rad2deg(np.arccos(np.dot(-ki,N)))
+    beta = 90-np.rad2deg(np.arccos(np.dot(kf,N)))
+    A = (1/u)/(1 + (np.sin(np.deg2rad(alpha))/np.sin(np.deg2rad(beta)))) # Beutier et al PRB 2008 HoMn2O5 eq. 4, Iobs = Ical*A
+    
+    if disp:
+        sQ = str(np.round(Q,2))
+        sN = str(np.round(N,2))
+        print( 'eta: {:5.2f} mu: {:5.2f} chi: {:5.2f} delta: {:5.2f} gamma: {:5.2f}  Q={:16s}  N={:16s}  alpha = {:5.2f} beta = {:5.2f} phi = {:5.2f}  A = {:5.2g}'.format(eta,mu,chi,delta,gamma,sQ,sN,alpha,beta,phi,A) )
+    
+    if plot:
+        " Create Figure"
+        fig = plt.figure(figsize=[12,14])
+        ax = fig.add_subplot(211,projection='3d')
+        " Plot axes lines"
+        ax.plot3D([-1,1],[0,0],[0,0],'k-',linewidth=1)
+        ax.plot3D([0,0],[-1,1],[0,0],'k-',linewidth=1)
+        ax.plot3D([0,0],[0,0],[-1,1],'k-',linewidth=1)
+        " swap axes z -> y, y -> z"
+        " Plot ki, kf & Q"
+        ax.plot3D([0,0],[-ki[2],0],[0,0],'r-',linewidth=2,label='$k_i$')
+        ax.plot3D([0,kf[0]],[0,kf[2]],[0,kf[1]],'r-o',linewidth=2,label='$k_f$')
+        ax.plot3D([0,Q[0]],[0,Q[2]],[0,Q[1]],'r:o',linewidth=3,label='Q')
+        " Plot surface & Normal"
+        pN, = ax.plot([0,N[0]],[0,N[2]],[0,N[1]],'b-',linewidth=3,label='N')
+        
+        " Labels"
+        ax.invert_yaxis()
+        ax.set_xlabel('x',fontsize=16)
+        ax.set_ylabel('z',fontsize=16)
+        ax.set_zlabel('y',fontsize=16)
+        
+        sQ = str(np.round(Q,2))
+        ttl = 'delta: {:5.2f} gamma: {:5.2f}\nQ={:16s}'.format(delta,gamma,sQ)
+        ax.set_title(ttl)
+        plt.legend(loc=0)
+        
+        " Create slider on plot"
+        #plt.subplot(212)
+        #plt.axes('off')
+        axsldr1 = plt.axes([0.15, 0.15, 0.65, 0.03], axisbg='lightgoldenrodyellow')
+        axsldr2 = plt.axes([0.15, 0.25, 0.65, 0.03], axisbg='lightgoldenrodyellow')
+        axsldr3 = plt.axes([0.15, 0.35, 0.65, 0.03], axisbg='lightgoldenrodyellow')
+        
+        sldr1 = plt.Slider(axsldr1, 'eta', 0, 120,valinit=eta, valfmt = '%0.0f')
+        sldr2 = plt.Slider(axsldr2, 'mu', 0, 120,valinit=mu, valfmt = '%0.0f')
+        sldr3 = plt.Slider(axsldr3, 'chi', -10, 100,valinit=chi, valfmt = '%0.0f')
+        txt = plt.title('N = [{:1.2g},{:1.2g},{:1.2g}]\nphi = {:1.2g}, A = {:1.2g}'.format(N[0],N[1],N[2],phi,A),fontsize=18 )
+        
+        " Slider update function"
+        def update(val):
+            "Update function for pilatus image"
+            eta = sldr1.val
+            mu  = sldr2.val
+            chi = sldr3.val
+            N = normal(eta,mu,chi)
+            uphi = ang(Q,N[n,:])
+            ualpha = 90-ang(N[n,:],-ki)
+            ubeta = ang(-kf,N[n,:])-90
+            uA = (1/u)/(1 + (np.sin(np.deg2rad(alpha[n]))/np.sin(np.deg2rad(beta[n])))) # Beutier et al PRB 2008 HoMn2O5 eq. 4, Iobs = Ical*A
+            pN.set_data( [0,N[0]],[0,N[2]])
+            pN.set_3d_properties([0,N[1]])
+            txt.set_text('N = [{:1.2g},{:1.2g},{:1.2g}]\nphi = {:1.2g}, A = {:1.2g}'.format(N[0],N[1],N[2],uphi,uA))
+            plt.draw()
+            #fig.canvas.draw()
+        sldr1.on_changed(update)
+        sldr2.on_changed(update)
+        sldr3.on_changed(update)
+    return abs(A)
+
+def surface_normal(eta=0, mu=0, chi=90):
+    """
+    Returns a vector parallel to the phi axis of the diffractometer, normal to the sample surfaace
+    """
+    reta = np.deg2rad(eta)
+    rmu = np.deg2rad(mu)
+    rchi = np.deg2rad(chi)
+    N = np.array([np.sin(rmu)*np.sin(reta)*np.sin(rchi) + np.cos(rmu)*np.cos(rchi),
+              np.cos(reta)*np.sin(rchi),
+             -np.cos(rmu)*np.sin(reta)*np.sin(rchi) - np.sin(rmu)*np.cos(rchi)])
+    return N
+
+def surface_angles(eta=0, mu=0, chi=90, delta=0, gamma=0):
+    """
+    Returns alpha and beta, the angles of the incident and scattered beam to the sample surface
+    """
+    
+    " Determine Wavevector, Q"
+    " Beamline coordinates z->Along beam, towards beamstop, y->upwards, x->away from synchrotron"
+    tth = delta + gamma # one of these should be zero
+    theta = tth/2.0
+    ki = np.array([0,0,1]) # incident wavevector
+    kf = rot3D(ki,0,gamma,-delta)
+    
+    Q = kf - ki # wavevector transfer
+    
+    N = surface_normal(eta,mu,chi)
+    alpha = 90-np.rad2deg(np.arccos(np.dot(-ki,N)))
+    beta = 90-np.rad2deg(np.arccos(np.dot(kf,N)))
+    return alpha, beta
+
 def rot3D(vec,alpha=0.,beta=0.,gamma=0.):
     """Rotate 3D vector
         vec = rot3D(vec,alpha=0.,beta=0.,gamma=0.)
@@ -5786,10 +6138,18 @@ def rot3D(vec,alpha=0.,beta=0.,gamma=0.):
     # Rotate coordinates
     return np.dot(R,vec.T).T
 
-def labels(ttl=None,xvar=None,yvar=None,zvar=None,size='Normal'):
-    " Add good labels to current plot "
-    " labels(title,xlabel,ylabel,zlabel)"
-    
+def labels(ttl=None, xvar=None, yvar=None, zvar=None, size='Normal', font='Times New Roman'):
+    """
+    Add formatted labels to current plot, also increases the tick size
+    :param ttl: title
+    :param xvar: x label
+    :param yvar: y label
+    :param zvar: z label (3D plots only)
+    :param size: 'Normal' or 'Big'
+    :param font: str font name, 'Times New Roman'
+    :return: None
+    """
+
     if size.lower() == 'big':
         tik = 30
         tit = 32
@@ -5799,25 +6159,25 @@ def labels(ttl=None,xvar=None,yvar=None,zvar=None,size='Normal'):
         tik = 18
         tit = 20
         lab = 22
-    
-    
-    
-    plt.xticks(fontsize=tik)
-    plt.yticks(fontsize=tik)
-    
-    if ttl != None:
-        plt.gca().set_title(ttl,fontsize=tit,fontweight='bold')
-    
-    if xvar != None:
-        plt.gca().set_xlabel(xvar,fontsize=lab)
-    
-    if yvar != None:
-        plt.gca().set_ylabel(yvar,fontsize=lab)
-    
-    if zvar != None:
-        for t in plt.gca().zaxis.get_major_ticks(): t.label.set_fontsize(tik)
-        plt.gca().set_zlabel(zvar,fontsize=lab)
-    return
+
+    plt.xticks(fontsize=tik, fontname=font)
+    plt.yticks(fontsize=tik, fontname=font)
+    plt.setp(plt.gca().spines.values(), linewidth=2)
+    plt.ticklabel_format(useOffset=False)
+    plt.ticklabel_format(style='sci',scilimits=(-3,3))
+
+    if ttl is not None:
+        plt.gca().set_title(ttl, fontsize=tit, fontweight='bold', fontname=font)
+
+    if xvar is not None:
+        plt.gca().set_xlabel(xvar, fontsize=lab, fontname=font)
+
+    if yvar is not None:
+        plt.gca().set_ylabel(yvar, fontsize=lab, fontname=font)
+
+    if zvar is not None:
+        # Don't think this works, use ax.set_zaxis
+        plt.gca().set_zlabel(zvar, fontsize=lab, fontname=font)
 
 def tth2d(tth,energy_kev):
     "Converts two-theta array in degrees to d-spacing in A"

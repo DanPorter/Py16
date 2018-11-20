@@ -78,8 +78,8 @@ I16_Peak_Analysis - Plot and analyse multiple scans, including peak fitting and 
 I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
-Version 3.9
-Last updated: 16/07/18
+Version 4.0
+Last updated: 20/11/18
 
 Version History:
 07/02/16 0.9    Program created
@@ -114,6 +114,7 @@ Version History:
 18/03/18 3.7    Default savedir directory, save Py16 parameter files to savedir directory
 01/05/18 3.8    Updated for new PA + pilatus3
 16/07/18 3.9    Upgraded Print_Buffer, added new plot options to multi-plot, added multi_plot input
+20/11/18 4.0    Added plot toolbar, fast buttons for pilatus, external text viewer for log and checkscan
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -170,7 +171,7 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 3.9
+Py16GUI_Version = 4.0
 
 # Print layout
 default_print_layout = [3,2]
@@ -278,12 +279,20 @@ class I16_Data_Viewer():
         btn2_fldr.pack(side=tk.LEFT,padx=5,pady=5)
         
         # Peak Analysis
-        btn_anal = tk.Button(frm_fldr, text='Multiplot/ Peak Analysis',font=BF, command=self.f_anal)
-        btn_anal.pack(side=tk.RIGHT,padx=5)
+        btn_anal = tk.Button(frm_fldr, text='Peak Analysis',font=BF, command=self.f_anal)
+        btn_anal.pack(side=tk.RIGHT,padx=2)
         
+        # Scripting
+        btn_para = tk.Button(frm_fldr, text='Script',font=BF, command=self.f_script)
+        btn_para.pack(side=tk.RIGHT,padx=2)
+
         # Parameters
         btn_para = tk.Button(frm_fldr, text='Params',font=BF, command=self.f_params)
-        btn_para.pack(side=tk.RIGHT,padx=5)
+        btn_para.pack(side=tk.RIGHT,padx=2)
+
+        # Help
+        btn_para = tk.Button(frm_fldr, text='Help',font=BF, command=self.f_help)
+        btn_para.pack(side=tk.RIGHT,padx=2)
         
         # Analysis Folder
         frm_fldr = tk.Frame(frame)
@@ -688,10 +697,17 @@ class I16_Data_Viewer():
         
         canvas = FigureCanvasTkAgg(self.fig1, frm_plt)
         canvas.get_tk_widget().configure(bg='black')
+        #canvas.bind("<Button-1>",figureclick) # this doesn't work - FigureCanvasTkAgg doesn't have bind
+        #canvas.bind("<B1-Motion>",figurehold)
         canvas.show()
         canvas.get_tk_widget().pack(side=tk.RIGHT, fill=tk.BOTH, anchor=tk.NE, expand=tk.YES)
         #canvas.get_tk_widget().pack()
         #self.update_plot()
+
+        # Add matplotlib toolbar under plot
+        self.toolbar = NavigationToolbar2TkAgg( canvas, frm_rgt ) 
+        self.toolbar.update()
+        self.toolbar.pack(side=tk.TOP)
         
         "----------------------------Pilatus Options-----------------------------"
         # Pilatus option buttons below plot figure
@@ -756,8 +772,8 @@ class I16_Data_Viewer():
         frm_pilopt3 = tk.Frame(frm_pilopt)
         frm_pilopt3.pack(fill=tk.X)
         
-        lbl_pilint = tk.Label(frm_pilopt3, text='Cut offs:',font=SF,width=8)
-        lbl_pilint.pack(side=tk.LEFT,padx=1)
+        lbl_pilint = tk.Label(frm_pilopt3, text='CLim:',font=SF,width=4)
+        lbl_pilint.pack(side=tk.LEFT,padx=2)
         ety_pilint_i = tk.Entry(frm_pilopt3, textvariable=self.pilint_i, width=4)
         ety_pilint_i.bind('<Return>',self.update_pilatus)
         ety_pilint_i.bind('<KP_Enter>',self.update_pilatus)
@@ -769,10 +785,14 @@ class I16_Data_Viewer():
         
         lbl_pilpos = tk.Label(frm_pilopt3, textvariable=self.pilstr,font=SF,width=14)
         lbl_pilpos.pack(side=tk.LEFT,padx=2)
+        btn_pilpos0 = tk.Button(frm_pilopt3, text='<<',font=BF, command=self.f_pilopt_posleftfast)
+        btn_pilpos0.pack(side=tk.LEFT,padx=0)
         btn_pilpos1 = tk.Button(frm_pilopt3, text='<',font=BF, command=self.f_pilopt_posleft)
-        btn_pilpos1.pack(side=tk.LEFT,padx=2)
+        btn_pilpos1.pack(side=tk.LEFT,padx=0)
         btn_pilpos2 = tk.Button(frm_pilopt3, text='>',font=BF, command=self.f_pilopt_posright)
-        btn_pilpos2.pack(side=tk.LEFT,padx=2)
+        btn_pilpos2.pack(side=tk.LEFT,padx=0)
+        btn_pilpos3 = tk.Button(frm_pilopt3, text='>>',font=BF, command=self.f_pilopt_posrightfast)
+        btn_pilpos3.pack(side=tk.LEFT,padx=0)
         
         frm_pilopt3a = tk.Frame(frm_pilopt3)
         frm_pilopt3a.pack(side=tk.LEFT,fill=tk.X)
@@ -944,6 +964,17 @@ class I16_Data_Viewer():
         self.fig2.canvas.draw()
         self.update_plot()
     
+    def f_help(self):
+        "Launch help GUI"
+        I16_Text_Display(__doc__)
+
+    def f_script(self):
+        "Launch python editor"
+        self.set_files()
+        scanno = self.scanno.get()
+        outstr = pp.example_script(scanno)
+        I16_Python_Editor(outstr)
+
     def f_params(self):
         "Launch parameters GUI"
         
@@ -1098,14 +1129,14 @@ class I16_Data_Viewer():
     def f_checknum(self):
         "checknum(-N,0)"
         num = self.chknum.get()
-        pp.checkscans(-num,0)
-        self.helper.set('Scan info has been sent to the console, you may need to update the console by pressing Enter')
+        outstr = pp.checkscans(-num,0)
+        I16_Text_Display(outstr, 'Check Scans')
     
     def f_checklog(self):
         "checklog(mins=N)"
         num = self.logmins.get()
-        pp.checklog(mins=num)
-        self.helper.set('Log info has been sent to the console, you may need to update the console by pressing Enter')
+        outstr = pp.checklog(mins=num)
+        I16_Text_Display(outstr, 'Check Log')
     
     def f_scn_sel(self):
         " Scan selector button launches scan selector"
@@ -1119,6 +1150,7 @@ class I16_Data_Viewer():
         I16_Scan_Selector(self,scannos,showval)
     
     def f_chk_mor(self):
+        "Check log file"
         I16_Check_Log(self.scanno.get())
     
     def f_chk_exp(self):
@@ -1273,7 +1305,7 @@ class I16_Data_Viewer():
         self.pilpos -= 1
         imgno = self.pilpos
         xval = self.pilvals[imgno]
-        self.pilstr.set('({}) {} = {:5.3g}'.format(imgno,self.pilvar,xval))
+        self.pilstr.set('({}) {} = {:1.3f}'.format(imgno,self.pilvar,xval))
         
         # Update pilatus image
         self.pilim.set_data(self.vol[:,:,imgno])
@@ -1295,7 +1327,55 @@ class I16_Data_Viewer():
         self.pilpos += 1
         imgno = self.pilpos
         xval = self.pilvals[imgno]
-        self.pilstr.set('({}) {} = {:5.3g}'.format(imgno,self.pilvar,xval))
+        self.pilstr.set('({}) {} = {:1.3f}'.format(imgno,self.pilvar,xval))
+        
+        # Update pilatus image
+        self.pilim.set_data(self.vol[:,:,imgno])
+        self.fig2.canvas.draw()
+        
+        # Update marker point on plot axis
+        ylim = self.ax1.get_ylim()
+        self.plt2.set_xdata([xval,xval])
+        self.plt2.set_ydata(ylim)
+        self.fig1.canvas.draw()
+
+    def f_pilopt_posleftfast(self):
+        "Move back 1/10th of positions"
+        
+        if self.pilatus_active == False: return
+
+        # Increment the image by -10%
+        incval = len(self.pilvals)//10
+        self.pilpos -= incval
+        if self.pilpos < 0: self.pilpos = 0 # go to zero
+        
+        imgno = self.pilpos
+        xval = self.pilvals[imgno]
+        self.pilstr.set('({}) {} = {:1.3f}'.format(imgno,self.pilvar,xval))
+        
+        # Update pilatus image
+        self.pilim.set_data(self.vol[:,:,imgno])
+        self.fig2.canvas.draw()
+        
+        # Update marker point on plot axis
+        ylim = self.ax1.get_ylim()
+        self.plt2.set_xdata([xval,xval])
+        self.plt2.set_ydata(ylim)
+        self.fig1.canvas.draw()
+    
+    def f_pilopt_posrightfast(self):
+        "Move forward 1/10th of position"
+        
+        if self.pilatus_active == False: return
+
+        # Increment the image by +10%
+        incval = len(self.pilvals)//10
+        self.pilpos += incval
+        if self.pilpos >= len(self.pilvals): self.pilpos = len(self.pilvals)-1 # go to end
+
+        imgno = self.pilpos
+        xval = self.pilvals[imgno]
+        self.pilstr.set('({}) {} = {:1.3f}'.format(imgno,self.pilvar,xval))
         
         # Update pilatus image
         self.pilim.set_data(self.vol[:,:,imgno])
@@ -1629,6 +1709,7 @@ class I16_Data_Viewer():
     def f_fnl_splotclose(self):
         " Close all figures"
         plt.close('all')
+
     
     "------------------------------------------------------------------------"
     "--------------------------General Functions-----------------------------"
@@ -1869,6 +1950,7 @@ class I16_Data_Viewer():
         self.plt2.set_ydata([])
         self.ax1.relim()
         self.ax1.autoscale_view()
+        self.toolbar.update() # update toolbar home position
         
         self.ax1.set_xlabel(varx)
         self.ax1.set_ylabel(vary)
@@ -1919,8 +2001,10 @@ class I16_Data_Viewer():
             self.pfit.set_ydata([])
         
         self.ax1.relim()
+        self.ax1.autoscale(True)
         self.ax1.autoscale_view()
         self.fig1.canvas.draw()
+        self.toolbar.update() # update toolbar home position
     
     def update(self,event=None):
         "Update on <Enter>"
@@ -1972,7 +2056,7 @@ class I16_Data_Viewer():
             #self.pilpos = imgno
             self.pilvar = varx
             self.pilvals = x
-            self.pilstr.set('({}) {}={:6.4g}'.format(imgno,varx,xval))
+            self.pilstr.set('({}) {}={:1.3f}'.format(imgno,varx,xval))
             
             # Automatically determine caxis
             md = np.median(self.vol[:,:,imgno])
@@ -2307,6 +2391,209 @@ class I16_Meta_Display:
 
 
 "------------------------------------------------------------------------"
+"--------------------------I16_Text_Display------------------------------"
+"------------------------------------------------------------------------"
+class I16_Text_Display:
+    """
+    General box to display any long string
+    """
+    "------------------------------------------------------------------------"
+    "--------------------------GUI Initilisation-----------------------------"
+    "------------------------------------------------------------------------"
+    def __init__(self, disp_str='', title=''):
+        # Create Tk inter instance
+        self.root = tk.Tk()
+        self.root.wm_title('Py16: {}'.format(title))
+        self.root.minsize(width=200, height=100)
+        self.root.maxsize(width=1200, height=800)
+        
+        # Dynamic box size
+        lines = disp_str.split('\n')
+        n_lines = len(lines)
+        line_len = [len(ln) for ln in lines]
+        max_len = np.max(line_len)
+
+        box_height = n_lines
+        box_width = max_len
+
+        if n_lines > 20:
+            box_height = 20
+        if max_len > 200:
+            box_width = 200
+        
+
+        #Frame
+        frame = tk.Frame(self.root)
+        frame.pack(side=tk.LEFT,fill=tk.BOTH,expand=tk.YES,anchor=tk.N)
+        
+        "---------------------------Metadata ListBox---------------------------"
+        # Eval box with scroll bar
+        frm_text = tk.Frame(frame)
+        frm_text.pack(side=tk.TOP,fill=tk.BOTH,expand=tk.YES)
+        
+        scl_textx = tk.Scrollbar(frm_text,orient=tk.HORIZONTAL)
+        scl_textx.pack(side=tk.BOTTOM, fill=tk.BOTH)
+        
+        scl_texty = tk.Scrollbar(frm_text)
+        scl_texty.pack(side=tk.RIGHT, fill=tk.BOTH)
+        
+        self.lst_text = tk.Text(frm_text, font=HF, width=box_width, height=box_height, wrap=tk.NONE,
+                                xscrollcommand=scl_textx.set,yscrollcommand=scl_texty.set)
+        self.lst_text.configure(exportselection=True)
+        
+        # Populate text box
+        self.lst_text.insert(tk.END, disp_str)
+        self.lst_text.configure(state=tk.DISABLED)
+        
+        self.lst_text.pack(side=tk.LEFT,fill=tk.BOTH,expand=tk.YES)
+        #self.lst_text.select_set(0)
+        #self.lst_text.bind("<<ListboxSelect>>", self.f_text_select)
+        #print( self.lst_text.curselection()[0] )
+        
+        scl_textx.config(command=self.lst_text.xview)
+        scl_texty.config(command=self.lst_text.yview)
+        
+        #self.txt_text.config(xscrollcommand=scl_textx.set,yscrollcommand=scl_texty.set)
+        
+        "----------------------------Exit Button------------------------------"
+        frm_btn = tk.Frame(frame)
+        frm_btn.pack()
+        
+        btn_exit = tk.Button(frm_btn,text='Exit',font=BF, command=self.f_exit)
+        btn_exit.pack()
+        
+    "------------------------------------------------------------------------"
+    "--------------------------General Functions-----------------------------"
+    "------------------------------------------------------------------------"
+    
+    def f_exit(self):
+        "Closes the current text window"
+        self.root.destroy()
+
+
+"------------------------------------------------------------------------"
+"--------------------------I16_Python Editor-----------------------------"
+"------------------------------------------------------------------------"
+class I16_Python_Editor:
+    """
+    Text both with run and save buttons for python execution
+    """
+    "------------------------------------------------------------------------"
+    "--------------------------GUI Initilisation-----------------------------"
+    "------------------------------------------------------------------------"
+    def __init__(self, disp_str='', title=''):
+        # Create Tk inter instance
+        self.root = tk.Tk()
+        self.root.wm_title('{}'.format(title))
+        self.root.minsize(width=200, height=100)
+        self.root.maxsize(width=1200, height=800)
+        
+        box_height = 30
+        box_width = 100
+
+        self.savelocation = ''
+
+        #Frame
+        frame = tk.Frame(self.root)
+        frame.pack(side=tk.LEFT,fill=tk.BOTH,expand=tk.YES,anchor=tk.N)
+        
+        "---------------------------Metadata ListBox---------------------------"
+        # Eval box with scroll bar
+        frm_text = tk.Frame(frame)
+        frm_text.pack(side=tk.TOP,fill=tk.BOTH,expand=tk.YES)
+        
+        scl_textx = tk.Scrollbar(frm_text,orient=tk.HORIZONTAL)
+        scl_textx.pack(side=tk.BOTTOM, fill=tk.BOTH)
+        
+        scl_texty = tk.Scrollbar(frm_text)
+        scl_texty.pack(side=tk.RIGHT, fill=tk.BOTH)
+        
+        self.text = tk.Text(frm_text, 
+            font=HF, 
+            width=box_width, 
+            height=box_height, 
+            wrap=tk.NONE,
+            background='white',
+            xscrollcommand=scl_textx.set,
+            yscrollcommand=scl_texty.set)
+        self.text.configure(exportselection=True)
+        
+        # Populate text box
+        self.text.insert(tk.END, disp_str)
+        
+        self.text.pack(side=tk.LEFT,fill=tk.BOTH,expand=tk.YES)
+        
+        scl_textx.config(command=self.text.xview)
+        scl_texty.config(command=self.text.yview)
+        
+        #self.txt_text.config(xscrollcommand=scl_textx.set,yscrollcommand=scl_texty.set)
+        
+        "----------------------------Exit Button------------------------------"
+        frm_btn = tk.Frame(frame)
+        frm_btn.pack(fill=tk.X)
+        
+        btn = tk.Button(frm_btn,text='RUN',font=BF, command=self.f_run)
+        btn.pack(side=tk.LEFT)
+        btn = tk.Button(frm_btn,text='Exit',font=BF, command=self.f_exit)
+        btn.pack(side=tk.RIGHT)
+        btn = tk.Button(frm_btn,text='Save As', font=BF, command=self.f_saveas)
+        btn.pack(side=tk.RIGHT)
+        btn = tk.Button(frm_btn,text='Save', font=BF, command=self.f_save)
+        btn.pack(side=tk.RIGHT)
+        btn = tk.Button(frm_btn,text='Open', font=BF, command=self.f_open)
+        btn.pack(side=tk.RIGHT)
+        
+    "------------------------------------------------------------------------"
+    "--------------------------General Functions-----------------------------"
+    "------------------------------------------------------------------------"
+    def f_run(self):
+        "Run the code"
+        code = self.text.get(1.0, tk.END)
+        exec(code)
+        print('Finished')
+
+    def f_open(self):
+        "Open a new file"
+        self.savelocation=filedialog.askopenfilename(
+            title='Open your python script',
+            initialdir=pp.savedir, 
+            initialfile='script.py',
+            defaultextension='.py',
+            filetypes = (("python file","*.py"),("all files","*.*")))
+
+        if self.savelocation == '':
+            return
+        with open(self.savelocation) as file:
+            disp_str = file.read()
+        I16_Python_Editor(disp_str)
+
+    def f_save(self):
+        "Save the file"
+        if self.savelocation == '':
+            return
+
+        code = self.text.get(1.0, tk.END)
+        with open(self.savelocation, 'wt') as outfile:
+            outfile.write(code)
+        print('Saved as {}'.format(self.savelocation))
+
+    def f_saveas(self):
+        "Save the file"
+        code = self.text.get(1.0, tk.END)
+        self.savelocation=filedialog.asksaveasfilename(
+            title='Save your python script',
+            initialdir=pp.savedir, 
+            initialfile='script.py',
+            defaultextension='.py',
+            filetypes = (("python file","*.py"),("all files","*.*")))
+        self.f_save()
+
+    def f_exit(self):
+        "Closes the current text window"
+        self.root.destroy()
+
+
+"------------------------------------------------------------------------"
 "--------------------------I16_Peak_Analysis-----------------------------"
 "------------------------------------------------------------------------"
 class I16_Peak_Analysis:
@@ -2377,7 +2664,7 @@ class I16_Peak_Analysis:
         self.filedir = tk.StringVar(frm_fldr,initial_dir)
         lbl_fldr = tk.Label(frm_fldr, text='Data Folder: ', width=15, font=SF)
         lbl_fldr.pack(side=tk.LEFT,padx=5,pady=5)
-        ety_fldr = tk.Entry(frm_fldr, textvariable=self.filedir, width=72)
+        ety_fldr = tk.Entry(frm_fldr, textvariable=self.filedir, width=61)
         ety_fldr.pack(side=tk.LEFT,padx=5,pady=5)
         btn_fldr = tk.Button(frm_fldr, text='Browse', font=BF, command=self.f_fldr_browse)
         btn_fldr.pack(side=tk.LEFT,padx=5,pady=5)
@@ -2387,7 +2674,7 @@ class I16_Peak_Analysis:
         self.savedir = tk.StringVar(frm_save,initial_sav)
         lbl_save = tk.Label(frm_save, text='Analysis Folder: ', width=15, font=SF)
         lbl_save.pack(side=tk.LEFT,padx=5,pady=5)
-        ety_save = tk.Entry(frm_save, textvariable=self.savedir, width=72)
+        ety_save = tk.Entry(frm_save, textvariable=self.savedir, width=61)
         ety_save.pack(side=tk.LEFT,padx=5,pady=5)
         btn_save = tk.Button(frm_save, text='Browse',font=BF, command=self.f_save_browse)
         btn_save.pack(side=tk.LEFT,padx=5,pady=5)
@@ -2518,7 +2805,7 @@ class I16_Peak_Analysis:
         self.txt_scan.pack(side=tk.LEFT,padx=0)
         scl_scan.pack(side=tk.LEFT,fill=tk.Y)
         
-        btn_adv_fit = tk.Button(frm_scan2, text='Adv. Fitting',wraplength=40,
+        btn_adv_fit = tk.Button(frm_scan2, text='Adv. Fitting',wraplength=42,
                                 font=BF, command=self.f_adv_fit)
         btn_adv_fit.pack(side=tk.LEFT,fill=tk.Y,padx=10)
         
@@ -2537,7 +2824,7 @@ class I16_Peak_Analysis:
         frm_fpt.pack(side=tk.LEFT,fill=tk.X,expand=tk.YES)
         
         lbl_fpt = tk.Label(frm_fpt, text='Scan Plots: ',font=SF)
-        lbl_fpt.pack(side=tk.LEFT,padx=2,pady=2)
+        lbl_fpt.pack(side=tk.LEFT,padx=5,pady=5)
         
         self.plot_indv = tk.IntVar(frm_btn0,0)
         chk_fpt = tk.Checkbutton(frm_fpt, text='multi-figure',font=SF,variable=self.plot_indv)
@@ -2670,7 +2957,8 @@ class I16_Peak_Analysis:
         depvar = self.getdepvar()
         
         # Run checkscans
-        pp.checkscans(scanno,showval=depvar)
+        outstr = pp.checkscans(scanno,showval=depvar)
+        I16_Text_Display(outstr, 'Check Scans')
     
     def f_scan_makefile(self):
         "Create python analysis file"
@@ -3805,6 +4093,13 @@ class I16_Check_Log:
         frame1 = tk.Frame(frame,borderwidth=2,relief=tk.RIDGE)
         frame1.pack(fill=tk.X,expand=tk.TRUE)
         
+        # Line 1 title
+        frame1t = tk.Frame(frame1)
+        frame1t.pack()
+
+        lbl_title = tk.Label(frame1t,text='Check Scans', font=BF, bd=1)
+        lbl_title.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+
         # Line 1a
         frame1a = tk.Frame(frame1)
         frame1a.pack()
@@ -3848,6 +4143,13 @@ class I16_Check_Log:
         now = datetime.datetime.strptime(date,'%a %b %d %H:%M:%S %Y')
         str_now = datetime.datetime.strftime(now,'%Y-%m-%d %H:%M')
         
+        # Line 2 title
+        frame2t = tk.Frame(frame2)
+        frame2t.pack()
+
+        lbl_title = tk.Label(frame2t,text='Check Log', font=BF, bd=1)
+        lbl_title.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+
         # Line 2a
         frame2a = tk.Frame(frame2)
         frame2a.pack(fill=tk.X)
@@ -3922,6 +4224,13 @@ class I16_Check_Log:
         frame3 = tk.Frame(frame,borderwidth=2,relief=tk.RIDGE)
         frame3.pack(fill=tk.X,expand=tk.TRUE)
         
+        # Line 3 title
+        frame3t = tk.Frame(frame3)
+        frame3t.pack()
+
+        lbl_title = tk.Label(frame3t,text='Predict End', font=BF, bd=1)
+        lbl_title.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+
         # Line 3a
         frame3a = tk.Frame(frame3)
         frame3a.pack()
@@ -3963,7 +4272,8 @@ class I16_Check_Log:
         if len(showval) == 0: showval = None
         
         self.scans_cmd.set(str(scans))
-        pp.checkscans(scans,showval=showval)
+        outstr = pp.checkscans(scans,showval=showval)
+        I16_Text_Display(outstr, 'Check Scans')
     
     def f_checklog(self):
         time = self.time.get()
@@ -3982,7 +4292,8 @@ class I16_Check_Log:
         if len(find) == 0:
             find = None
         
-        pp.checklog(scan, mins, cmds, find)
+        outstr = pp.checklog(scan, mins, cmds, find)
+        I16_Text_Display(outstr, 'Check Log')
     
     def f_input_time(self):
         self.log_input1.set(1)
@@ -3996,14 +4307,15 @@ class I16_Check_Log:
     
     def f_prend(self):
         fs = self.first_scan.get()
-        ls = eval(self.last_scan.get())
+        if self.last_scan.get():
+            ls = eval(self.last_scan.get())
+            self.last_scan.set(str(ls))
+        else:
+            ls=None
         
-        self.last_scan.set(str(ls))
-        
-        pp.prend(fs,ls)
-    "------------------------------------------------------------------------"
-    "--------------------------General Functions-----------------------------"
-    "------------------------------------------------------------------------"
+        outstr = pp.prend(fs,ls)
+        I16_Text_Display(outstr, 'Predict End')
+
 
 "------------------------------------------------------------------------"
 "--------------------------------I16_Params------------------------------"
