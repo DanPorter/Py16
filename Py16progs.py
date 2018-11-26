@@ -166,6 +166,9 @@ from collections import OrderedDict
 filedir = '/dls/i16/data/2018' 
 savedir = '/home/i16user/Desktop'
 
+tmpdir = tempfile.gettempdir()
+#tmpdir = os.path.expanduseer('~')
+
 "-----------------------------Data file format----------------------------"
 datfile_format = '%i.dat'
 
@@ -2020,7 +2023,7 @@ def scanpol(num,latex=False):
     
     m = d.metadata
     pol = ''
-    if m.delta_axis_offset < 1 and m.thp > 10:
+    if m.delta_axis_offset < 1 and np.abs(m.thp) > 10:
         if m.gam > 0.01:
             if m.stoke < 45.:
                 pol = ' p-p'
@@ -2168,9 +2171,8 @@ def scanfile(num):
         return None
     
     try:
-        d = readscan(num)
-        num = d.metadata.SRSRUN
-    except TypeError:
+        num = num.metadata.SRSRUN
+    except
         pass
     
     if num < 1: 
@@ -2860,7 +2862,6 @@ def exp_list_add():
     if filedir in exp_list_get():
         return
     
-    tmpdir = tempfile.gettempdir()
     with open(os.path.join(tmpdir,'Py16_experiment_directories.txt'),'a') as f:
         f.write(exp_dir)
     print('Added {} to experiment list'.format(filedir))
@@ -2873,7 +2874,6 @@ def sav_list_add():
     if savedir in sav_list_get():
         return
     
-    tmpdir = tempfile.gettempdir()
     with open(os.path.join(tmpdir,'Py16_analysis_directories.txt'),'a') as f:
         f.write(sav_dir)
     print('Added {} to analysis list'.format(savedir))
@@ -2881,7 +2881,6 @@ def sav_list_add():
 def exp_list_get():
     "Loads a list of directories of previous experiments"
     
-    tmpdir = tempfile.gettempdir()
     if not os.path.isfile(os.path.join(tmpdir,'Py16_experiment_directories.txt')):
         return []
     
@@ -2893,7 +2892,6 @@ def exp_list_get():
 def sav_list_get():
     "Loads a list of analysis directories used previously"
     
-    tmpdir = tempfile.gettempdir()
     if not os.path.isfile(os.path.join(tmpdir,'Py16_analysis_directories.txt')):
         return []
     
@@ -2919,7 +2917,6 @@ def recall_last_exp():
 def clear_prev_exp():
     "Clear the previous experiment + analysis directories files"
     
-    tmpdir = tempfile.gettempdir()
     with open(os.path.join(tmpdir,'Py16_experiment_directories.txt'),'w') as f:
         f.write('')
     with open(os.path.join(tmpdir,'Py16_analysis_directories.txt'),'w') as f:

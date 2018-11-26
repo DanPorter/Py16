@@ -1674,7 +1674,7 @@ class I16_Data_Viewer():
         pp.plotscan(scanno,varx=setvarx,vary=setvary,fit=fittype,norm=norm,logplot=logplot,diffplot=diffplot)
         
         " Find the temp directory"
-        tmpdir = tempfile.gettempdir()
+        tmpdir = pp.tmpdir
         fname = os.path.join(tmpdir,'Py16_figure1.png')
         plt.savefig(fname)
         #plt.savefig('/home/i16user/tmp/Py16tmp.pdf')
@@ -3977,7 +3977,7 @@ class I16_Print_Buffer():
         frm_plt.pack(fill=tk.X)
         
         " Find the temp directory"
-        self.tmpdir = tempfile.gettempdir()
+        self.tmpdir = pp.tmpdir
         #ax_layout = [3,2] # [vertical, horizontal]
         Nax = ax_layout[0]*ax_layout[1]
         Nfigs = np.ceil( len(fignos)/float(Nax) ).astype(np.int)
