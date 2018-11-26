@@ -79,7 +79,7 @@ Some Useful Functions:
     
 
 Version 4.0
-Last updated: 20/11/18
+Last updated: 26/11/18
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -117,7 +117,7 @@ Version History:
 21/05/18 3.8    Changed automatic titles to include psi angle and reference
 01/08/18 3.9    Removed psutil, added getRAM, various updates and fixes, added plotmeta and pilmaxval, corrected joinscan save
 19/10/18 3.9    Corrected type input of getvol.
-20/11/18 4.0    Output of checkscan, checklog now str
+26/11/18 4.0    Output of checkscan, checklog now str
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -213,6 +213,29 @@ pilatus_dead_pixels = np.zeros(shape=(0,2),dtype=int) # Blank
 plot_colors = ['b','g','m','c','y','k','r'] # change the default colours of plotscan 
 exp_title = '' # Experiment title
 #plt.xkcd() # cool plots!
+
+
+"-------------------------------Data Defaults-----------------------------"
+# These parameters will always be defined in the metadata
+# Structure meta_defaults['name']=[['list of possible names'],default value if not available]
+meta_defaults = {}
+meta_defaults['Energy'] = [['Energy','Energy2','en','pgm_energy'],0]
+meta_defaults['stokes'] = [['stokes','stoke'],0]
+meta_defaults['azih'] = [['azih'],0]
+meta_defaults['azik'] = [['azik'],0]
+meta_defaults['azil'] = [['azil'],0]
+meta_defaults['psi'] = [['psi'],666]
+meta_defaults['Ta'] = [['Ta'],300.0]
+meta_defaults['h'] = [['h'],0]
+meta_defaults['k'] = [['k'],0]
+meta_defaults['l'] = [['l'],0]
+
+# If these 
+scan_defaults = {}
+scan_defaults['t'] = [['t', 'count_time']]
+scan_defaults['energy'] = [['energy','energy2']]
+scan_defaults['rc'] = [['rc','energy2']]
+scan_defaults['TimeSec'] = [['TimeSec','TimeFromEpoch']]
 
 
 ###########################################################################
@@ -331,15 +354,17 @@ def readscan(num):
     
     " Correct re-assigned values"
     " For some reason, parameter names change occsaionaly, add correction here"
-    if 'en' in d.metadata.keys(): d.metadata.Energy = d.metadata.en
-    if 'pgm_energy' in d.metadata.keys(): d.metadata.Energy = d.metadata.pgm_energy
-    if 'stokes' in d.metadata.keys(): d.metadata.stoke = d.metadata.stokes
+    # Correct d.scannables
     if 'count_time' in d.keys(): d.t = d.count_time
     if 'energy2' in d.keys(): d.energy = d.energy2
     if 'rc' not in d.keys(): d.rc = exp_ring_current*np.ones(len(d[d.keys()[0]]))
     if 'TimeSec' not in d.keys(): d.TimeSec = np.arange(0,len(d[d.keys()[0]]))
+    # Correct d.metadata
+    if 'en' in d.metadata.keys(): d.metadata.Energy = d.metadata.en
+    if 'pgm_energy' in d.metadata.keys(): d.metadata.Energy = d.metadata.pgm_energy
+    if 'stokes' in d.metadata.keys(): d.metadata.stoke = d.metadata.stokes
     if 'azih' not in d.metadata.keys(): d.metadata.azih=0;d.metadata.azik=0;d.metadata.azil=0
-    if 'psi' not in d.metadata.keys(): d.metadata.psi = 0.0
+    if 'psi' not in d.metadata.keys(): d.metadata.psi = 666
     if 'h' not in d.metadata.keys(): d.metadata.h = 0.0
     if 'k' not in d.metadata.keys(): d.metadata.k = 0.0
     if 'l' not in d.metadata.keys(): d.metadata.l = 0.0
@@ -357,11 +382,18 @@ def readscan(num):
     d.metadata.temperature = scantemp(d,default_sensor)
     " Correct psi values"
     if d.metadata.psi < -1000: d.metadata.psi = 0.0
-    if d.metadata.psi == 'Unavailable': d.metadata.psi = 0.0
-    " Add azimuth string"
-    d.metadata.azimuth = scanazimuth(d)
-    " Add title string"
-    d.metadata.title = scantitle(d)
+    if type(d.metadata.psi) is str: d.metadata.psi = 666
+    if type(d.metadata.azih) is str: d.metadata.azih=0;d.metadata.azik=0;d.metadata.azil=0
+
+    # Add additional parameters
+    try:
+        " Add azimuth string"
+        d.metadata.azimuth = scanazimuth(d)
+        " Add title string"
+        d.metadata.title = scantitle(d)
+    except:
+        print('The scantitle or azimuth couldn''t be generated')
+        pass
     " Array items"
     d.scannables = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
     " Update keys"
@@ -1973,7 +2005,7 @@ def scanazimuth(num,style=None):
     
     m = d.metadata
     psi = m.psi
-    h,k,l = m.azih,m.azik,m.azil
+    h,k,l = m.azih, m.azik, m.azil
     if style in ['short','simple','s']:
         return 'psi%1.0f%1.0f%1.0f=%1.1f'%(m.azih,m.azik,m.azil,m.psi)
     return '{:7.2f} ({:1.3g},{:1.3g},{:1.3g})'.format(psi,h,k,l)
