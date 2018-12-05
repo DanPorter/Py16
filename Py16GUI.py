@@ -115,6 +115,7 @@ Version History:
 01/05/18 3.8    Updated for new PA + pilatus3
 16/07/18 3.9    Upgraded Print_Buffer, added new plot options to multi-plot, added multi_plot input
 20/11/18 4.0    Added plot toolbar, fast buttons for pilatus, external text viewer for log and checkscan
+05/12/18 4.1    Some bug fixes
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -171,7 +172,7 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 4.0
+Py16GUI_Version = 4.1
 
 # Print layout
 default_print_layout = [3,2]
@@ -2476,15 +2477,16 @@ class I16_Text_Display:
 "------------------------------------------------------------------------"
 class I16_Python_Editor:
     """
-    Text both with run and save buttons for python execution
+    A very simple python editor, load and edit python files, execute them in 
+    current python shell.
     """
     "------------------------------------------------------------------------"
     "--------------------------GUI Initilisation-----------------------------"
     "------------------------------------------------------------------------"
-    def __init__(self, disp_str='', title=''):
+    def __init__(self, disp_str='', filename=''):
         # Create Tk inter instance
         self.root = tk.Tk()
-        self.root.wm_title('{}'.format(title))
+        self.root.wm_title('I16 Python Editor by D G Porter [dan.porter@diamond.ac.uk]')
         self.root.minsize(width=200, height=100)
         self.root.maxsize(width=1200, height=800)
         
@@ -2492,6 +2494,10 @@ class I16_Python_Editor:
         box_width = 100
 
         self.savelocation = ''
+
+        if os.path.isfile(filename):
+            self.root.wm_title(filename)
+            self.savelocation = filename
 
         #Frame
         frame = tk.Frame(self.root)
@@ -2554,18 +2560,18 @@ class I16_Python_Editor:
 
     def f_open(self):
         "Open a new file"
-        self.savelocation=filedialog.askopenfilename(
+        newsavelocation=filedialog.askopenfilename(
             title='Open your python script',
             initialdir=pp.savedir, 
             initialfile='script.py',
             defaultextension='.py',
             filetypes = (("python file","*.py"),("all files","*.*")))
 
-        if self.savelocation == '':
+        if newsavelocation == '':
             return
-        with open(self.savelocation) as file:
+        with open(newsavelocation) as file:
             disp_str = file.read()
-        I16_Python_Editor(disp_str)
+        I16_Python_Editor(disp_str, newsavelocation)
 
     def f_save(self):
         "Save the file"
@@ -2575,6 +2581,7 @@ class I16_Python_Editor:
         code = self.text.get(1.0, tk.END)
         with open(self.savelocation, 'wt') as outfile:
             outfile.write(code)
+        self.root.wm_title(self.savelocation)
         print('Saved as {}'.format(self.savelocation))
 
     def f_saveas(self):
@@ -4126,8 +4133,18 @@ class I16_Check_Log:
         frame1c = tk.Frame(frame1)
         frame1c.pack()
         
+        self.scans_typ = tk.StringVar(frame1,'')
+        lbl_scnval = tk.Label(frame1c,text='Type:',font=SF)
+        lbl_scnval.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_scnval = tk.Entry(frame1c,textvariable=self.scans_typ, width=20)
+        ety_scnval.pack(side=tk.LEFT,padx=5,pady=5)
+
+        # Line 1d
+        frame1d = tk.Frame(frame1)
+        frame1d.pack()
+
         # Checklog Button
-        btn_scncmd = tk.Button(frame1c, text='Check Scans',font=BF,command=self.f_checkscans)
+        btn_scncmd = tk.Button(frame1d, text='Check Scans',font=BF,command=self.f_checkscans)
         btn_scncmd.pack()
         
         "---------------------------Check Log-----------------------------"
@@ -4270,9 +4287,12 @@ class I16_Check_Log:
         
         showval = self.scans_val.get()
         if len(showval) == 0: showval = None
+
+        find_scan = self.scans_typ.get()
+        if len(find_scan) == 0: find_scan = None
         
         self.scans_cmd.set(str(scans))
-        outstr = pp.checkscans(scans,showval=showval)
+        outstr = pp.checkscans(scans,showval=showval,find_scans=find_scan)
         I16_Text_Display(outstr, 'Check Scans')
     
     def f_checklog(self):

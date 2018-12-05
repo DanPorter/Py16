@@ -118,6 +118,7 @@ Version History:
 01/08/18 3.9    Removed psutil, added getRAM, various updates and fixes, added plotmeta and pilmaxval, corrected joinscan save
 19/10/18 3.9    Corrected type input of getvol.
 26/11/18 4.0    Output of checkscan, checklog now str
+05/12/18 4.1    Update to simpfit, giving better estimates of peak position
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -1850,7 +1851,10 @@ def auto_varx(num):
         else:
             varx = 'l'
     elif varx == 'sr2':
-        varx = 'phi'
+        if 'azimuthal' in keys: # DiffCalc sr2 scan
+            varx = 'azimuthal'
+        else:
+            varx = 'phi'
     elif varx == 'th2th':
         varx = 'delta'
         
@@ -2172,7 +2176,7 @@ def scanfile(num):
     
     try:
         num = num.metadata.SRSRUN
-    except
+    except:
         pass
     
     if num < 1: 
@@ -4851,6 +4855,12 @@ def FWHM(x,y,interpolate=False):
     # Return FWHM
     return abs(hfpos2-hfpos1)
 
+def centre(x,y):
+    "Calcualte centre of a peak"
+    srt = np.argsort(y)
+    cen = np.average( x[ srt[ -len(x)//5: ] ] ,weights=y[ srt[ -len(x)//5: ] ]**2)
+    return cen
+
 def straightline(x,grad=1.0,inter=0.0):
     "Staigh line"
     return grad*x + inter
@@ -4963,9 +4973,11 @@ def simpfit(x,y,disp=None):
     #else:
     #    cen = x[len(x)//2]
     # Alternative centre method 9/2/16
-    srt = np.argsort(y)
-    cen = np.average( x[ srt[ -len(x)//5: ] ] ,weights=y[ srt[ -len(x)//5: ] ])
-    
+    #srt = np.argsort(y)
+    #cen = np.average( x[ srt[ -len(x)//5: ] ] ,weights=y[ srt[ -len(x)//5: ] ])
+    # Adapted 3/12/18, square weights to correct for long scans of sharp peaks.
+    cen = centre(x,y)
+
     # Errors
     damp = np.sqrt(amp)
     dwid = abs(x[1]-x[0])
@@ -6399,6 +6411,8 @@ def bin_pixel_hkl_cut(num,hkl_centre=None,image_centre=None,sum_tolarance=[0.05,
         if image_centre is None:
             i,j = pil_centre
             k = len(x)//2
+        elif image_centre == 'peak':
+            [i,j],k = pilpeak(vol, disp=True)
         else:
             i,j,k = image_centre
         h_centre = hhh[i,j,k]
