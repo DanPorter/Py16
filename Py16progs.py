@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.0
-Last updated: 26/11/18
+Version 4.1
+Last updated: 10/12/18
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -118,7 +118,7 @@ Version History:
 01/08/18 3.9    Removed psutil, added getRAM, various updates and fixes, added plotmeta and pilmaxval, corrected joinscan save
 19/10/18 3.9    Corrected type input of getvol.
 26/11/18 4.0    Output of checkscan, checklog now str
-05/12/18 4.1    Update to simpfit, giving better estimates of peak position
+10/12/18 4.1    Update to simpfit, giving better estimates of peak position, changed default tmpdir
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -167,8 +167,8 @@ from collections import OrderedDict
 filedir = '/dls/i16/data/2018' 
 savedir = '/home/i16user/Desktop'
 
-tmpdir = tempfile.gettempdir()
-#tmpdir = os.path.expanduseer('~')
+#tmpdir = tempfile.gettempdir() # I16 user accounts don't have access
+tmpdir = os.path.expanduser('~')
 
 "-----------------------------Data file format----------------------------"
 datfile_format = '%i.dat'

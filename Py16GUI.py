@@ -115,7 +115,7 @@ Version History:
 01/05/18 3.8    Updated for new PA + pilatus3
 16/07/18 3.9    Upgraded Print_Buffer, added new plot options to multi-plot, added multi_plot input
 20/11/18 4.0    Added plot toolbar, fast buttons for pilatus, external text viewer for log and checkscan
-05/12/18 4.1    Some bug fixes
+10/12/18 4.1    Some bug fixes, added windows printing
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -176,6 +176,7 @@ Py16GUI_Version = 4.1
 
 # Print layout
 default_print_layout = [3,2]
+print_platform = 'windows' # different print commands for different os's
 
 # App Fonts
 BF= ["Times", 12]
@@ -190,11 +191,14 @@ MAC = {'scan':[5,3], 'pilatus': [5,2]}
 if 'linux' in sys.platform:
     print('Linux Distribution detected - adjusting figure size accordingly')
     NORMAL = LINUX
+    print_platform = 'unix'
 elif 'darwin' in sys.platform:
     print('Mac OS detected - adjusting figure size accordingly')
     NORMAL = MAC
+    print_platform = 'unix'
 else:
     NORMAL = WINDOWS
+    import win32api # requried for windows printing
 
 "------------------------------------------------------------------------"
 "---------------------------I16_Data_Viewer------------------------------"
@@ -1682,11 +1686,7 @@ class I16_Data_Viewer():
         plt.close(plt.gcf())
         
         I16_Print_Buffer([1],[3,2])
-        
-        #subprocess.call("lpr -o number-up=4 /home/i16user/tmp/Py16tmp.png")
-        #subprocess.call(['lpr','-o','PageSize=Custom.6x4in','-o','fit-to-page','-r','/home/i16user/tmp/Py16tmp.png'])
-        #subprocess.call(['lpr','-o','fit-to-page','-r',fname])
-	#subprocess.call(['lpr','-r','-o','number-up=4','/home/i16user/tmp/Py16tmp.pdf'])
+
         print( "Figure Printed!" )
         self.helper.set('Figure Printed!')
     
@@ -4012,6 +4012,8 @@ class I16_Print_Buffer():
             im = plt.imread(fname)
             self.ax1.imshow(im)
             self.ax1.axis('off')
+            # Remove image after use
+            os.remove(fname)
         
         canvas = FigureCanvasTkAgg(self.fig1, frm_plt)
         canvas.get_tk_widget().configure(bg='black')
@@ -4035,11 +4037,15 @@ class I16_Print_Buffer():
         " Print the buffer figure"
         fname = os.path.join(self.tmpdir,'Py16_buffer.pdf')
         self.fig1.savefig(fname,format='pdf',papertype='a4',dpi=300)
-        #plt.savefig('/home/i16user/tmp/Py16tmp.png')
-        self.root.destroy()
-        #subprocess.call("lpr -o number-up=4 /home/i16user/tmp/Py16tmp.png")
-        subprocess.call(['lpr','-o','fit-to-page','-r',fname])
+        if print_platform is 'unix':
+            subprocess.call(['lpr','-o','fit-to-page','-r',fname])
+        else:
+            # Windows
+            win32api.ShellExecute (0, "print", fname, None, ".", 0)
         print( "Buffer Printed!" )
+        # Remove file after printing
+        os.remove(fname)
+        self.root.destroy()
     
     def f_save(self):
         " Save the buffer figure"
