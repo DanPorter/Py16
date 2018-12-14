@@ -115,7 +115,7 @@ Version History:
 01/05/18 3.8    Updated for new PA + pilatus3
 16/07/18 3.9    Upgraded Print_Buffer, added new plot options to multi-plot, added multi_plot input
 20/11/18 4.0    Added plot toolbar, fast buttons for pilatus, external text viewer for log and checkscan
-10/12/18 4.1    Some bug fixes, added windows printing
+14/12/18 4.1    Some bug fixes, added windows printing
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -149,7 +149,7 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 from matplotlib.colors import Normalize, LogNorm
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 
 """
 # Import scisoftpy - dnp.io.load is used to read #.dat files
@@ -704,13 +704,13 @@ class I16_Data_Viewer():
         canvas.get_tk_widget().configure(bg='black')
         #canvas.bind("<Button-1>",figureclick) # this doesn't work - FigureCanvasTkAgg doesn't have bind
         #canvas.bind("<B1-Motion>",figurehold)
-        canvas.show()
+        canvas.draw()
         canvas.get_tk_widget().pack(side=tk.RIGHT, fill=tk.BOTH, anchor=tk.NE, expand=tk.YES)
         #canvas.get_tk_widget().pack()
         #self.update_plot()
 
         # Add matplotlib toolbar under plot
-        self.toolbar = NavigationToolbar2TkAgg( canvas, frm_rgt ) 
+        self.toolbar = NavigationToolbar2Tk( canvas, frm_rgt ) 
         self.toolbar.update()
         self.toolbar.pack(side=tk.TOP)
         
@@ -849,7 +849,7 @@ class I16_Data_Viewer():
         
         canvas2 = FigureCanvasTkAgg(self.fig2, frm_pil)
         canvas2.get_tk_widget().configure(bg='black')
-        canvas2.show()
+        canvas2.draw()
         canvas2.get_tk_widget().pack(side=tk.RIGHT, fill=tk.BOTH, anchor=tk.NE, expand=tk.YES)
         
         "-----------------------------Final Options------------------------------"
@@ -1630,7 +1630,6 @@ class I16_Data_Viewer():
     
     def f_fnl_splotprint(self):
         "Send plotscan command to console, print result and close"
-        "Linux ONLY!"
         
         # Get the parameters
         self.set_files()
@@ -1674,21 +1673,13 @@ class I16_Data_Viewer():
         if fittype == 'None': fittype=None
         
         # Send the command
-        cmdstr = 'pp.plotscan({},varx=\'{}\',vary=\'{}\',fit=\'{}\',norm={})'
-        print( cmdstr.format(scanno,setvarx,setvary,fittype,norm) )
+        cmdstr = 'pp.plotscan({},varx=\'{}\',vary=\'{}\',fit=\'{}\',norm={},logplot={},diffplot={})'
+        print( cmdstr.format(scanno,setvarx,setvary,fittype,norm,logplot,diffplot) )
         pp.plotscan(scanno,varx=setvarx,vary=setvary,fit=fittype,norm=norm,logplot=logplot,diffplot=diffplot)
+        fig = plt.gcf()
         
-        " Find the temp directory"
-        tmpdir = pp.tmpdir
-        fname = os.path.join(tmpdir,'Py16_figure1.png')
-        plt.savefig(fname)
-        #plt.savefig('/home/i16user/tmp/Py16tmp.pdf')
-        plt.close(plt.gcf())
-        
-        I16_Print_Buffer([1],[3,2])
-
-        print( "Figure Printed!" )
-        self.helper.set('Figure Printed!')
+        I16_Print_Buffer([fig.number],[3,2])
+        plt.close(fig)
     
     def f_fnl_splotbuffer(self):
         " Send all open figures to the print buffer for 6-per-page page printing"
@@ -3479,7 +3470,7 @@ class I16_Advanced_Fitting:
         
         canvas = FigureCanvasTkAgg(self.fig1, frm_plt)
         canvas.get_tk_widget().configure(bg='black')
-        canvas.show()
+        canvas.draw()
         canvas.get_tk_widget().pack(side=tk.RIGHT, fill=tk.BOTH, anchor=tk.NE, expand=tk.YES)
         #canvas.get_tk_widget().pack()
         #self.update_plot()
@@ -4017,7 +4008,7 @@ class I16_Print_Buffer():
         
         canvas = FigureCanvasTkAgg(self.fig1, frm_plt)
         canvas.get_tk_widget().configure(bg='black')
-        canvas.show()
+        canvas.draw()
         canvas.get_tk_widget().pack(side=tk.RIGHT, fill=tk.BOTH, anchor=tk.NE, expand=tk.YES)
         
         "----------------------------Print Button---------------------------------"
@@ -4037,14 +4028,23 @@ class I16_Print_Buffer():
         " Print the buffer figure"
         fname = os.path.join(self.tmpdir,'Py16_buffer.pdf')
         self.fig1.savefig(fname,format='pdf',papertype='a4',dpi=300)
+        print('Temp file created: %s'%fname)
+        
         if print_platform is 'unix':
+            print('Calling: lpr -o fit-to-page -r %s'%fname)
             subprocess.call(['lpr','-o','fit-to-page','-r',fname])
         else:
             # Windows
+            print('Calling: print %s'%fname)
             win32api.ShellExecute (0, "print", fname, None, ".", 0)
         print( "Buffer Printed!" )
         # Remove file after printing
-        os.remove(fname)
+        try:
+            os.remove(fname)
+            print('Temp file removed')
+        except:
+            print('Couldn''t find %s'%fname)
+            pass
         self.root.destroy()
     
     def f_save(self):
@@ -4056,7 +4056,7 @@ class I16_Print_Buffer():
                 'parent':self.root,
                 'title':'Save the print buffer:'}
         filename = filedialog.asksaveasfilename(**opts)
-        self.fig1.savefig(filename)
+        self.fig1.savefig(filename,papertype='a4',dpi=300)
         print( "Buffer Saved!" )
 
 

@@ -79,7 +79,7 @@ Some Useful Functions:
     
 
 Version 4.1
-Last updated: 10/12/18
+Last updated: 14/12/18
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -118,7 +118,7 @@ Version History:
 01/08/18 3.9    Removed psutil, added getRAM, various updates and fixes, added plotmeta and pilmaxval, corrected joinscan save
 19/10/18 3.9    Corrected type input of getvol.
 26/11/18 4.0    Output of checkscan, checklog now str
-10/12/18 4.1    Update to simpfit, giving better estimates of peak position, changed default tmpdir
+14/12/18 4.1    Update to simpfit, giving better estimates of peak position, changed default tmpdir
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -4134,7 +4134,7 @@ def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75
     ax.autoscale(tight=True)
     
     " Create slider on plot"
-    axsldr = plt.axes([0.15, 0.15, 0.65, 0.03], axisbg='lightgoldenrodyellow')
+    axsldr = plt.axes([0.15, 0.15, 0.65, 0.03], facecolor='lightgoldenrodyellow')
     
     if pil_size[0] > 195:
         "2M pilatus"
