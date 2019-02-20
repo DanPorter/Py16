@@ -78,8 +78,8 @@ I16_Peak_Analysis - Plot and analyse multiple scans, including peak fitting and 
 I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
-Version 4.0
-Last updated: 20/11/18
+Version 4.2
+Last updated: 20/02/19
 
 Version History:
 07/02/16 0.9    Program created
@@ -116,6 +116,7 @@ Version History:
 16/07/18 3.9    Upgraded Print_Buffer, added new plot options to multi-plot, added multi_plot input
 20/11/18 4.0    Added plot toolbar, fast buttons for pilatus, external text viewer for log and checkscan
 14/12/18 4.1    Some bug fixes, added windows printing
+20/02/19 4.2    Some bug fixes, save scan corrected for custom rois, improved More Check Options
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -149,7 +150,7 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 from matplotlib.colors import Normalize, LogNorm
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
 
 """
 # Import scisoftpy - dnp.io.load is used to read #.dat files
@@ -172,7 +173,7 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 4.1
+Py16GUI_Version = 4.2
 
 # Print layout
 default_print_layout = [3,2]
@@ -710,7 +711,7 @@ class I16_Data_Viewer():
         #self.update_plot()
 
         # Add matplotlib toolbar under plot
-        self.toolbar = NavigationToolbar2Tk( canvas, frm_rgt ) 
+        self.toolbar = NavigationToolbar2TkAgg( canvas, frm_rgt ) 
         self.toolbar.update()
         self.toolbar.pack(side=tk.TOP)
         
@@ -1591,25 +1592,25 @@ class I16_Data_Viewer():
             norm = True
         
         # test the vary
-        varx = self.varx.get()
-        vary = self.vary.get()
+        setvarx = self.varx.get()
+        setvary = self.vary.get()
         try:
-            x,y,dy,testvarx,testvary,ttl,d = pp.getdata(scanno,varx=varx,vary=vary,norm=norm)
+            x,y,dy,varx,vary,ttl,d = pp.getdata(scanno,varx=setvarx,vary=setvary,norm=norm)
         except AttributeError:
-            varx = ''
-            vary = ''
+            setvarx = ''
+            setvary = ''
         
         if self.remfrm.get():
             remfrm = '_sfm'
         else:
             remfrm = ''
-        if vary == 'Custom ROI':
+        if setvary == 'Custom ROI':
             ROIceni = self.pilcen_i.get()
             ROIcenj = self.pilcen_j.get()
             ROIsizei = self.roisiz_i.get()
             ROIsizej = self.roisiz_j.get()
-            vary = 'nroi{}[{},{},{},{}]'.format(remfrm,ROIceni,ROIcenj,ROIsizei,ROIsizej)
-        elif vary == 'ROI - bkg':
+            setvary = 'nroi{}[{},{},{},{}]'.format(remfrm,ROIceni,ROIcenj,ROIsizei,ROIsizej)
+        elif setvary == 'ROI - bkg':
             ROIceni = self.pilcen_i.get()
             ROIcenj = self.pilcen_j.get()
             ROIsizei = self.roisiz_i.get()
@@ -1621,10 +1622,10 @@ class I16_Data_Viewer():
         
         # Send the command
         cmdstr = 'pp.plotscan({},varx=\'{}\',vary=\'{}\',fit=\'{}\',norm={})'
-        print( cmdstr.format(scanno,varx,vary,fittype,norm) )
-        pp.plotscan(scanno,varx=varx,vary=vary,fit=fittype,norm=norm,save=True,logplot=logplot,diffplot=diffplot)
+        print( cmdstr.format(scanno,setvarx,setvary,fittype,norm) )
+        pp.plotscan(scanno,varx=setvarx,vary=setvary,fit=fittype,norm=norm,save=True,logplot=logplot,diffplot=diffplot)
         plt.close(plt.gcf())
-        pp.savescan(scanno,varx=varx,vary=vary,norm=norm)
+        pp.savescan(scanno,varx=setvarx,vary=setvary,norm=norm)
         
         self.helper.set('Plot image saved in analysis folder as "S{} ... .png"'.format(scanno))
     
@@ -4095,7 +4096,7 @@ class I16_Check_Log:
         root = tk.Tk()
         root.wm_title('Log Options')
         root.minsize(width=220, height=200)
-        root.maxsize(width=300, height=500)
+        root.maxsize(width=300, height=1000)
         
         #Frame
         frame = tk.Frame(root)
@@ -4149,9 +4150,12 @@ class I16_Check_Log:
         frame1d = tk.Frame(frame1)
         frame1d.pack()
 
-        # Checklog Button
+        # Check Scans Button
         btn_scncmd = tk.Button(frame1d, text='Check Scans',font=BF,command=self.f_checkscans)
-        btn_scncmd.pack()
+        btn_scncmd.pack(side=tk.LEFT)
+        # Plot Meta Button
+        btn_pltcmd = tk.Button(frame1d, text='Plot Data',font=BF,command=self.f_plotmeta)
+        btn_pltcmd.pack(side=tk.LEFT)
         
         "---------------------------Check Log-----------------------------"
         #Frame 2
@@ -4287,19 +4291,38 @@ class I16_Check_Log:
     "------------------------------------------------------------------------"
     "---------------------------Button Functions-----------------------------"
     "------------------------------------------------------------------------"
+    def getdepvar(self):
+        "Reads the dependant variable and returns the values given"
+        
+        depvar = self.scans_val.get()
+        if depvar == '': return depvar
+        depvar = depvar.strip('[]')
+        depvar = [x.strip() for x in depvar.split(',')]
+        return depvar
+
     def f_checkscans(self):
         scans_command = self.scans_cmd.get()
         scans = eval(scans_command)
         
-        showval = self.scans_val.get()
-        if len(showval) == 0: showval = None
+        showval = self.getdepvar() # allows multiple entries
+        if len(showval[0]) == 0: showval = None
 
         find_scan = self.scans_typ.get()
         if len(find_scan) == 0: find_scan = None
         
         self.scans_cmd.set(str(scans))
         outstr = pp.checkscans(scans,showval=showval,find_scans=find_scan)
-        I16_Text_Display(outstr, 'Check Scans')
+        I16_Text_Display(outstr, 'Check Scans {}-{}'.format(scans[0],scans[-1]))
+
+    def f_plotmeta(self):
+        scans_command = self.scans_cmd.get()
+        scans = eval(scans_command)
+        
+        showval = self.getdepvar() # allows multiple entries
+        if len(showval[0]) == 0: showval = 'TimeSec'
+        
+        self.scans_cmd.set(str(scans))
+        pp.plotmeta(scans, fields=showval, use_time=False)
     
     def f_checklog(self):
         time = self.time.get()

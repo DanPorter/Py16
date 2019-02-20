@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.1
-Last updated: 14/12/18
+Version 4.2
+Last updated: 20/02/19
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -119,6 +119,7 @@ Version History:
 19/10/18 3.9    Corrected type input of getvol.
 26/11/18 4.0    Output of checkscan, checklog now str
 14/12/18 4.1    Update to simpfit, giving better estimates of peak position, changed default tmpdir
+20/02/19 4.2    Update to pcolorplot, removed some bugs
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -3081,7 +3082,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
             > 'int' - a figure with a single axis showing the integrated intensity
             > 'wid' - a figure with a single axis showing the fitted FWHM
             > 'cen' - a figure with a single axis showing the fitted centre
-            > 'surface' - *2D fits only!* plots integrated intensities vs x and y data
+            > 'surface' - *2D fits only!* plots integrated intensities vs x and y data. scans should vary each time in y and every n times in x
     
     MASKS:
         > Masks define regions of each scan to remove
@@ -3365,11 +3366,17 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
             inte = unsorted_valstore[:,Ndep+6]
             
             # Determine the repeat length of the scans
-            delta = np.abs(np.diff(sx))
-            ch_idx = np.where(delta > delta.max()*0.9) # find biggest changes
-            ch_delta = np.diff(ch_idx)
-            rep_len = np.round(np.mean(ch_delta))
-            print('Scans are repeating every {} iterations'.format(rep_len))
+            delta_x = np.abs(np.diff(sx))
+            ch_idx_x = np.where(delta_x > delta_x.max()*0.9) # find biggest changes
+            ch_delta_x = np.diff(ch_idx_x)
+            rep_len_x = np.round(np.mean(ch_delta_x))
+            delta_y = np.abs(np.diff(sy))
+            ch_idx_y = np.where(delta_y > delta_y.max()*0.9) # find biggest changes
+            ch_delta_y = np.diff(ch_idx_y)
+            rep_len_y = np.round(np.mean(ch_delta_y))
+            print('Scans in {} are repeating every {} iterations'.format(depvar[0], rep_len_x))
+            print('Scans in {} are repeating every {} iterations'.format(depvar[1], rep_len_y))
+            rep_len = max(rep_len_x, rep_len_y)
             
             # Reshape into square arrays
             # If this is problematic, look at scipy.interpolate.griddata
@@ -3378,13 +3385,13 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
             int_squareA = inte[:rep_len*(len(inte)//rep_len)].reshape(-1,rep_len)
             
             plt.figure(figsize=[12,10])
-            plt.pcolor(sx_squareA,sy_squareA,int_squareA)
+            plt.pcolormesh(sx_squareA, sy_squareA, int_squareA)
             plt.axis('image')
             cb = plt.colorbar()
-            plt.xlabel(dict_names[Ndep-1],fontsize=18)
-            plt.ylabel(dict_names[Ndep],fontsize=18)
-            plt.title(fttl,fontsize=14)
-            cb.set_label('Integrated Area')
+            plt.xlabel(dict_names[Ndep-1],fontsize=22)
+            plt.ylabel(dict_names[Ndep],fontsize=22)
+            plt.title(fttl,fontsize=18)
+            cb.set_label('Integrated Area',fontsize=22)
         
         "---Save Figure---"
         if savePLOT not in [None, False, '']:
@@ -3593,12 +3600,18 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
             sy = valstore[:,Ndep]
             inte = valstore[:,Ndep+6]
             
-            # Determine the repeat length of the scans
-            delta = np.abs(np.diff(sx))
-            ch_idx = np.where(delta > delta.max()*0.9) # find biggest changes
-            ch_delta = np.diff(ch_idx)
-            rep_len = np.round(np.mean(ch_delta))
-            print('Scans are repeating every {} iterations'.format(rep_len))
+             # Determine the repeat length of the scans
+            delta_x = np.abs(np.diff(sx))
+            ch_idx_x = np.where(delta_x > delta_x.max()*0.9) # find biggest changes
+            ch_delta_x = np.diff(ch_idx_x)
+            rep_len_x = np.round(np.mean(ch_delta_x))
+            delta_y = np.abs(np.diff(sy))
+            ch_idx_y = np.where(delta_y > delta_y.max()*0.9) # find biggest changes
+            ch_delta_y = np.diff(ch_idx_y)
+            rep_len_y = np.round(np.mean(ch_delta_y))
+            print('Scans in {} are repeating every {} iterations'.format(depvar[0], rep_len_x))
+            print('Scans in {} are repeating every {} iterations'.format(depvar[1], rep_len_y))
+            rep_len = max(rep_len_x, rep_len_y)
             
             # Reshape into square arrays
             # If this is problematic, look at scipy.interpolate.griddata
@@ -3607,12 +3620,12 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
             int_squareA = inte[:rep_len*(len(inte)//rep_len)].reshape(-1,rep_len)
             
             plt.figure(figsize=[12,10])
-            plt.pcolor(sx_squareA,sy_squareA,int_squareA)
+            plt.pcolormesh(sx_squareA, sy_squareA, int_squareA)
             plt.axis('image')
             cb = plt.colorbar()
-            plt.xlabel(names[Ndep-1],fontsize=22)
-            plt.ylabel(names[Ndep],fontsize=22)
-            plt.title(fttl,fontsize=28)
+            plt.xlabel(dict_names[Ndep-1],fontsize=22)
+            plt.ylabel(dict_names[Ndep],fontsize=22)
+            plt.title(fttl,fontsize=18)
             cb.set_label('Integrated Area',fontsize=22)
         
         "---Save Figure---"
