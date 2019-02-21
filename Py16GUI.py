@@ -79,7 +79,7 @@ I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
 Version 4.2
-Last updated: 20/02/19
+Last updated: 21/02/19
 
 Version History:
 07/02/16 0.9    Program created
@@ -116,7 +116,7 @@ Version History:
 16/07/18 3.9    Upgraded Print_Buffer, added new plot options to multi-plot, added multi_plot input
 20/11/18 4.0    Added plot toolbar, fast buttons for pilatus, external text viewer for log and checkscan
 14/12/18 4.1    Some bug fixes, added windows printing
-20/02/19 4.2    Some bug fixes, save scan corrected for custom rois, improved More Check Options
+21/02/19 4.2    Some bug fixes, save scan corrected for custom rois, improved More Check Options
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -598,7 +598,8 @@ class I16_Data_Viewer():
         self.custom1 = tk.StringVar(frm_cst1,'Custom')
         self.custom1_val = tk.StringVar(frm_cst1,'--')
         ylist = ['Custom']
-        self.opt_cust1 = tk.OptionMenu(frm_cst1, self.custom1, *ylist,command=self.f_detl_custom1)
+        self.opt_cust1 = tk.Button(frm_cst1, textvariable=self.custom1, font=BF, command=self.f_detl_custom1)
+        #self.opt_cust1 = tk.OptionMenu(frm_cst1, self.custom1, *ylist,command=self.f_detl_custom1)
         self.opt_cust1.config(width=15)
         self.opt_cust1.pack(side=tk.LEFT,padx=(10,3))
         lbl_cust = tk.Label(frm_cst1, textvariable=self.custom1_val,font=SF)
@@ -609,7 +610,8 @@ class I16_Data_Viewer():
         self.custom2 = tk.StringVar(frm_cst2,'Custom')
         self.custom2_val = tk.StringVar(frm_cst2,'--')
         ylist = ['Custom']
-        self.opt_cust2 = tk.OptionMenu(frm_cst2, self.custom2, *ylist,command=self.f_detl_custom2)
+        self.opt_cust2 = tk.Button(frm_cst2, textvariable=self.custom2, font=BF, command=self.f_detl_custom2)
+        #self.opt_cust2 = tk.OptionMenu(frm_cst2, self.custom2, *ylist,command=self.f_detl_custom2)
         self.opt_cust2.config(width=15)
         self.opt_cust2.pack(side=tk.LEFT,padx=(10,3))
         lbl_cust = tk.Label(frm_cst2, textvariable=self.custom2_val,font=SF)
@@ -1102,14 +1104,24 @@ class I16_Data_Viewer():
         "Plot scan with fit"
         self.update_plot()
     
-    def f_detl_custom1(self,x):
+    def f_detl_custom1(self):
         "Asign value to custom detail"
-        self.custom1.set(x)
-        self.update_details()
+        self.set_files()
+        scanno = self.scanno.get()
+        d = pp.readscan(scanno)
+
+        metafields = d.metadata.keys()
+        out = I16_Meta_Select(self, self.custom1, metafields)
     
-    def f_detl_custom2(self,x):
+    def f_detl_custom2(self):
         "Asign value to custom detail"
-        self.custom2.set(x)
+        self.set_files()
+        scanno = self.scanno.get()
+        d = pp.readscan(scanno)
+
+        metafields = d.metadata.keys()
+        out = I16_Meta_Select(self, self.custom2, metafields)
+        #self.root.wait_window(out.root)
         self.update_details()
     
     def f_log_dn(self):
@@ -1812,12 +1824,13 @@ class I16_Data_Viewer():
             self.opt_vary['menu'].add_command(label=key, command=lambda k=key: self.f_popt_vary(k))
         
         # Set Custom1 and custom 2 option menu entrys
+        """
         self.opt_cust1['menu'].delete(0, 'end')
         self.opt_cust2['menu'].delete(0, 'end')
         for key in keys_all:
             self.opt_cust1['menu'].add_command(label=key, command=lambda k=key: self.f_detl_custom1(k))
             self.opt_cust2['menu'].add_command(label=key, command=lambda k=key: self.f_detl_custom2(k))
-        
+        """
         
         # Initilise frame variables
         self.cmd.set(m.cmd_short)
@@ -2384,6 +2397,93 @@ class I16_Meta_Display:
 
 
 "------------------------------------------------------------------------"
+"--------------------------I16_Meta_Display------------------------------"
+"------------------------------------------------------------------------"
+class I16_Meta_Select:
+    """
+    Displays all metadata fields and returns a selection
+    I16_Meta_Select(root, widget, ['field1','field2','field3'])
+    Making a selection returns the field string
+    """
+    "------------------------------------------------------------------------"
+    "--------------------------GUI Initilisation-----------------------------"
+    "------------------------------------------------------------------------"
+    def __init__(self,parent, field, meta_fields):
+        self.parent = parent # main root 
+        self.field = field # custom1/2 widget
+        self.meta_fields = meta_fields
+        
+        # Create Tk inter instance
+        self.root = tk.Tk()
+        self.root.wm_title('Select Metadata')
+        self.root.minsize(width=30, height=300)
+        self.root.maxsize(width=800, height=800)
+        self.output = 'Custom'
+        
+        #Frame
+        frame = tk.Frame(self.root)
+        frame.pack(side=tk.LEFT,fill=tk.BOTH,expand=tk.YES,anchor=tk.N)
+        
+        "---------------------------Metadata ListBox---------------------------"
+        # Eval box with scroll bar
+        frm_meta = tk.Frame(frame)
+        frm_meta.pack(side=tk.TOP,fill=tk.BOTH,expand=tk.YES)
+        
+        scl_metax = tk.Scrollbar(frm_meta,orient=tk.HORIZONTAL)
+        scl_metax.pack(side=tk.BOTTOM, fill=tk.BOTH)
+        
+        scl_metay = tk.Scrollbar(frm_meta)
+        scl_metay.pack(side=tk.RIGHT, fill=tk.BOTH)
+        
+        self.lst_meta = tk.Listbox(frm_meta, font=HF, selectmode=tk.SINGLE,width=15,height=20,
+                                xscrollcommand=scl_metax.set,yscrollcommand=scl_metay.set)
+        self.lst_meta.configure(exportselection=True)
+        
+        # Populate list box
+        for k in self.meta_fields:
+            #if k[0] == '_': continue # Omit _OrderedDict__root/map
+            strval = '{}'.format(k)
+            self.lst_meta.insert(tk.END,strval)
+        
+        self.lst_meta.pack(side=tk.LEFT,fill=tk.BOTH,expand=tk.YES)
+        self.lst_meta.select_set(0)
+        self.lst_meta.bind("<<ListboxSelect>>", self.f_meta_select)
+        #print( self.lst_meta.curselection()[0] )
+        
+        scl_metax.config(command=self.lst_meta.xview)
+        scl_metay.config(command=self.lst_meta.yview)
+        
+        #self.txt_meta.config(xscrollcommand=scl_metax.set,yscrollcommand=scl_metay.set)
+        
+        "----------------------------Exit Button------------------------------"
+        frm_btn = tk.Frame(frame)
+        frm_btn.pack()
+        
+        btn_exit = tk.Button(frm_btn,text='Exit',font=BF, command=self.f_exit)
+        btn_exit.pack()
+
+        "-------------------------Start Mainloop------------------------------"
+        self.root.protocol("WM_DELETE_WINDOW", self.f_exit)
+        #self.root.mainloop()
+        
+    "------------------------------------------------------------------------"
+    "--------------------------General Functions-----------------------------"
+    "------------------------------------------------------------------------"
+    
+    def f_meta_select(self, event):
+        "Choose a metadata field"
+        self.output = self.meta_fields[self.lst_meta.curselection()[0]]
+        if self.output[0] == '_': return # Omit _OrderedDict__root/map
+        self.field.set(self.output)
+        self.parent.update_details()
+        self.root.destroy()
+
+    def f_exit(self):
+        "Closes the current metadata window"
+        self.root.destroy()
+
+
+"------------------------------------------------------------------------"
 "--------------------------I16_Text_Display------------------------------"
 "------------------------------------------------------------------------"
 class I16_Text_Display:
@@ -2515,6 +2615,9 @@ class I16_Python_Editor:
             xscrollcommand=scl_textx.set,
             yscrollcommand=scl_texty.set)
         self.text.configure(exportselection=True)
+        self.text.bind('<Control-s>',self.f_save)
+        self.text.bind('<Control-b>',self.f_run)
+        self.text.bind('<Control-r>',self.f_run)
         
         # Populate text box
         self.text.insert(tk.END, disp_str)
@@ -2544,7 +2647,7 @@ class I16_Python_Editor:
     "------------------------------------------------------------------------"
     "--------------------------General Functions-----------------------------"
     "------------------------------------------------------------------------"
-    def f_run(self):
+    def f_run(self, event=None):
         "Run the code"
         code = self.text.get(1.0, tk.END)
         exec(code)
@@ -2565,9 +2668,10 @@ class I16_Python_Editor:
             disp_str = file.read()
         I16_Python_Editor(disp_str, newsavelocation)
 
-    def f_save(self):
+    def f_save(self, event=None):
         "Save the file"
         if self.savelocation == '':
+            self.f_saveas()
             return
 
         code = self.text.get(1.0, tk.END)
@@ -2585,7 +2689,8 @@ class I16_Python_Editor:
             initialfile='script.py',
             defaultextension='.py',
             filetypes = (("python file","*.py"),("all files","*.*")))
-        self.f_save()
+        if self.savelocation != '':
+            self.f_save()
 
     def f_exit(self):
         "Closes the current text window"
@@ -4278,8 +4383,7 @@ class I16_Check_Log:
         lbl_scan2 = tk.Label(frame3b,text='Last Scan:',font=SF)
         lbl_scan2.pack(side=tk.LEFT,padx=5,pady=5)
         ety_scan2 = tk.Entry(frame3b,textvariable=self.last_scan, width=20)
-        ety_scan2.pack(side=tk.LEFT,padx=5,pady=5)
-        
+        ety_scan2.pack(side=tk.LEFT,padx=5,pady=5)        
         # Line 1c
         frame3c = tk.Frame(frame3)
         frame3c.pack()
@@ -4295,7 +4399,6 @@ class I16_Check_Log:
         "Reads the dependant variable and returns the values given"
         
         depvar = self.scans_val.get()
-        if depvar == '': return depvar
         depvar = depvar.strip('[]')
         depvar = [x.strip() for x in depvar.split(',')]
         return depvar

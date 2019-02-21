@@ -79,7 +79,7 @@ Some Useful Functions:
     
 
 Version 4.2
-Last updated: 20/02/19
+Last updated: 21/02/19
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -119,7 +119,7 @@ Version History:
 19/10/18 3.9    Corrected type input of getvol.
 26/11/18 4.0    Output of checkscan, checklog now str
 14/12/18 4.1    Update to simpfit, giving better estimates of peak position, changed default tmpdir
-20/02/19 4.2    Update to pcolorplot, removed some bugs
+21/02/19 4.2    Update to pcolorplot, removed some bugs
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -3376,7 +3376,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
             rep_len_y = np.round(np.mean(ch_delta_y))
             print('Scans in {} are repeating every {} iterations'.format(depvar[0], rep_len_x))
             print('Scans in {} are repeating every {} iterations'.format(depvar[1], rep_len_y))
-            rep_len = max(rep_len_x, rep_len_y)
+            rep_len = int(max(rep_len_x, rep_len_y))
             
             # Reshape into square arrays
             # If this is problematic, look at scipy.interpolate.griddata
@@ -3611,7 +3611,7 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
             rep_len_y = np.round(np.mean(ch_delta_y))
             print('Scans in {} are repeating every {} iterations'.format(depvar[0], rep_len_x))
             print('Scans in {} are repeating every {} iterations'.format(depvar[1], rep_len_y))
-            rep_len = max(rep_len_x, rep_len_y)
+            rep_len = int(max(rep_len_x, rep_len_y))
             
             # Reshape into square arrays
             # If this is problematic, look at scipy.interpolate.griddata
