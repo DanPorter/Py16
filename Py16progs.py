@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.2
-Last updated: 21/02/19
+Version 4.3
+Last updated: 15/04/19
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -120,6 +120,8 @@ Version History:
 26/11/18 4.0    Output of checkscan, checklog now str
 14/12/18 4.1    Update to simpfit, giving better estimates of peak position, changed default tmpdir
 21/02/19 4.2    Update to pcolorplot, removed some bugs
+18/03/19 4.2    Update to plotscans, correcting normalisation for multi-vary
+15/04/19 4.3	Update to readscan, additional checks on metadata added
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -303,7 +305,7 @@ def read_dat_file(filename):
         main[name] = value
     
     # Convert to class instance
-    d = dict2obj(main,order=names)
+    d = dict2obj(main, order=names)
     d.metadata = dict2obj(meta)
     return d
 
@@ -358,22 +360,40 @@ def readscan(num):
         d.metadata.cmd_short = cmd
     
     " Correct re-assigned values"
+    keys = d.keys()
+    metakeys = d.metadata.keys()
     " For some reason, parameter names change occsaionaly, add correction here"
     # Correct d.scannables
-    if 'count_time' in d.keys(): d.t = d.count_time
-    if 'energy2' in d.keys(): d.energy = d.energy2
-    if 'rc' not in d.keys(): d.rc = exp_ring_current*np.ones(len(d[d.keys()[0]]))
-    if 'TimeSec' not in d.keys(): d.TimeSec = np.arange(0,len(d[d.keys()[0]]))
+    if 'count_time' in keys: d.t = d.count_time
+    if 'energy2' in keys: d.energy = d.energy2
+    if 'rc' not in keys: d.rc = exp_ring_current*np.ones(len(d[keys[0]]))
+    if 'TimeSec' not in keys: d.TimeSec = np.arange(0,len(d[keys[0]]))
     # Correct d.metadata
-    if 'en' in d.metadata.keys(): d.metadata.Energy = d.metadata.en
-    if 'pgm_energy' in d.metadata.keys(): d.metadata.Energy = d.metadata.pgm_energy
-    if 'stokes' in d.metadata.keys(): d.metadata.stoke = d.metadata.stokes
-    if 'azih' not in d.metadata.keys(): d.metadata.azih=0;d.metadata.azik=0;d.metadata.azil=0
-    if 'psi' not in d.metadata.keys(): d.metadata.psi = 666
-    if 'h' not in d.metadata.keys(): d.metadata.h = 0.0
-    if 'k' not in d.metadata.keys(): d.metadata.k = 0.0
-    if 'l' not in d.metadata.keys(): d.metadata.l = 0.0
-    if 'Ta' not in d.metadata.keys(): d.metadata.Ta = 300.0
+    if 'en' in metakeys: d.metadata.Energy = d.metadata.en; metakeys+=['Energy']
+    if 'pgm_energy' in metakeys: d.metadata.Energy = d.metadata.pgm_energy; metakeys+=['Energy']
+    if 'stokes' in metakeys: d.metadata.stoke = d.metadata.stokes
+    # Missing metaddata
+    if 'SRSRUN' not in metakeys: d.metadata.SRSRUN = num
+    if 'a' not in metakeys: d.metadata.a = 1.
+    if 'b' not in metakeys: d.metadata.b = 1.
+    if 'c' not in metakeys: d.metadata.c = 1.
+    if 'alpha1' not in metakeys: d.metadata.alpha1 = 90.0
+    if 'alpha2' not in metakeys: d.metadata.alpha2 = 90.0
+    if 'alpha3' not in metakeys: d.metadata.alpha3 = 90.0
+    if 'thp' not in metakeys: d.metadata.thp = 0.0
+    if 'delta_axis_offset' not in metakeys: d.metadata.delta_axis_offset = 0.0
+    if 'Energy' not in metakeys: d.metadata.Energy = np.NaN
+    if 's5xgap' not in metakeys: d.metadata.s5xgap=-1;d.metadata.s5ygap=-1
+    if 's6xgap' not in metakeys: d.metadata.s6xgap=-1;d.metadata.s6ygap=-1
+    if 'm4pitch' not in metakeys: d.metadata.m4pitch=0.0
+    if 'Atten' not in metakeys: d.metadata.Atten=-1;d.metadata.Transmission=1.0
+    if 'gam' not in metakeys: d.metadata.gam=d.kgam
+    if 'azih' not in metakeys: d.metadata.azih=0;d.metadata.azik=0;d.metadata.azil=0
+    if 'psi' not in metakeys: d.metadata.psi = 666
+    if 'h' not in metakeys: d.metadata.h = 0.0
+    if 'k' not in metakeys: d.metadata.k = 0.0
+    if 'l' not in metakeys: d.metadata.l = 0.0
+    if 'Ta' not in metakeys: d.metadata.Ta = 300.0
     
     " Add filename"
     d.metadata.filename = file
@@ -385,6 +405,10 @@ def readscan(num):
     d.metadata.hkl_str = scanhkl(d)
     " Add a temperature string"
     d.metadata.temperature = scantemp(d,default_sensor)
+    " Add energy string"
+    d.metadata.energy_str = scanenergy(d)
+    " Add minimirror string"
+    d.metadata.minimirrors = scanminimirrors(d)
     " Correct psi values"
     if d.metadata.psi < -1000: d.metadata.psi = 0.0
     if type(d.metadata.psi) is str: d.metadata.psi = 666
@@ -400,13 +424,13 @@ def readscan(num):
         print('The scantitle or azimuth couldn''t be generated')
         pass
     " Array items"
-    d.scannables = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
+    d.scannables = [x for x in keys if type(d[x]) == np.ndarray ] # only keys linked to arrays
     " Update keys"
     d.update(d.__dict__)
     d.metadata.update(d.metadata.__dict__)
     return d
 
-def getdata(num=None,varx='',vary='',norm=True,abscor=None):
+def getdata(num=None, varx='', vary='', norm=True, abscor=None):
     """
     Get useful values from scans
          x,y,dy,varx,vary,ttl,d = getdata(#/d,'varx','vary')
@@ -459,46 +483,18 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
         print( "This may be a 2D Scan - I'm afraid this isn't implemented yet!" )
     """
     
-    """
-    " Use scan command to determine variables of scan and title"
-    HKL = m.hkl_str
-    Energy = '{0:1.4g}keV'.format(m.Energy)
-    Temp = '{0:1.3g}K'.format(m.Ta)
-    if Temp == '0K': Temp = '300K'
-    pol = ''
-    if m.delta_axis_offset < 1 and m.thp > 10:
-        if m.gam > 0.:
-            if m.stoke < 45.:
-                pol = ' p-p'
-            else:
-                pol = ' p-s'
-        else:
-            if m.stoke < 45.:
-                pol = ' s-s'
-            else:
-                pol = ' s-p'
-    
-    "---exp_title---"
-    if exp_title is '':
-        etitle = os.path.basename(filedir.strip('\\/'))
-    else:
-        etitle = exp_title
-    
-    "---Generate title---"
-    ttl = '{} #{} {} {} {}{}'.format(etitle,m.SRSRUN,HKL,Energy,Temp,pol).strip()
-    """
     ttl = scantitle(d)
     
     "---Determine scan variables from scan command---"
     if varx not in keys:
         try:
-            x = np.asarray(getattr(m,varx)).reshape(-1) # allow single value x
+            x = np.asarray(getattr(m, varx)).reshape(-1) # allow single value x
         except:
             varx = auto_varx(d)
-            x = getattr(d,varx)
+            x = getattr(d, varx)
     else:
         " y values from data file"
-        x = getattr(d,varx)
+        x = getattr(d, varx)
     
     
     "***Get y values***"
@@ -612,7 +608,7 @@ def getdata(num=None,varx='',vary='',norm=True,abscor=None):
         vary += '/A'
     return x,y,dy,varx,vary,ttl,d
 
-def getmeta(nums=None,field='Energy'):
+def getmeta(nums=None, field='Energy'):
     """
     Get metadata from multiple scans and return array of values
     Usage: A = getmeta( [nums], 'field')
@@ -645,7 +641,7 @@ def getmeta(nums=None,field='Energy'):
         metavals = metavals[0]
     return metavals
 
-def getmetas(nums=[0],fields=['Energy']):
+def getmetas(nums=[0], fields=['Energy']):
     """
     Get several metadata values from multiple scans and return list of values
     Usage: A = getmetas( [nums], 'field')
@@ -693,7 +689,7 @@ def getmetas(nums=[0],fields=['Energy']):
         metavals += [fieldvals]
     return metavals
 
-def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,sort=False,abscor=None,save=False):
+def joindata(nums=None, varx='', vary='Energy', varz='', norm=True, sort=False, abscor=None, save=False):
     """
     Get useful values from scans, join multiple scans together, output joined arrays
      x,y,z,varx,vary,varz,ttl = joindata([nums],'varx','vary','varz')
@@ -835,7 +831,7 @@ def joindata(nums=None,varx='',vary='Energy',varz='',norm=True,sort=False,abscor
     
     return storex,storey,storez,out_varx,vary,out_varz,out_ttl
 
-def getvol(num,ROIcen=None,ROIsize=None):
+def getvol(num, ROIcen=None, ROIsize=None):
     """
     Load Pilatus images into a single volume: 
         vol=getvol(#/d)
@@ -942,7 +938,7 @@ def getvol(num,ROIcen=None,ROIsize=None):
     
     return vol
 
-def pilroi(vol,ROIcen=None,ROIsize=[31,31],disp=False):
+def pilroi(vol, ROIcen=None, ROIsize=[31,31], disp=False):
     """
     Define new ROI in Pilatus Detector
      ROI_sum,ROI_maxval,ROI_bkg = pilroi(vol,ROIcen,ROIsize)
@@ -1012,7 +1008,7 @@ def pilroi(vol,ROIcen=None,ROIsize=[31,31],disp=False):
     
     return ROI_sum,ROI_maxval,ROI_bkg
 
-def pixel2hkl(num,detdim=[195,487],UB=None):
+def pixel2hkl(num, detdim=[195,487], UB=None):
     """
     Generate hkl coordinates of detector pixel positions
       HHH,KKK,LLL = pixel2hkl(#/d, detdim,UB)
@@ -1267,7 +1263,7 @@ def pixel2hkl(num,detdim=[195,487],UB=None):
     print("#{} Time spent generating hkl positions={}".format(num,t2-t1))
     return HHH,KKK,LLL
 
-def pixel2xyz(num,detdim=[195,487]):
+def pixel2xyz(num, detdim=[195,487]):
     """
     Generate cartesian coordinates of detector pixel positions, in A-1
       XXX,YYY,ZZZ = pixel2xyz(#/d, detdim)
@@ -1286,7 +1282,7 @@ def pixel2xyz(num,detdim=[195,487]):
     XXX,YYY,ZZZ = pixel2hkl(num,detdim,UB)
     return XXX,YYY,ZZZ
 
-def pixel2tth(num,detdim=[195,487],centre_only=False,norm=True):
+def pixel2tth(num, detdim=[195,487], centre_only=False, norm=True):
     """
     Generate two-theta coordinates of detector pixel positions
       TTH,INT = pixel2tth(#/d, detdim)
@@ -1330,7 +1326,7 @@ def pixel2tth(num,detdim=[195,487],centre_only=False,norm=True):
     
     return TTH,vol
 
-def pixel2tth2(num,detdim=[195,487], norm=True, pixel_centre=[104, 205], frame_centre=0, pixel_width=10, frame_width=4):
+def pixel2tth2(num, detdim=[195,487], norm=True, pixel_centre=[104, 205], frame_centre=0, pixel_width=10, frame_width=4):
     """
     Generate two-theta coordinates of detector pixel positions
       TTH,INT = pixel2tth2(#/d, detdim, norm, pixel_centre, frame_centre, pixel_width, frame_width)
@@ -1392,7 +1388,7 @@ def pixel2tth2(num,detdim=[195,487], norm=True, pixel_centre=[104, 205], frame_c
     
     return tth,I
 
-def pixel2chi(num,detdim=[195,487], norm=True, pixel_centre=[104, 205], frame_centre=0, pixel_width=10, frame_width=4):
+def pixel2chi(num, detdim=[195,487], norm=True, pixel_centre=[104, 205], frame_centre=0, pixel_width=10, frame_width=4):
     """
     Generate two-theta coordinates of detector pixel positions
       TTH,INT = pixel2tth2(#/d, detdim, norm, pixel_centre, frame_centre, pixel_width, frame_width)
@@ -2047,7 +2043,7 @@ def scanpol(num,latex=False):
         return ltx
     return pol
 
-def scantemp(num,sensor=None):
+def scantemp(num, sensor=None):
     "Returns the average temperature of the chosen scan as a formatted string"
     
     try:
@@ -2084,7 +2080,7 @@ def scanss(num):
     return '{0:4.2f}x{1:4.2f} mm'.format(m.s5xgap,m.s5ygap)
 
 def scands(num):
-    "Returns the detector slit gaps as a formatted string"
+    "Returns the MiniMirror Pitch"
     
     try:
         d = readscan(num)
@@ -2097,6 +2093,21 @@ def scands(num):
         return '{0:4.2f}x{1:4.2f} mm'.format(m.s7xgap,m.s7ygap)
     else:
         return '{0:4.2f}x{1:4.2f} mm'.format(m.s6xgap,m.s6ygap)
+
+def scanminimirrors(num):
+    "Returns the minimirror position a formatted string"
+    
+    try:
+        d = readscan(num)
+    except TypeError:
+        d = num
+    
+    m = d.metadata
+    if m.m4pitch > 0.02:
+        mmin = 'in'
+    else:
+        mmin = 'out'
+    return '{} ({:4.2f} deg)'.format(mmin, m.m4pitch)
 
 def scanenergy(num):
     "Returns the average energy of the chosen scan as a formatted string"
@@ -2217,7 +2228,7 @@ def scanimage(num, idx=0):
         d = num
     
     file = scanimagefile(num, idx)
-    im=misc.imread(file,flatten=True) # flatten required to read zylar 16 bit files
+    im=misc.imread(file, flatten=True) # flatten required to read zylar 16 bit files
     return im
 
 def prend(start=0,end=None):
@@ -2330,7 +2341,7 @@ def findfile(num,topdir=None):
             print( 'Scan {} was in directory: {}'.format(num,root) )
             return root
 
-def polflip(sigsig,sigpi,fit='Gauss',output=False,plot=False):
+def polflip(sigsig, sigpi, fit='Gauss', output=False, plot=False):
     "Calculate flipping ratio ect."
     # Flipping ratio - measured on the straight through beam
     x1,y1,dy1,varx1,vary1,ttl1,d1 = getdata(sigsig) # scan 1
@@ -2422,7 +2433,7 @@ def polflip(sigsig,sigpi,fit='Gauss',output=False,plot=False):
         plt.show()
         saveplot('POLFLIP '+saveable(ttl1))
 
-def polenergy(sigsig,sigpi,background=None,vary='',bkg_scale=None,flipping_ratio=None,low_points=5,save=False):
+def polenergy(sigsig, sigpi, background=None, vary='', bkg_scale=None, flipping_ratio=None, low_points=5, save=False):
     "Create Plot of energy-polarisation scans and calculate the subtraction"
     
     " Get the signal data - measured at a resonant feature in ss and sp"
@@ -2437,10 +2448,10 @@ def polenergy(sigsig,sigpi,background=None,vary='',bkg_scale=None,flipping_ratio
     " Get metadata"
     m = d2.metadata
     cmd = m.cmd_short # Scan command
-    hkl = '({:3.1f},{:3.1f},{:3.1f})'.format(m.h,m.k,m.l)
+    hkl = m.hkl_str
     T = m.temperature
-    sampsl = '{0:4.2g}x{1:<4.2g}'.format(m.s5xgap,m.s5ygap)
-    detsl = '{0:4.2g}x{1:<4.2g}'.format(m.s6xgap,m.s6ygap)
+    sampsl = scanss(d)
+    detsl = scands(d)
     atten1 = '{0:1.0f}'.format(m.Atten)
     psival = '{:1.3g}'.format(m.psi)
     azir = r'$\angle$ ({:1.0f}{:1.0f}{:1.0f})'.format(m.azih,m.azik,m.azil)
@@ -3919,7 +3930,7 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
                 dy2 = dy2**2 # add errors in quadrature
                 for nvary in varys:
                     # Get data 
-                    x3,y3,dy3 = getdata(dn,vary=nvary,varx=varx)[:3]
+                    x3,y3,dy3 = getdata(dn,vary=nvary,varx=varx,norm=norm)[:3]
                     y2 -= y3
                     dy2 += dy3**2
                 dy2 = np.sqrt(dy2)
@@ -3983,7 +3994,7 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
     if len(varys) > 0 and subtract==False:
         for n,nvary in enumerate(varys):
             " Get data" 
-            x2,y2,dy2,varx2,vary2,ttl2,dn = getdata(num,vary=nvary,varx=varx)
+            x2,y2,dy2,varx2,vary2,ttl2,dn = getdata(num,vary=nvary,varx=varx,norm=norm)
             mn = dn.metadata
             
             " Generate label"

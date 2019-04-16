@@ -78,8 +78,8 @@ I16_Peak_Analysis - Plot and analyse multiple scans, including peak fitting and 
 I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
-Version 4.2
-Last updated: 21/02/19
+Version 4.3
+Last updated: 16/04/19
 
 Version History:
 07/02/16 0.9    Program created
@@ -117,6 +117,7 @@ Version History:
 20/11/18 4.0    Added plot toolbar, fast buttons for pilatus, external text viewer for log and checkscan
 14/12/18 4.1    Some bug fixes, added windows printing
 21/02/19 4.2    Some bug fixes, save scan corrected for custom rois, improved More Check Options
+16/04/19 4.3    Added error checking on metadata
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -173,7 +174,7 @@ if os.path.dirname(__file__) not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 4.2
+Py16GUI_Version = 4.3
 
 # Print layout
 default_print_layout = [3,2]
@@ -1831,40 +1832,42 @@ class I16_Data_Viewer():
             self.opt_cust1['menu'].add_command(label=key, command=lambda k=key: self.f_detl_custom1(k))
             self.opt_cust2['menu'].add_command(label=key, command=lambda k=key: self.f_detl_custom2(k))
         """
+
+        def setval(obj, name):
+            obj=getattr(self, obj)
+            obj.set(getattr(m, name))
+            try:
+                obj.set(getattr(m, name))
+            except AttributeError:
+                obj.set('--')
         
         # Initilise frame variables
-        self.cmd.set(m.cmd_short)
         self.N.set(str(len(d[keys[0]])))
-        self.HKL.set(m.hkl_str)
-        self.ENG.set('{} keV'.format(m.Energy))
-        self.T.set(m.temperature)
-        
-        self.do.set(m.delta_axis_offset)
-
-        self.eta.set(m.eta)
-        self.chi.set(m.chi)
-        self.dlt.set(m.delta)
-        self.mu .set(m.mu)
-        self.gam.set(m.gam)
+        setval('cmd', 'cmd_short')
+        setval('HKL', 'hkl_str')
+        setval('ENG', 'energy_str')
+        setval('T', 'temperature')
+        setval('do', 'delta_axis_offset')
+        setval('eta', 'eta')
+        setval('chi', 'chi')
+        setval('dlt', 'delta')
+        setval('mu', 'mu')
+        setval('gam', 'gam')
+       
         self.azir.set('({0},{1},{2})'.format(m.azih,m.azik,m.azil))
         self.psi.set(np.round(m.psi,3))
         self.phi.set(np.round(m.phi,3))
 
-        self.sx.set(m.sx)
-        self.sy.set(m.sy)
-        self.sz.set(m.sz)
-        self.spara.set(m.spara)
-        self.sperp.set(m.sperp)
+        setval('sx', 'sx')
+        setval('sy', 'sy')
+        setval('sz', 'sz')
+        setval('sperp', 'sperp')
+        setval('spara', 'spara')
         
         self.ss.set('{}'.format(pp.scanss(d)))
         self.ds.set('{}'.format(pp.scands(d)))
         
-        # Minimirrors
-        if m.m4pitch > 0.1: 
-            mm = 'in' 
-        else: 
-            mm = 'out'
-        self.mm.set('{} ({:4.2f} deg)'.format(mm,m.m4pitch))
+        setval('mm', 'minimirrors')
         
         self.atten.set('{} ({}%)'.format(m.Atten,m.Transmission*100))
         self.trans.set(m.Transmission)
