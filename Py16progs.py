@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.3
-Last updated: 15/04/19
+Version 4.4
+Last updated: 15/05/19
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -122,6 +122,7 @@ Version History:
 21/02/19 4.2    Update to pcolorplot, removed some bugs
 18/03/19 4.2    Update to plotscans, correcting normalisation for multi-vary
 15/04/19 4.3	Update to readscan, additional checks on metadata added
+15/05/19 4.4    Updated labels function, added newplot, multiplot, sliderplot, sliderplot2D
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -2450,8 +2451,8 @@ def polenergy(sigsig, sigpi, background=None, vary='', bkg_scale=None, flipping_
     cmd = m.cmd_short # Scan command
     hkl = m.hkl_str
     T = m.temperature
-    sampsl = scanss(d)
-    detsl = scands(d)
+    sampsl = scanss(d2)
+    detsl = scands(d2)
     atten1 = '{0:1.0f}'.format(m.Atten)
     psival = '{:1.3g}'.format(m.psi)
     azir = r'$\angle$ ({:1.0f}{:1.0f}{:1.0f})'.format(m.azih,m.azik,m.azil)
@@ -2852,7 +2853,12 @@ def example_script(scanno=None):
 
     outstr += 'd = pp.plotscan({}) # automatic plot, see help(pp.plotscan)\n\n'.format(scanno)
 
-    outstr += 'x,y,dy, varx, vary, ttl, d = pp.getdata({}) # automatic axes and normalisation\n\n'.format(scanno)
+    outstr += 'x,y,dy, varx, vary, ttl, d = pp.getdata({}, varx=\'Auto\', vary=\'Auto\', norm=True) # automatic axes and normalisation\n\n'.format(scanno)
+
+    outstr += 'pp.newplot(x, y, label={})\npp.labels(ttl, varx, vary, legend=True)\n\n'.format(scanno)
+
+    outstr += 'x2,y2,dy2, varx2, vary2, ttl2, d2 = pp.getdata({}, varx=\'Auto\', vary=\'Auto\', norm=True) \n'.format(scanno-1)    
+    outstr += 'pp.multiplot([x,x2], [y,y2], labels=[{},{}])\npp.labels(ttl, varx, vary, legend=True)\n\n'.format(scanno,scanno-1)
     return outstr
 
 def get_all_scannos():
@@ -4187,7 +4193,7 @@ def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75
         else:
             saveplot(ttl+'_'+str(imnum))
 
-def plotmeta(scans, fields='Energy', use_time=False):
+def plotmeta(scans, fields='Energy', use_time=False, plot_against=None):
     """
     Plot a single value of metadata against run number or time
     """
@@ -4197,6 +4203,9 @@ def plotmeta(scans, fields='Energy', use_time=False):
         x = getmeta(scans,'TimeSec')
         x = x - x[0]
         xlab = 'Time [s]'
+    elif plot_against is not None:
+        x = getmeta(scans,plot_against)
+        xlab = plot_against
     else:
         x = scans
         xlab = 'Scan number'
@@ -4340,7 +4349,17 @@ def plotscans(scans=[],depvar=None,vary='',varx='',fit=None,norm=True,logplot=Fa
     plt.show()
 
 def plotscans3D(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=False):
-    " Plot 3D eta scans of energy or temp dependence"
+    """
+    Plot 3D eta scans of energy or temp dependence
+        scans = list of scan numbers
+        depvar = device that varies between scans
+        varx = device that was scanned, e.g. 'eta'
+        vary = device that was recorded, e.g. 'roi2_sum'
+        norm = True/False, normalisation option
+        sort = False/True, if true, sorts the scans by depvar
+        logplot = False/True, if true, logs the vary data
+        save = False/True, if true, saves a png image of the figure to the savedir directory
+    """
     
     "---Create Figure---"
     fig = plt.figure(figsize=[14,12],dpi=80)
@@ -4382,7 +4401,7 @@ def plotscans3D(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=F
     #ax.set_zscale('log')
     
     ttl = scantitle(scans)
-    ax.set_title(ttl,fontsize=14)
+    ax.set_title(ttl,fontsize=18)
     
     "---Save---"
     if save not in [None, False, '']:
@@ -4393,7 +4412,17 @@ def plotscans3D(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=F
     plt.show()
 
 def plotscans2D(scans,depvar='Ta',vary='',varx='',norm=True,sort=False,logplot=False,save=False):
-    " Plot pcolor of multiple scans"
+    """
+    Plot pcolor of multiple scans
+        scans = list of scan numbers
+        depvar = device that varies between scans
+        varx = device that was scanned, e.g. 'eta'
+        vary = device that was recorded, e.g. 'roi2_sum'
+        norm = True/False, normalisation option
+        sort = False/True, if true, sorts the scans by depvar
+        logplot = False/True, if true, logs the vary data
+        save = False/True, if true, saves a png image of the figure to the savedir directory
+    """
     
     "-----Loading-----"
     x,y,z,varx,vary,varz,ttl = joindata(scans,varx,depvar,vary,norm,sort)
@@ -4413,7 +4442,7 @@ def plotscans2D(scans,depvar='Ta',vary='',varx='',norm=True,sort=False,logplot=F
     ax.set_xlabel(varx, fontsize=18)
     ax.set_ylabel(vary, fontsize=18)
     cb.set_label(varz, fontsize=18)
-    plt.suptitle(ttl,fontsize=14)
+    plt.suptitle(ttl,fontsize=20)
     
     "---Save---"
     if save not in [None, False, '']:
@@ -4424,7 +4453,17 @@ def plotscans2D(scans,depvar='Ta',vary='',varx='',norm=True,sort=False,logplot=F
     plt.show()
     
 def plotscansSURF(scans,depvar='Ta',vary='',varx='',norm=True,sort=False,logplot=False,save=False):
-    " Plot surface of multiple scans"
+    """
+    Plot 3D surface built from data from multiple scans
+        scans = list of scan numbers
+        depvar = device that varies between scans
+        varx = device that was scanned, e.g. 'eta'
+        vary = device that was recorded, e.g. 'roi2_sum'
+        norm = True/False, normalisation option
+        sort = False/True, if true, sorts the scans by depvar
+        logplot = False/True, if true, logs the vary data
+        save = False/True, if true, saves a png image of the figure to the savedir directory
+    """
     
     "-----Loading-----"
     x,y,z,varx,vary,varz,ttl = joindata(scans,varx,depvar,vary,norm,sort)
@@ -4447,7 +4486,7 @@ def plotscansSURF(scans,depvar='Ta',vary='',varx='',norm=True,sort=False,logplot
     ax.set_xlabel(vary, fontsize=18)
     ax.set_ylabel(varx, fontsize=18)
     ax.set_zlabel(varz, fontsize=18)
-    plt.suptitle(ttl,fontsize=14)
+    plt.suptitle(ttl,fontsize=20)
     
     "---Save---"
     if save not in [None, False, '']:
@@ -4459,8 +4498,12 @@ def plotscansSURF(scans,depvar='Ta',vary='',varx='',norm=True,sort=False,logplot
 
 def plotpilSURF(num,varx='',ROIcen=None,wid=10,save=False):
     """ 
-    Plot CHI scans from pilatus
-    ***NOT COMPLETE***
+    Plot the horizontal (chi direction) pixels of a scan's area detector vs the scan direction
+        num = scan number
+        varx = scan device, '' = automatic
+        ROIcen = detector centre [i,j], if None, pilpeak will be used to determine the peak centre
+        wid = width along the detector vertical (delta) pixels to sum
+        save = if True, saves a png of the figure to the savedir directory
     """
     
     x,y,dy,varx,vary,ttl,d = getdata(num,varx=varx)
@@ -4468,8 +4511,8 @@ def plotpilSURF(num,varx='',ROIcen=None,wid=10,save=False):
     if ROIcen is None:
         ROIcen,frame = pilpeak(vol,disp=True)
     
-    Chivals = range(ROIcen[1]-wid//2,ROIcen[1]+wid//2)
-    slice = np.sum(vol[:,Chivals,:],1)
+    deltavals = range(ROIcen[1]-wid//2,ROIcen[1]+wid//2)
+    slice = np.sum(vol[:,deltavals,:],1)
     X,Y = np.meshgrid(x,range(vol.shape[0]))
     
     
@@ -4483,10 +4526,10 @@ def plotpilSURF(num,varx='',ROIcen=None,wid=10,save=False):
     
     # Axis labels
     ax.set_xlabel(varx, fontsize=18)
-    ax.set_ylabel('Pilatus vertical pixel', fontsize=18)
+    ax.set_ylabel('Pilatus Horizontal pixel', fontsize=18)
     ax.set_zlabel(vary, fontsize=18)
     cb.set_label(vary, fontsize=18)
-    plt.suptitle(ttl,fontsize=14)
+    plt.suptitle(ttl,fontsize=20)
     
     "---Save---"
     if save not in [None, False, '']:
@@ -4495,6 +4538,36 @@ def plotpilSURF(num,varx='',ROIcen=None,wid=10,save=False):
         else:
             saveplot('{0} PILSURF'.format(num))
     plt.show()
+
+def plotpilhist(num, frame=None, bins=100, save=False):
+    """
+    Generate histogram of pixel values in area detector
+    """
+
+    x,y,dy,varx,vary,ttl,d = getdata(num)
+    vol = getvol(num)
+    
+    if frame is None:
+        vol = vol.reshape(-1)
+        ttl += '\n {:s} = {:1.4g} - {:1.4g}'.format(varx, x[0], x[-1])
+    else:
+        vol = vol[:,:,frame].reshape(-1)
+        ttl += '\n {:s} = {:1.4g}'.format(varx, x[frame])
+
+    plt.figure(figsize=[12,10])
+    plt.hist(np.log10(vol+1), bins)
+    labels(ttl, 'Pixel Intensity', 'No. Pixels')
+    plt.yscale('log')
+    
+    
+    "---Save---"
+    if save not in [None, False, '']:
+        if type(save) is str:
+            saveplot(save)
+        else:
+            saveplot('{0} PILHist'.format(num))
+    plt.show()
+
 
 def plotpilhkl_cuts(num,hkl_centre=None,image_centre=None,sum_tolarance=[0.05,0.05,0.05],max_points=301,fit_type='Gauss'):
     """
@@ -6203,33 +6276,266 @@ def rot3D(vec,alpha=0.,beta=0.,gamma=0.):
     # Rotate coordinates
     return np.dot(R,vec.T).T
 
-def labels(ttl=None, xvar=None, yvar=None, zvar=None, size='Normal', font='Times New Roman'):
+def newplot(*args, **kwargs):
+    """
+    Shortcut to creating a simple plot
+    E.G.
+      x = np.arange(-5,5,0.1)
+      y = x**2
+      newplot(x,y,'r-',lw=2,label='Line')
+    """
+
+    if 'linewidth' and 'lw' not in kwargs.keys():
+        kwargs['linewidth'] = 2
+
+    plt.figure(figsize=[12, 12])
+    plt.plot(*args, **kwargs)
+
+    plt.setp(plt.gca().spines.values(), linewidth=2)
+    plt.xticks(fontsize=25, fontname='Times New Roman')
+    plt.yticks(fontsize=25, fontname='Times New Roman')
+    plt.ticklabel_format(useOffset=False)
+    plt.ticklabel_format(style='sci', scilimits=(-3, 3))
+
+
+def multiplot(xvals, yvals=None, datarange=None, cmap='jet', labels=None, marker=None):
+    """
+    Shortcut to creating a simple multiplot with either colorbar or legend
+    E.G.
+      x = np.arange(-5,5,0.1)
+      ys = [x**2, 1+x**2, 2+x**2, 3+x**2, 4+x**2]
+      datarange = [0,1,2,3,4]
+      multiplot(x, ys, datarange, cmap='winter')
+    OR:
+      x = np.arange(-5,5,0.1)
+      ys = [x**2, 1+x**2, 2+x**2, 3+x**2, 4+x**2]
+      labels = ['x*x','2+x*x','3+x*x','4+x*x']
+      multiplot(x, ys, labels=labels)
+    """
+
+    if yvals is None:
+        yvals = xvals
+        xvals = []
+    yvals = np.asarray(yvals)
+    xvals = np.asarray(xvals)
+
+    if datarange is None:
+        datarange = range(len(yvals))
+    datarange = np.asarray(datarange,dtype=np.float)
+
+    cm = plt.get_cmap(cmap)
+    colrange = (datarange - datarange.min()) / (datarange.max() - datarange.min())
+    
+    if marker is None:
+        marker = ''
+    linearg = '-' + marker
+
+    plt.figure(figsize=[12, 12])
+    for n in range(len(datarange)):
+        col = cm(colrange[n])
+        if len(xvals) == 0:
+            plt.plot(yvals[n], linearg, lw=2, color=col)
+        elif len(xvals.shape) == 1:
+            plt.plot(xvals, yvals[n], linearg, lw=2, color=col)
+        else:
+            plt.plot(xvals[n], yvals[n], linearg, lw=2, color=col)
+
+    plt.setp(plt.gca().spines.values(), linewidth=2)
+    plt.xticks(fontsize=25, fontname='Times New Roman')
+    plt.yticks(fontsize=25, fontname='Times New Roman')
+    plt.ticklabel_format(useOffset=False)
+    plt.ticklabel_format(style='sci', scilimits=(-3, 3))
+
+    if labels is None:
+        # Add Colorbar
+        sm = plt.cm.ScalarMappable(cmap=cm)
+        sm.set_array(datarange)
+        cbar = plt.colorbar(sm)
+        #cbar.set_label('variation [unit]', fontsize=24, fontweight='bold', fontname='Times New Roman')
+    else:
+        # Add legend
+        plt.legend(labels, loc=0, frameon=False, prop={'size':20,'family':'serif'})
+
+
+def newplot3(*args, **kwargs):
+    """
+    Shortcut to creating a simple 3D plot
+    Automatically tiles 1 dimensional x and y arrays to match 2D z array,
+    assuming z.shape = (len(x),len(y))
+
+    E.G.
+      newplot3([1,2,3,4],[9,8,7],[[2,4,6],[8,10,12],[14,16,18],[20,22,24]],'-o')
+    """
+
+    if 'linewidth' and 'lw' not in kwargs.keys():
+        kwargs['linewidth'] = 2
+
+    fig = plt.figure(figsize=[12, 12])
+    ax = fig.add_subplot(111, projection='3d')
+
+    x = np.asarray(args[0], dtype=np.float)
+    y = np.asarray(args[1], dtype=np.float)
+    z = np.asarray(args[2], dtype=np.float)
+
+    if z.ndim == 2:
+        if x.ndim < 2:
+            x = np.tile(x, z.shape[1]).reshape(z.T.shape).T
+        if y.ndim < 2:
+            y = np.tile(y, z.shape[0]).reshape(z.shape)
+
+        # Plot each array independently
+        for n in range(len(z)):
+            ax.plot(x[n], y[n], z[n], *args[3:], **kwargs)
+    else:
+        ax.plot(*args, **kwargs)
+
+
+def sliderplot(YY, X=None, slidervals=None, *args, **kwargs):
+    """
+    Shortcut to creating a simple 2D plot with a slider to go through a third dimension
+    YY = [nxm]: y axis data (initially plots Y[0,:])
+     X = [n] or [nxm]:  x axis data (can be 1D or 2D, either same length or shape as Y)
+     slidervals = None or [m]: Values to give in the slider
+
+    E.G.
+      sliderplot([1,2,3],[[2,4,6],[8,10,12],[14,16,18],[20,22,24]],slidervals=[3,6,9,12])
+    """
+
+    if 'linewidth' and 'lw' not in kwargs.keys():
+        kwargs['linewidth'] = 2
+
+    fig = plt.figure(figsize=[12, 12])
+
+    X = np.asarray(X, dtype=np.float)
+    Y = np.asarray(YY, dtype=np.float)
+    if slidervals is None:
+        slidervals = range(Y.shape[0])
+    slidervals = np.asarray(slidervals, dtype=np.float)
+
+    if X.ndim < 2:
+        X = np.tile(X, Y.shape[0]).reshape(Y.shape)
+
+    plotline, = plt.plot(X[0, :], Y[0, :], *args, **kwargs)
+    plt.axis([X.min(), X.max(), Y.min(), Y.max()])
+    plt.subplots_adjust(bottom=0.2)
+    ax = plt.gca()
+
+    " Create slider on plot"
+    axsldr = plt.axes([0.15, 0.05, 0.65, 0.03], axisbg='lightgoldenrodyellow')
+
+    sldr = plt.Slider(axsldr, '', 0, len(slidervals) - 1)
+    txt = axsldr.set_xlabel('{} [{}]'.format(slidervals[0], 0), fontsize=18)
+
+    plt.sca(ax)
+
+    " Slider update function"
+
+    def update(val):
+        "Update function for pilatus image"
+        pno = int(np.floor(sldr.val))
+        plotline.set_xdata(X[pno, :])
+        plotline.set_ydata(Y[pno, :])
+        txt.set_text('{} [{}]'.format(slidervals[pno], pno))
+        plt.draw()
+        plt.gcf().canvas.draw()
+        # fig1.canvas.draw()
+
+    sldr.on_changed(update)
+
+
+def sliderplot2D(ZZZ, XX=None, YY=None, slidervals=None, *args, **kwargs):
+    """
+    Shortcut to creating an image plot with a slider to go through a third dimension
+    ZZZ = [nxmxo]: z axis data
+     XX = [nxm] or [n]:  x axis data
+     YY = [nxm] or [m]: y axis data
+     slidervals = None or [o]: Values to give in the slider
+
+    if XX and/or YY have a single dimension, the 2D values are generated via meshgrid
+
+    E.G.
+      sliderplot([1,2,3],[[2,4,6],[8,10,12],[14,16,18],[20,22,24]],slidervals=[3,6,9,12])
+    """
+
+    if 'linewidth' and 'lw' not in kwargs.keys():
+        kwargs['linewidth'] = 2
+
+    fig = plt.figure(figsize=[12, 12])
+
+    ZZZ = np.asarray(ZZZ, dtype=np.float)
+
+    if slidervals is None:
+        slidervals = range(ZZZ.shape[2])
+    slidervals = np.asarray(slidervals, dtype=np.float)
+
+    if XX is None:
+        XX = range(ZZZ.shape[1])
+    if YY is None:
+        YY = range(ZZZ.shape[0])
+    XX = np.asarray(XX, dtype=np.float)
+    YY = np.asarray(YY, dtype=np.float)
+    if XX.ndim < 2:
+        XX, YY = np.meshgrid(XX, YY)
+
+    p = plt.pcolormesh(XX, YY, ZZZ[:, :, 0])
+    # p.set_clim(cax)
+
+    plt.subplots_adjust(bottom=0.2)
+    ax = plt.gca()
+    ax.set_aspect('equal')
+    ax.autoscale(tight=True)
+
+    " Create slider on plot"
+    axsldr = plt.axes([0.15, 0.05, 0.65, 0.03], axisbg='lightgoldenrodyellow')
+
+    sldr = plt.Slider(axsldr, '', 0, len(slidervals) - 1)
+    txt = axsldr.set_xlabel('{} [{}]'.format(slidervals[0], 0), fontsize=18)
+
+    plt.sca(ax)
+
+    " Slider update function"
+
+    def update(val):
+        "Update function for pilatus image"
+        pno = int(np.round(sldr.val))
+        p.set_array(ZZZ[:-1, :-1, pno].ravel())
+        txt.set_text('{} [{}]'.format(slidervals[pno], pno))
+        plt.draw()
+        plt.gcf().canvas.draw()
+        # fig1.canvas.draw()
+    sldr.on_changed(update)
+
+def labels(ttl=None, xvar=None, yvar=None, zvar=None, legend=False, size='Normal', font='Times New Roman'):
     """
     Add formatted labels to current plot, also increases the tick size
     :param ttl: title
     :param xvar: x label
     :param yvar: y label
     :param zvar: z label (3D plots only)
+    :param legend: False/ True, adds default legend to plot 
     :param size: 'Normal' or 'Big'
     :param font: str font name, 'Times New Roman'
     :return: None
     """
 
-    if size.lower() == 'big':
+    if size.lower() in ['big', 'large', 'xxl', 'xl']:
         tik = 30
         tit = 32
         lab = 35
+        leg = 25
     else:
         # Normal
         tik = 18
         tit = 20
         lab = 22
+        leg = 18
 
     plt.xticks(fontsize=tik, fontname=font)
     plt.yticks(fontsize=tik, fontname=font)
     plt.setp(plt.gca().spines.values(), linewidth=2)
-    plt.ticklabel_format(useOffset=False)
-    plt.ticklabel_format(style='sci',scilimits=(-3,3))
+    if plt.gca().get_yaxis().get_scale() != 'log':
+        plt.ticklabel_format(useOffset=False)
+        plt.ticklabel_format(style='sci',scilimits=(-3,3))
 
     if ttl is not None:
         plt.gca().set_title(ttl, fontsize=tit, fontweight='bold', fontname=font)
@@ -6243,6 +6549,9 @@ def labels(ttl=None, xvar=None, yvar=None, zvar=None, size='Normal', font='Times
     if zvar is not None:
         # Don't think this works, use ax.set_zaxis
         plt.gca().set_zlabel(zvar, fontsize=lab, fontname=font)
+
+    if legend:
+        plt.legend(loc=0, frameon=False, prop={'size':30,'family':'serif'})
 
 def tth2d(tth,energy_kev):
     "Converts two-theta array in degrees to d-spacing in A"

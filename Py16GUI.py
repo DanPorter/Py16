@@ -78,8 +78,8 @@ I16_Peak_Analysis - Plot and analyse multiple scans, including peak fitting and 
 I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
-Version 4.3
-Last updated: 16/04/19
+Version 4.4
+Last updated: 15/05/19
 
 Version History:
 07/02/16 0.9    Program created
@@ -118,6 +118,7 @@ Version History:
 14/12/18 4.1    Some bug fixes, added windows printing
 21/02/19 4.2    Some bug fixes, save scan corrected for custom rois, improved More Check Options
 16/04/19 4.3    Added error checking on metadata
+15/05/19 4.4    Added metadata plotting
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -168,13 +169,14 @@ except ImportError:
     import scisoftpy as dnp
 """
 # Import Py16progs - interprets data loaded and other handy functions
-if os.path.dirname(__file__) not in sys.path:
-    print('Adding to path: ''{}'''.format(os.path.dirname(__file__)) )
-    sys.path.insert(0,os.path.dirname(__file__))
+cf = os.path.abspath(os.path.dirname(__file__))
+if cf not in sys.path:
+    print('Adding to path: ''{}'''.format(cf) )
+    sys.path.insert(0,cf)
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 4.3
+Py16GUI_Version = 4.4
 
 # Print layout
 default_print_layout = [3,2]
@@ -2589,6 +2591,7 @@ class I16_Python_Editor:
         box_width = 100
 
         self.savelocation = ''
+        self.text_changed = False
 
         if os.path.isfile(filename):
             self.root.wm_title(filename)
@@ -2621,6 +2624,7 @@ class I16_Python_Editor:
         self.text.bind('<Control-s>',self.f_save)
         self.text.bind('<Control-b>',self.f_run)
         self.text.bind('<Control-r>',self.f_run)
+        #self.text.bind('<<Modified>>', self.f_change)
         
         # Populate text box
         self.text.insert(tk.END, disp_str)
@@ -2652,9 +2656,16 @@ class I16_Python_Editor:
     "------------------------------------------------------------------------"
     def f_run(self, event=None):
         "Run the code"
+        global pp, __file__
+        __file__ = cf
         code = self.text.get(1.0, tk.END)
         exec(code)
         print('Finished')
+
+    def f_change(self, event=None):
+        "Change the saved state"
+        self.text_changed = True
+        self.root.wm_title('* '+self.savelocation)
 
     def f_open(self):
         "Open a new file"
@@ -2681,6 +2692,7 @@ class I16_Python_Editor:
         with open(self.savelocation, 'wt') as outfile:
             outfile.write(code)
         self.root.wm_title(self.savelocation)
+        self.text_changed = False
         print('Saved as {}'.format(self.savelocation))
 
     def f_saveas(self):
@@ -2697,7 +2709,18 @@ class I16_Python_Editor:
 
     def f_exit(self):
         "Closes the current text window"
+        if self.text_changed:
+            if messagebox.askyesno(self.savelocation,"Would you like to save the script?"):
+                self.f_save()
         self.root.destroy()
+
+    def on_closing(self):
+        "End mainloop on close window"
+        if self.text_changed:
+            if messagebox.askyesno(self.savelocation,"Would you like to save the script?"):
+                self.f_save()
+        self.root.destroy()
+
 
 
 "------------------------------------------------------------------------"
@@ -4261,6 +4284,55 @@ class I16_Check_Log:
         # Check Scans Button
         btn_scncmd = tk.Button(frame1d, text='Check Scans',font=BF,command=self.f_checkscans)
         btn_scncmd.pack(side=tk.LEFT)
+
+        "---------------------------Plot Metadata----------------------------"
+        #Frame 1
+        frame1 = tk.Frame(frame,borderwidth=2,relief=tk.RIDGE)
+        frame1.pack(fill=tk.X,expand=tk.TRUE)
+        
+        # Line 1 title
+        frame1t = tk.Frame(frame1)
+        frame1t.pack()
+
+        lbl_title = tk.Label(frame1t,text='Plot Metadata', font=BF, bd=1)
+        lbl_title.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5)
+
+        # Line 1a
+        frame1a = tk.Frame(frame1)
+        frame1a.pack()
+        
+        # Scans
+        self.meta_scans = tk.StringVar(frame1,'range({},{},1)'.format(ini_scan-10,ini_scan))
+        lbl_scncmd = tk.Label(frame1a,text='Scans:',font=SF)
+        lbl_scncmd.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_scncmd = tk.Entry(frame1a,textvariable=self.meta_scans, width=20)
+        ety_scncmd.pack(side=tk.LEFT,padx=5,pady=5)
+        
+        # Line 1b
+        frame1b = tk.Frame(frame1)
+        frame1b.pack()
+        
+        # Scans
+        self.meta_x = tk.StringVar(frame1,'TimeSec')
+        lbl_scnval = tk.Label(frame1b,text='X:',font=SF)
+        lbl_scnval.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_scnval = tk.Entry(frame1b,textvariable=self.meta_x, width=20)
+        ety_scnval.pack(side=tk.LEFT,padx=5,pady=5)
+        
+        # Line 1c
+        frame1c = tk.Frame(frame1)
+        frame1c.pack()
+        
+        self.meta_y = tk.StringVar(frame1,'Ta')
+        lbl_scnval = tk.Label(frame1c,text='Y:',font=SF)
+        lbl_scnval.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_scnval = tk.Entry(frame1c,textvariable=self.meta_y, width=20)
+        ety_scnval.pack(side=tk.LEFT,padx=5,pady=5)
+
+        # Line 1d
+        frame1d = tk.Frame(frame1)
+        frame1d.pack()
+
         # Plot Meta Button
         btn_pltcmd = tk.Button(frame1d, text='Plot Data',font=BF,command=self.f_plotmeta)
         btn_pltcmd.pack(side=tk.LEFT)
@@ -4421,14 +4493,13 @@ class I16_Check_Log:
         I16_Text_Display(outstr, 'Check Scans {}-{}'.format(scans[0],scans[-1]))
 
     def f_plotmeta(self):
-        scans_command = self.scans_cmd.get()
+        scans_command = self.meta_scans.get()
         scans = eval(scans_command)
         
-        showval = self.getdepvar() # allows multiple entries
-        if len(showval[0]) == 0: showval = 'TimeSec'
+        xvar = self.meta_x.get()
+        yvar = self.meta_y.get()
         
-        self.scans_cmd.set(str(scans))
-        pp.plotmeta(scans, fields=showval, use_time=False)
+        pp.plotmeta(scans, fields=yvar, plot_against=xvar)
     
     def f_checklog(self):
         time = self.time.get()
