@@ -79,7 +79,7 @@ I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
 Version 4.4
-Last updated: 15/05/19
+Last updated: 16/10/19
 
 Version History:
 07/02/16 0.9    Program created
@@ -2503,7 +2503,7 @@ class I16_Text_Display:
         self.root = tk.Tk()
         self.root.wm_title('Py16: {}'.format(title))
         self.root.minsize(width=200, height=100)
-        self.root.maxsize(width=1200, height=800)
+        self.root.maxsize(width=1800, height=1200)
         
         # Dynamic box size
         lines = disp_str.split('\n')
@@ -2585,7 +2585,7 @@ class I16_Python_Editor:
         self.root = tk.Tk()
         self.root.wm_title('I16 Python Editor by D G Porter [dan.porter@diamond.ac.uk]')
         self.root.minsize(width=200, height=100)
-        self.root.maxsize(width=1200, height=800)
+        self.root.maxsize(width=1800, height=1000)
         
         box_height = 30
         box_width = 100

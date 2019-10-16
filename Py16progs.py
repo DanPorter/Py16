@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.4
-Last updated: 15/05/19
+Version 4.5
+Last updated: 02/10/19
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -123,6 +123,7 @@ Version History:
 18/03/19 4.2    Update to plotscans, correcting normalisation for multi-vary
 15/04/19 4.3	Update to readscan, additional checks on metadata added
 15/05/19 4.4    Updated labels function, added newplot, multiplot, sliderplot, sliderplot2D
+02/10/19 4.5    Added plotqbpm, added defaults for phase plate scans
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -1858,6 +1859,8 @@ def auto_varx(num):
         
     if varx not in keys:
         varx = keys[0]
+    if varx == 'ppp_energy':
+        varx = 'ppp_offset'
     return varx
 
 def auto_vary(num):
@@ -1888,6 +1891,8 @@ def auto_vary(num):
         vary = 'xmroi2'
     elif 'bpm' in cmd:
         vary = 'sum'
+    elif 'QBPM6' in cmd:
+        vary = 'C1'
     
     if vary not in keys:
         vary = keys[-1]
@@ -3167,7 +3172,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
     for n,run in enumerate(scans):
         d = readscan(run)
         if d is None: print( 'File for run #{} does not exist!'.format(run) ); return
-        x,y,dy,labvarx,labvary,ttl = getdata(d,vary=vary,norm=norm,abscor=abscor)[:6]
+        x,y,dy,labvarx,labvary,ttl = getdata(d,varx=varx,vary=vary,norm=norm,abscor=abscor)[:6]
         
         if mask_cmd is not None: x,y,dy = maskvals(x,y,dy,mask_cmd[n])
             
@@ -3429,6 +3434,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
 
 def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,disp=False,save=False,**fitopt):
     """ 
+    New
      Load previously fitted data from fit_scans(), assuming it completed succesfully and was saved.
       > The inputs are used to determine the automatic filename
       > Both the values and error files are read
@@ -4919,6 +4925,165 @@ def plotpiltth(num=None,binsep=0.1,centre_only=False):
     ttl = scantitle(nums)
     labels(ttl,'Two-Theta [Deg]','Pilatus Intensity',size='normal')
     plt.show()
+
+
+def plotqbpm(scannos, normaliseby='left', plot=True, show_difference=False, save=False):
+    """
+    Plots 4 currents from QBPM scans
+        e.g. scancn ppth1 0.001 w .5 qbpm6
+    scannos = scan to plot, multiple scans are appended together
+    normaliseby = min, left*, right, mean, none - method of normalisation
+    save = True/ False
+    """
+    
+    scannos = np.asarray(scannos).reshape(-1)
+    xvar = auto_varx(scannos[0])
+    xval = np.empty(0)
+    mon = np.empty(0)
+    C1=np.empty(0)
+    C2=np.empty(0)
+    C3=np.empty(0)
+    C4=np.empty(0)
+    for scan in scannos:
+        d = readscan(scan)
+        norm = d.ic1monitor/(d.rc/exp_ring_current)
+        xval = np.append(xval, getattr(d, xvar))
+        mon = np.append(mon, norm)
+        C1 = np.append(C1, d.C1/norm)
+        C2 = np.append(C2, d.C2/norm)
+        C3 = np.append(C3, d.C3/norm)
+        C4 = np.append(C4, d.C4/norm)
+    
+    if normaliseby.lower() in ['none']:
+        minC1 = 0
+        minC2 = 0
+        minC3 = 0
+        minC4 = 0
+        maxC1 = 1
+        maxC2 = 1
+        maxC3 = 1
+        maxC4 = 1
+    elif normaliseby.lower() in ['mean']:
+        minC1 = C1.min()
+        minC2 = np.mean(np.append(C2[:5], C2[-5:]))
+        minC3 = C3.min()
+        minC4 = np.mean(np.append(C4[:5], C4[-5:]))
+        maxC1 = np.mean(np.append(C1[:5], C1[-5:]))
+        maxC2 = C2.max()
+        maxC3 = np.mean(np.append(C3[:5], C3[-5:]))
+    elif normaliseby.lower() in ['right', 'r']:
+        minC1 = C1.min()
+        minC2 = np.mean(C2[-5:])
+        minC3 = C3.min()
+        minC4 = np.mean(C4[-5:])
+        maxC1 = np.mean(C1[-5:])
+        maxC2 = C2.max()
+        maxC3 = np.mean(C3[-5:])
+        maxC4 = C4.max()
+    elif normaliseby.lower() in ['left', 'l', 'start']:
+        minC1 = C1.min()
+        minC2 = np.mean(C2[:5])
+        minC3 = C3.min()
+        minC4 = np.mean(C4[:5])
+        maxC1 = np.mean(C1[:5])
+        maxC2 = C2.max()
+        maxC3 = np.mean(C3[:5])
+        maxC4 = C4.max()
+    else:
+        maxC4 = C4.max()
+        minC1 = C1.min()
+        minC2 = C2.min()
+        minC3 = C3.min()
+        minC4 = C4.min()
+        maxC1 = C1.max()
+        maxC2 = C2.max()
+        maxC3 = C3.max()
+        maxC4 = C4.max()
+
+    C1 = (C1-minC1)/np.max(C1-minC1)
+    C2 = (C2-minC2)/np.max(C2-minC2)
+    C3 = (C3-minC3)/np.max(C3-minC3)
+    C4 = (C4-minC4)/np.max(C4-minC4)
+    
+    #C1 = C1/maxC1
+    #C2 = (C2/minC2) -1
+    #C3 = C3/maxC3
+    #C4 = (C4/minC4) -1
+    
+    # interpolate
+    ival = np.linspace(np.min(xval), np.max(xval), 100*len(xval))
+    iC1 = np.interp(ival, xval, C1)
+    iC2 = np.interp(ival, xval, C2)
+    iC3 = np.interp(ival, xval, C3)
+    iC4 = np.interp(ival, xval, C4)
+    
+    diff = np.abs((iC1+iC3)/2 - (iC2+iC4)/2)
+
+    if plot:
+        fig, ax1 = plt.subplots(figsize=[12,10])
+        plt.plot(xval, C1, 'b-', lw=2, label='C1')
+        plt.plot(xval, C2, 'r-', lw=2, label='C2')
+        plt.plot(xval, C3, 'c-', lw=2, label='C3')
+        plt.plot(xval, C4, 'm-', lw=2, label='C4')
+        if show_difference:
+            plt.plot(ival, diff, 'k-', lw=0.5, label='|C1+C3-C2-C4|')
+        cmd = d.metadata.cmd_short
+        ttl = scantitle(scannos) + '\n%s\nppchi = %5.1f, ppz1 = %5.2f, ppz2 = %5.2f'%(cmd, d.metadata.ppchi,d.metadata.ppz1, d.metadata.ppz2)
+        labels(ttl, xvar, 'QBPM6', legend=True)
+        
+        ax2 = ax1.twinx()
+        plt.plot(xval, mon, 'g:', lw=2, label='ic1monitor')
+        labels(None,None,'ic1monitor')
+        ax2.tick_params(axis='y', labelcolor='g')
+        ax2.set_ylabel('ic1monitor',color='g')
+        
+    # Find intercepts
+    midpoint = np.mean(ival)
+    midpoint = xval[np.argmin(mon)]
+    step = np.mean(np.diff(xval))
+    # Difference
+    d1 = np.abs(iC1-iC2)
+    d2 = np.abs(iC1-iC4)
+    d3 = np.abs(iC3-iC2)
+    d4 = np.abs(iC3-iC4)
+    
+    ivaln = ival[ival<midpoint-step]
+    #neg1 = ivaln[np.argmin(d1[ival<midpoint])]
+    #neg2 = ivaln[np.argmin(d2[ival<midpoint])]
+    #neg3 = ivaln[np.argmin(d3[ival<midpoint])]
+    #neg4 = ivaln[np.argmin(d4[ival<midpoint])]
+    #neg = np.mean([neg1,neg2,neg3,neg4])
+    neg = ivaln[np.argmin(diff[ival<midpoint-step])]
+
+    ivalp = ival[ival>midpoint+step]
+    #pos1 = ivalp[np.argmin(d1[ival>midpoint])]
+    #pos2 = ivalp[np.argmin(d2[ival>midpoint])]
+    #pos3 = ivalp[np.argmin(d3[ival>midpoint])]
+    #pos4 = ivalp[np.argmin(d4[ival>midpoint])]
+    #pos = np.mean([pos1,pos2,pos3,pos4])
+    pos = ivalp[np.argmin(diff[ival>midpoint+step])]
+    avmid = (pos+neg)/2
+    negoff = neg-avmid
+    posoff = pos-avmid
+    print(ttl)
+    print('Estimated Midpoint: %s=%7.3f'%(xvar,midpoint))
+    print('   Lower intercept: %s=%8.4f (%+6.4f)'%(xvar,neg,negoff))
+    print('   Upper intercept: %s=%8.4f (%+6.4f)'%(xvar,pos,posoff))
+    print('   Actual midpoint: %s=%8.4f'%(xvar,avmid))
+    
+    if plot:
+        plt.sca(ax1)
+        plt.axvline(neg, c='k', lw=0.5)
+        plt.axvline(pos, c='k', lw=0.5)
+    
+        "---Save---"
+        if save not in [None, False, '']:
+            if type(save) is str:
+                saveplot(save)
+            else:
+                saveplot('{0} QBPM6'.format(num))
+        plt.show()
+        
 
 
 "-----------------------Peak Fitting Functions----------------------------"
@@ -6551,7 +6716,7 @@ def labels(ttl=None, xvar=None, yvar=None, zvar=None, legend=False, size='Normal
         plt.gca().set_zlabel(zvar, fontsize=lab, fontname=font)
 
     if legend:
-        plt.legend(loc=0, frameon=False, prop={'size':30,'family':'serif'})
+        plt.legend(loc=0, frameon=False, prop={'size':leg,'family':'serif'})
 
 def tth2d(tth,energy_kev):
     "Converts two-theta array in degrees to d-spacing in A"
@@ -7108,7 +7273,7 @@ def frange(start,stop=None,step=1):
         stop = start
         start = 0
     
-    return list(np.arange(start,stop+step,step,dtype=float))
+    return list(np.arange(start,stop+step*0.99,step,dtype=float))
 
 def stfm(val,err):
     """
