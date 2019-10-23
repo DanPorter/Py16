@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.5
-Last updated: 02/10/19
+Version 4.6
+Last updated: 23/10/19
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -124,6 +124,7 @@ Version History:
 15/04/19 4.3	Update to readscan, additional checks on metadata added
 15/05/19 4.4    Updated labels function, added newplot, multiplot, sliderplot, sliderplot2D
 02/10/19 4.5    Added plotqbpm, added defaults for phase plate scans
+23/10/19 4.6    Fixed exec compatibility, now python3 compatible, readnexus added using nexusformat or h5py
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -149,17 +150,25 @@ import datetime # Dates and times
 import time # For timing
 import tempfile # Find system temp directory
 import numpy as np
+import h5py # read hdf5 files such as nexus (.nxs)
 #import scisoftpy as dnp # Make sure this is in your python path
 import matplotlib.pyplot as plt # Plotting
 import matplotlib.ticker as mtick # formatting of tick labels
 from matplotlib.colors import LogNorm # logarithmic colormaps
 from mpl_toolkits.mplot3d import Axes3D # 3D plotting
 from scipy.optimize import curve_fit # Peak fitting
-from scipy import misc # read pilatus images
+#from scipy import misc # read pilatus images
+from imageio import imread # read Tiff images
 from scipy.signal import convolve
 from itertools import product
 from collections import OrderedDict
 
+# read hdf5 files such as nexus (.nxs)
+try:
+    from nexusformat.nexus import nxload
+except ImportError:
+    print('nexusformat not available, nexus files will be read using h5py')
+    from h5py import File as nxload 
 
 
 ###########################################################################
@@ -177,6 +186,7 @@ tmpdir = os.path.expanduser('~')
 
 "-----------------------------Data file format----------------------------"
 datfile_format = '%i.dat'
+nxsfile_format = '%i.nxs'
 
 "-----------------------Error Estimation Parameters-----------------------"
 error_func = lambda x: np.sqrt(np.abs(x)+0.1) # Define how the error on each intensity is estimated
@@ -362,8 +372,8 @@ def readscan(num):
         d.metadata.cmd_short = cmd
     
     " Correct re-assigned values"
-    keys = d.keys()
-    metakeys = d.metadata.keys()
+    keys = list(d.keys())
+    metakeys = list(d.metadata.keys())
     " For some reason, parameter names change occsaionaly, add correction here"
     # Correct d.scannables
     if 'count_time' in keys: d.t = d.count_time
@@ -412,8 +422,8 @@ def readscan(num):
     " Add minimirror string"
     d.metadata.minimirrors = scanminimirrors(d)
     " Correct psi values"
-    if d.metadata.psi < -1000: d.metadata.psi = 0.0
     if type(d.metadata.psi) is str: d.metadata.psi = 666
+    if d.metadata.psi < -1000: d.metadata.psi = 0.0
     if type(d.metadata.azih) is str: d.metadata.azih=0;d.metadata.azik=0;d.metadata.azil=0
 
     # Add additional parameters
@@ -864,7 +874,8 @@ def getvol(num, ROIcen=None, ROIsize=None):
     tif=pilpath % d.path[0]
     file = os.path.join(filedir,tif)
     file=file.replace('/',os.path.sep)
-    im=misc.imread(file,flatten=True) # flatten required to read zylar 16 bit files
+    #im=misc.imread(file,flatten=True) # flatten required to read zylar 16 bit files
+    im = imread(file) # imageio
     pil_size = im.shape
     
     
@@ -903,7 +914,8 @@ def getvol(num, ROIcen=None, ROIsize=None):
         " Load image "
         #t=dnp.io.load(file,warn=False)
         #vol[:,:,n] = t.image0 #"image0" varies for some reason
-        im=misc.imread(file,flatten=True) # this is more reliable than dnp.io.load
+        #im=misc.imread(file,flatten=True) # this is more reliable than dnp.io.load
+        im = imread(file) # imageio
         
         " Flip image"
         #im = np.flipud(im)
@@ -1441,6 +1453,51 @@ def pixel2chi(num, detdim=[195,487], norm=True, pixel_centre=[104, 205], frame_c
     print("time spent sorting chi values={}".format(t2-t1))
     
     return chi,I
+
+def readnexus(num, nexusformat=False):
+    """
+    Read nexus file (.nxs)
+     n = readnexus(scan_no)
+
+    The Nexus format is a hdf5 type file with many more options for storing data
+    Nexus files are read with the h5py package, however the nexusformat package
+    provides additional functionality:
+
+    If using nexusformat:
+        from nexusformat.nexus import nxload
+        n = nxload('12345.nxs')
+        n = readnexus(12345, nexusformat=True)
+        eta = n.entry1.measurement.eta
+        sum = n['entry1/measurement/sum']
+        print(n.tree)
+        n.entry1.measurement.plot()
+    If using h5py:
+        import h5py
+        n = h5py.File('12345.nxs')
+        n = readnexus(12345)
+        eta = n['entry1/measurement/eta'][:]
+        sum = n['entry1/measurement/sum'][:]
+    """
+
+    if os.path.isdir(filedir) == False: 
+        print( "I can't find the directory: {}".format(filedir) )
+        return None
+    
+    if num < 1: 
+        if latest() is None: return None
+        num = latest()+num
+    
+    file = os.path.join(filedir, nxsfile_format %num)
+    #print(file)
+    try:
+        if nexusformat:
+            n = nxload(file)
+        else:
+            n = h5py.File(file)
+    except:
+        print( "Scan {} doesn't exist or can't be read".format(num) )
+        return None
+    return n
 
 "------------------------Experiment Check Functions-----------------------"
 
@@ -2234,8 +2291,75 @@ def scanimage(num, idx=0):
         d = num
     
     file = scanimagefile(num, idx)
-    im=misc.imread(file, flatten=True) # flatten required to read zylar 16 bit files
+    #im=misc.imread(file, flatten=True) # flatten required to read zylar 16 bit files
+    im = imread(file) # imageio
     return im
+
+def nexustree(tree, name=[]):
+    """
+    Returns string of the complete nexus tree
+        n = readnexus(12345)
+        ss = nexustree(n)
+        print(ss)
+    """
+    outstr = ''
+    try:
+        for branch in tree.keys():
+            branchname = name + [branch]
+            try:
+                val = tree[branch][...]
+                if np.prod(val.shape) > 1:
+                    pval = val.shape
+                elif np.prod(val.shape) == 1:
+                    pval = val.reshape(-1)[0]
+                else:
+                    pval = val
+                pname = '/'.join(branchname)
+                outstr += '{} = {}\n'.format(pname, pval)
+            except AttributeError:
+                outstr += nexustree(tree[branch], branchname)
+    except AttributeError:
+        return outstr
+    return outstr
+
+def nexussearch(find, tree, name=[], Whole=False, Case=False):
+    """
+    Search nexus tree for named value
+        addresses, values = nexussearch('Energy', Whole=False, Case=False)
+
+    Returns list of nexus addresses and the associated value
+    """
+    outnames = []
+    outvals = []
+    try:
+        for branch in tree.keys():
+            branchname = name + [branch]
+            if (
+                find == "*" or 
+                Whole and Case and find == branch or 
+                Whole and not Case and find.lower() == branch.lower() or 
+                not Whole and Case and find in branch or 
+                not Whole and not Case and find.lower() in branch.lower()
+                ):
+                try:
+                    val = tree[branch][...]
+                    if np.prod(val.shape) > 1:
+                        pval = val.shape
+                    else:
+                        pval = val.reshape(-1)[0]
+                    pname = '/'.join(branchname)
+                    outnames += [pname]
+                    outvals += [pval]
+                    continue
+                except AttributeError:
+                    pass
+            pname, pval = nexussearch(find, tree[branch], branchname)
+            outnames += pname
+            outvals += pval
+    except AttributeError:
+        return outnames, outvals
+    return outnames, outvals
+
 
 def prend(start=0,end=None):
     "Calculate the end time of a run, return str"
@@ -5283,6 +5407,28 @@ def pvoight(x,height=1,cen=0,FWHM=0.5,LorFrac=0.5,bkg=0):
     G = (1-LorFrac)*np.exp( -ln2*(pos/HWHM)**2 )
     return height*(G + L) + bkg
 
+def create_peak_fun(text_fn, params):
+    """
+    Create a function from a string, return the function
+     func = create_peak_fun(text_fn, params)
+
+    text_fn = str function acting on variable 'x'
+    params = list of variables in function other than 'x'
+
+    e.g.
+      func = create_peak_fun('x**2+y*z', ['y','z'])
+    Returns func, which definition:
+    def func(x,y,z):
+        return x**2+y*z
+    """
+    inputs = ','.join(params)
+    funcstr = 'def func(x,{}):\n    return {}'.format(inputs,text_fn)
+    
+    fitlocals = {}
+    exec(funcstr,globals(),fitlocals) # python >2.7.9
+    func = fitlocals['func']
+    return func
+
 def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
             Nloop=10,Binit=1e-5,Tinc=2,change_factor=0.5,converge_max = 100,
             min_change=0.01,interpolate=False,debug=False,plot=False,disp=False):
@@ -5352,23 +5498,6 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
     '-----------------------------------------------------------'
     '---------------------CHOOSE FUNCTIONS----------------------'
     '-----------------------------------------------------------'
-    def create_peak_fun(text_fn,params):
-        inputs = ','.join(params)
-        funcstr = 'def func(x,{}):\n    return {}'.format(inputs,text_fn)
-        #container = {'np':np}
-        #exec(funcstr,container) 
-        #return container['func']
-        
-        if sys.version_info[0] < 3:
-            # Python 2.x
-            exec funcstr in globals(),locals() # python <3
-        else:
-            # Both versions, but throws an errror < 2.7.9
-            #exec(funcstr,globals(),locals()) # python >2.7.9
-            #exec(funcstr,locals()) # python >2.7.9
-            pass
-        return func
-        
     
     # Define background function
     if bkg_type.lower() in ['slope','sloping','grad']:

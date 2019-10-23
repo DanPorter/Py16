@@ -119,6 +119,7 @@ Version History:
 21/02/19 4.2    Some bug fixes, save scan corrected for custom rois, improved More Check Options
 16/04/19 4.3    Added error checking on metadata
 15/05/19 4.4    Added metadata plotting
+23/10/19 4.5    Now python3 compatible, added metadata search and nexus button
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -152,7 +153,11 @@ matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 from matplotlib.colors import Normalize, LogNorm
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+try:
+    from matplotlib.backends.backend_tkagg import NavigationToolbar2TkAgg
+except ImportError:
+    from matplotlib.backends.backend_tkagg import NavigationToolbar2Tk as NavigationToolbar2TkAgg
 
 """
 # Import scisoftpy - dnp.io.load is used to read #.dat files
@@ -176,7 +181,7 @@ if cf not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 4.4
+Py16GUI_Version = 4.5
 
 # Print layout
 default_print_layout = [3,2]
@@ -362,6 +367,8 @@ class I16_Data_Viewer():
         btn_scan_ld = tk.Button(frm_scan, text='Load',font=BF, command=self.f_scan_ld)
         btn_scan_ld.pack(side=tk.LEFT)
         btn_scan_mt = tk.Button(frm_scan, text='Meta',font=BF, command=self.f_scan_mt)
+        btn_scan_mt.pack(side=tk.LEFT)
+        btn_scan_mt = tk.Button(frm_scan, text='Nexus',font=BF, command=self.f_scan_nx)
         btn_scan_mt.pack(side=tk.LEFT)
         
         "----------------------------Plot Options-----------------------------"
@@ -1076,13 +1083,24 @@ class I16_Data_Viewer():
         self.update_details()
     
     def f_scan_mt(self):
-        "Send metadata to console"
+        "Display metadata"
         # Get the parameters
         self.set_files()
         scanno = self.scanno.get()
         
         self.helper.set('Displaying metadata in new window')
         I16_Meta_Display(scanno)
+
+    def f_scan_nx(self):
+        "Display nexus tree"
+        # Get the parameters
+        self.set_files()
+        scanno = self.scanno.get()
+        
+        self.helper.set('Displaying Nexus Tree in new window')
+        nx = pp.readnexus(scanno)
+        treestr = pp.nexustree(nx)
+        I16_Text_Display(treestr, 'Nexus: #%d'%scanno)
     
     def f_popt_plot(self):
         "Plot current scan"
@@ -1113,7 +1131,7 @@ class I16_Data_Viewer():
         scanno = self.scanno.get()
         d = pp.readscan(scanno)
 
-        metafields = d.metadata.keys()
+        metafields = list(d.metadata.keys())
         out = I16_Meta_Select(self, self.custom1, metafields)
     
     def f_detl_custom2(self):
@@ -1122,7 +1140,7 @@ class I16_Data_Viewer():
         scanno = self.scanno.get()
         d = pp.readscan(scanno)
 
-        metafields = d.metadata.keys()
+        metafields = list(d.metadata.keys())
         out = I16_Meta_Select(self, self.custom2, metafields)
         #self.root.wait_window(out.root)
         self.update_details()
@@ -2348,7 +2366,7 @@ class I16_Meta_Display:
         self.root = tk.Tk()
         self.root.wm_title('Metadata: #{}'.format(scanno))
         self.root.minsize(width=300, height=400)
-        self.root.maxsize(width=800, height=800)
+        self.root.maxsize(width=800, height=1200)
         
         #Frame
         frame = tk.Frame(self.root)
@@ -2365,7 +2383,7 @@ class I16_Meta_Display:
         scl_metay = tk.Scrollbar(frm_meta)
         scl_metay.pack(side=tk.RIGHT, fill=tk.BOTH)
         
-        self.lst_meta = tk.Listbox(frm_meta, font=HF, selectmode=tk.SINGLE,width=40,height=40,
+        self.lst_meta = tk.Listbox(frm_meta, font=HF, selectmode=tk.SINGLE,width=40,height=38,
                                 xscrollcommand=scl_metax.set,yscrollcommand=scl_metay.set)
         self.lst_meta.configure(exportselection=True)
         
@@ -2384,25 +2402,54 @@ class I16_Meta_Display:
         scl_metay.config(command=self.lst_meta.yview)
         
         #self.txt_meta.config(xscrollcommand=scl_metax.set,yscrollcommand=scl_metay.set)
+
+        "----------------------------Search entry---------------------------"
+        frm = tk.Frame(frame)
+        frm.pack(pady=4)
+        
+        self.searchval = tk.StringVar(frame, '')
+        ety = tk.Entry(frm, textvariable=self.searchval, font=LF, width=18)
+        ety.bind('<Return>',self.f_search)
+        ety.bind('<KP_Enter>',self.f_search)
+        ety.pack(side=tk.LEFT, fill=tk.X, expand=tk.YES)
+        
+        btn = tk.Button(frm, text='Search', width=8, font=BF, command=self.f_search)
+        btn.pack(side=tk.LEFT, padx=4)
+        
         
         "----------------------------Exit Button------------------------------"
         frm_btn = tk.Frame(frame)
-        frm_btn.pack()
+        frm_btn.pack(pady=2)
         
-        btn_exit = tk.Button(frm_btn,text='Exit',font=BF, command=self.f_exit)
+        btn_exit = tk.Button(frm_btn, text='Exit', width=8, font=BF, command=self.f_exit)
         btn_exit.pack()
         
     "------------------------------------------------------------------------"
     "--------------------------General Functions-----------------------------"
     "------------------------------------------------------------------------"
     
+    def f_search(self, event=None):
+        "Search metadata for field"
+
+        searchval = self.searchval.get()
+        items = self.lst_meta.get(0, tk.END)
+        self.lst_meta.selection_clear(0, tk.END)
+        viewn = 0
+        for n, item in enumerate(items):
+            if searchval.lower() in item.lower():
+                self.lst_meta.selection_set(n)
+                viewn = n 
+        self.lst_meta.yview(viewn)
+
+
+
     def f_exit(self):
         "Closes the current metadata window"
         self.root.destroy()
 
 
 "------------------------------------------------------------------------"
-"--------------------------I16_Meta_Display------------------------------"
+"--------------------------I16_Meta_Select-------------------------------"
 "------------------------------------------------------------------------"
 class I16_Meta_Select:
     """
