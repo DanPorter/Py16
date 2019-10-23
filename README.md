@@ -1,12 +1,14 @@
 # I16 Data Viewer
+
 Py16 programs for data viewing and analysis of I16 data
-By Dan Porter, 2017, Version 4.1
+
+By Dan Porter, 2017, Version 4.6
 
 View scan and meta data from scan files generated at the beamline I16 at Diamodn Light Source. Quickly look through scan data, plot the results with authomated normalisation and perform analysis such as peak fitting, generation of custom detector regions of interest (ROIs) and conversion of detector images to reciprocal space. Plus much more! Contains a feature rich graphical interface and a large module of automated functions for use in an interactive terminal or through scripting.
 
-These programs workin work in almost any python environment, as long as you have numpy, scipy and matplotlib installed and matplotlib initialised in the tkinter backend. The software has been extensivley tested in Python 2.7+ but unfortunatly will not currently work in Python 3+.
+These programs workin work in almost any python environment, as long as you have numpy, scipy and matplotlib installed and matplotlib initialised in the tkinter backend. The software has been extensivley tested in Python 2.7+ and Python 3.7+.
 
-Requirements: numpy, matplotlib, scipy, tkinter, pil
+Requirements: numpy, matplotlib, scipy, tkinter, imageio, h5py
 
 See Py16Notes.txt for more info and Py16progs.html or Py16GUI.html for documentation
 
