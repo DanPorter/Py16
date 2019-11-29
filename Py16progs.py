@@ -125,7 +125,7 @@ Version History:
 15/05/19 4.4    Updated labels function, added newplot, multiplot, sliderplot, sliderplot2D
 02/10/19 4.5    Added plotqbpm, added defaults for phase plate scans
 23/10/19 4.6    Fixed exec compatibility, now python3 compatible, readnexus added using nexusformat or h5py
-29/11/19 4.7	Changed fit_scans save name to include vary
+29/11/19 4.7	Changed fit_scans save name to include vary, added nexus_rsremap and nexus_plot_rsremap
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -7602,6 +7602,37 @@ def getRAM():
     except ImportError:
         return 1e8
     return psutil.virtual_memory()[1]*0.5
+
+def nexus_rsremap(filename):
+	"""
+	Load rs_remap file, usually in exp_dir/processed/
+	returns hh, kk, ll, volume
+	"""
+	n = nxload(filename)
+	hval = np.array(n['/processed/process/reciprocal_space/h-axis'])
+	kval = np.array(n['/processed/process/reciprocal_space/k-axis'])
+	lval = np.array(n['/processed/process/reciprocal_space/l-axis'])
+	volume = np.array(n['/processed/process/reciprocal_space/volume'])
+	hh, kk, ll = np.meshgrid(hval, kval, lval)
+	return hh, kk, ll, volume
+
+def nexus_plot_rsremap(filename, n=None):
+	"""
+	Example plot of rs_remap
+	"""
+
+	hh, kk, ll, volume = nexus_rsremap(filename)
+
+	if n is None:
+		n = ll.shape[2]//2
+	lval = ll[0,0,n]
+	ttl = '\n'.join(os.path.split(filename))
+
+	plt.figure(figsize=[12,10])
+	plt.pcolormesh(hh[:,:,n], kk[:,:,n], volume[:,:,n].T)
+	plt.colorbar()
+	plt.axis('image');
+	labels(ttl, '(h,0,%4.2f)'%lval, '(0,k,%4.2f)'%lval)
 
 class dict2obj(OrderedDict):
     "Convert dictionary object to class instance"
