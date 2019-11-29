@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.6
-Last updated: 23/10/19
+Version 4.7
+Last updated: 29/11/19
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -125,6 +125,7 @@ Version History:
 15/05/19 4.4    Updated labels function, added newplot, multiplot, sliderplot, sliderplot2D
 02/10/19 4.5    Added plotqbpm, added defaults for phase plate scans
 23/10/19 4.6    Fixed exec compatibility, now python3 compatible, readnexus added using nexusformat or h5py
+29/11/19 4.7	Changed fit_scans save name to include vary
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -2880,7 +2881,7 @@ def create_analysis_file(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',
     Ndep = len(depvar)
     
     ttl = saveable(exp_title)
-    filename = savedir + '/I16_Analysis_{}_{}.py'.format(ttl,depvar[0])
+    filename = savedir + '/I16_Analysis_{}.py'.format('_'.join([ttl,depvar[0]]))
     
     # Add str quotes for printing, but not if list
     if type(vary) is str:
@@ -2892,7 +2893,10 @@ def create_analysis_file(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',
     n = 1
     while os.path.isfile(filename):
         n += 1
-        filename = savedir + '/I16_Analysis_{}_{}_{}.py'.format(ttl,depvar[0],n)
+        filename = '_'.join([ttl, depvar[0], str(n)])
+        filename = 'I16_Analysis_{}.py'.format(filename)
+        filename = os.path.join(savedir, filename)
+        #filename = savedir + '/I16_Analysis_{}_{}_{}.py'.format(ttl,depvar[0],n)
     
     with open(filename,'w') as f:
         # Write comments at top
@@ -2961,7 +2965,7 @@ def create_analysis_file(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',
         f.write('fit,err = dp.fit_scans(scans,**fitopt)\n\n')
         # Load
         f.write('# Load fitted data:\n')
-        f.write('#fit,err = dp.load_fits([{},{}],depvar={},fit_type=\'{}\')\n\n'.format(scans[0],scans[-1],depvar,fit_type))
+        f.write('#fit,err = dp.load_fits([{},{}], depvar={}, vary={}, fit_type=\'{}\')\n\n'.format(scans[0],scans[-1],depvar,vary,fit_type))
     
     print( 'New Analysis file written to ',filename )
 
@@ -3364,7 +3368,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
     
     # Title
     ttl = scantitle(scans)
-    fttl = '{} {}\n{}'.format(ttl,fit_type,d.metadata.cmd_short)
+    fttl = '{} {}\n{} vs {}\n{}'.format(ttl, fit_type, labvarx, labvary, d.metadata.cmd_short)
     
     "---Plot individual fits---"
     if show_fits == True:
@@ -3387,7 +3391,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
                 if type(savePLOT) is str:
                     saveplot('{} FITS {}'.format(savePLOT,n))
                 else:
-                    saveplot('{0} ScansFIT {1:1.0f}-{2:1.0f} {3} FITS {4}'.format(' '.join(depvar),scans[0],scans[-1],fit_type,n))
+                    saveplot('{0} ScansFIT {1:1.0f}-{2:1.0f} {3} {4} FITS {5}'.format(' '.join(depvar),scans[0],scans[-1],vary,fit_type,n))
                 
     # Sort by depvar
     unsorted_valstore = 1.0*valstore
@@ -3399,7 +3403,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
     
     # Save valstore & errstore values in text files
     if saveFIT not in [None, False, '']:
-        header = fttl+'\n'+','.join(dict_names)
+    	header = '{}\n{} vs {}\n{}'.format(fttl, labvarx, labvary, ','.join(dict_names))
         if type(saveFIT) is str:
             savefile = os.path.join(savedir, '{}.dat'.format(saveFIT))
             esavefile = os.path.join(savedir, '{}_errors.dat'.format(saveFIT))
@@ -3407,12 +3411,12 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
             np.savetxt(esavefile,unsorted_errstore,header=header)
             print( 'Saved as {}'.format(savefile) )
         else:
-            savefile = os.path.join(savedir, '{0} ScansFIT {1:1.0f}-{2:1.0f} {3}.dat'.format(' '.join(depvar),scans[0],scans[-1],fit_type))
-            esavefile = os.path.join(savedir, '{0} ScansFIT {1:1.0f}-{2:1.0f} {3}_errors.dat'.format(' '.join(depvar),scans[0],scans[-1],fit_type))
+            savefile = os.path.join(savedir, '{0} ScansFIT {1:1.0f}-{2:1.0f} {3} {4}.dat'.format(' '.join(depvar),scans[0],scans[-1],vary,fit_type))
+            esavefile = os.path.join(savedir, '{0} ScansFIT {1:1.0f}-{2:1.0f} {3} {4}_errors.dat'.format(' '.join(depvar),scans[0],scans[-1],vary,fit_type))
             np.savetxt(savefile,unsorted_valstore,header=header)
             np.savetxt(esavefile,unsorted_errstore,header=header)
             print( 'Saved as {}'.format(savefile) )
-            print( 'Reload this scan with:\n val,err = load_fits([{},{}],depvar={},fit_type=\'{}\')'.format(scans[0],scans[-1],depvar,fit_type) )
+            print( 'Reload this scan with:\n val,err = load_fits([{},{}], depvar={}, vary=\'{}\', fit_type=\'{}\')'.format(scans[0], scans[-1], depvar, vary, fit_type) )
         
     
     "------Plotting------"
@@ -3544,7 +3548,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
             if type(savePLOT) is str:
                 saveplot('{} {}'.format(savePLOT,nplot))
             else:
-                saveplot('{0} ScansFIT {1} {2:1.0f}-{3:1.0f} {4}'.format(' '.join(depvar),nplot,scans[0],scans[-1],fit_type))
+                saveplot('{0} ScansFIT {1} {2:1.0f}-{3:1.0f} {4} {5}'.format(' '.join(depvar),nplot,scans[0],scans[-1],vary,fit_type))
     plt.show()
     
     " Prepare output dicts"
@@ -3556,7 +3560,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
     
     return out_values,out_errors
 
-def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,disp=False,save=False,**fitopt):
+def load_fits(scans=[0], depvar='Ta', plot=None, vary='sum', fit_type = 'pVoight', file=None, disp=False, save=False,**fitopt):
     """ 
     New
      Load previously fitted data from fit_scans(), assuming it completed succesfully and was saved.
@@ -3570,6 +3574,7 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
      INPUTS:
              scans : [N,M]     : list of scan numbers used in fit_scans(), only the first and final values are required
            depvar : 'Ta'      : Independent variable, e.g. 'Ta','Energy','psi'
+             vary : 'roi2_sum': Scanned variable e.g. 'APD', 'sum', 'nroi[31,31]'
          fit_type : 'pVoight  : Type of fit to perform e.g. 'Simple','pVoight','Lorentz','Gauss'
              plot : None      : Plot the loaded fit data, available: [None,'all','int','cen','wid']
              file : None      : If given, this filename will be used to open the data files
@@ -3617,8 +3622,8 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
         efile = os.path.join(savedir,scans+'_errors.dat')
     
     if file is None:
-        fname = '{0} ScansFIT {1:1.0f}-{2:1.0f} {3}.dat'.format(' '.join(depvar),scans[0],scans[-1],fit_type)
-        ename = '{0} ScansFIT {1:1.0f}-{2:1.0f} {3}_errors.dat'.format(' '.join(depvar),scans[0],scans[-1],fit_type)
+        fname = '{0} ScansFIT {1:1.0f}-{2:1.0f} {3} {4}.dat'.format(' '.join(depvar), scans[0], scans[-1], vary, fit_type)
+        ename = '{0} ScansFIT {1:1.0f}-{2:1.0f} {3} {4}_errors.dat'.format(' '.join(depvar), scans[0], scans[-1], vary, fit_type)
         file = os.path.join(savedir, fname)
         efile = os.path.join(savedir, ename)
         print(file)
@@ -3648,7 +3653,7 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
         plot.__iter__; # test if array
     except AttributeError:
         plot = [plot]
-    fttl = '#{} {}'.format(numbers2string(scans),fit_type)
+    fttl = '#{} {} {}'.format(numbers2string(scans),vary,fit_type)
     xrange = [valstore[:,1].min(),valstore[:,1].max()]
     depvar = names[1:]
     for nplot in plot:
@@ -3780,7 +3785,7 @@ def load_fits(scans=[0],depvar='Ta',plot=None,fit_type = 'pVoight',file=None,dis
             if type(save) is str:
                 saveplot('{} {}'.format(save,nplot))
             else:
-                saveplot('{0} ScansFIT {1} {2:1.0f}-{3:1.0f} {4}'.format(' '.join(depvar),nplot,scans[0],scans[-1],fit_type))
+                saveplot('{0} ScansFIT {1} {2:1.0f}-{3:1.0f} {4} {5}'.format(' '.join(depvar),nplot,scans[0],scans[-1],vary,fit_type))
     plt.show()
     
     " Prepare output dicts"

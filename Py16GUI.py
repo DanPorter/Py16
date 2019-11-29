@@ -78,8 +78,8 @@ I16_Peak_Analysis - Plot and analyse multiple scans, including peak fitting and 
 I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
-Version 4.4
-Last updated: 16/10/19
+Version 4.6
+Last updated: 29/11/19
 
 Version History:
 07/02/16 0.9    Program created
@@ -120,6 +120,7 @@ Version History:
 16/04/19 4.3    Added error checking on metadata
 15/05/19 4.4    Added metadata plotting
 23/10/19 4.5    Now python3 compatible, added metadata search and nexus button
+29/11/19 4.6    Corrected multiple depvar error in multiplot
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -181,7 +182,7 @@ if cf not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 4.5
+Py16GUI_Version = 4.6
 
 # Print layout
 default_print_layout = [3,2]
@@ -3151,7 +3152,7 @@ class I16_Peak_Analysis:
         scanno = eval(scanstr)
         
         # Get fit options
-        depvar = self.depvar.get().split()
+        depvar = self.depvar.get().replace(',',' ').split()
         yvar = self.vary.get()
         xvar = self.varx.get()
         save = self.saveopt.get()
@@ -3954,7 +3955,7 @@ class I16_Advanced_Fitting:
         masks = masks[np.where(self.Active)]
         
         # Get fit options
-        depvar = self.depvar.get().split()
+        depvar = self.depvar.get().replace(',',' ').split()
         xvar = self.varx.get()
         yvar = self.vary.get()
         save = self.saveopt.get()
