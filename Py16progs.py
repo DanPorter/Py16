@@ -121,11 +121,11 @@ Version History:
 14/12/18 4.1    Update to simpfit, giving better estimates of peak position, changed default tmpdir
 21/02/19 4.2    Update to pcolorplot, removed some bugs
 18/03/19 4.2    Update to plotscans, correcting normalisation for multi-vary
-15/04/19 4.3	Update to readscan, additional checks on metadata added
+15/04/19 4.3    Update to readscan, additional checks on metadata added
 15/05/19 4.4    Updated labels function, added newplot, multiplot, sliderplot, sliderplot2D
 02/10/19 4.5    Added plotqbpm, added defaults for phase plate scans
 23/10/19 4.6    Fixed exec compatibility, now python3 compatible, readnexus added using nexusformat or h5py
-29/11/19 4.7	Changed fit_scans save name to include vary, added nexus_rsremap and nexus_plot_rsremap
+29/11/19 4.7    Changed fit_scans save name to include vary, added nexus_rsremap and nexus_plot_rsremap
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -3202,7 +3202,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
         
      OUTPUTS:
               val : Fitted values:
-              		val['Scan Number']
+                      val['Scan Number']
                     val[depvar]
                     val['Peak Height']
                     val['Peak Centre']
@@ -3212,7 +3212,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
                     val['Area']
                     val['CHI2 per dof']
               err : Errors on fitted values
-              		err['Scan Number']
+                      err['Scan Number']
                     err['Peak Height']
                     err['Peak Centre']
                     err['FWHM']
@@ -3403,7 +3403,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
     
     # Save valstore & errstore values in text files
     if saveFIT not in [None, False, '']:
-    	header = '{}\n{} vs {}\n{}'.format(fttl, labvarx, labvary, ','.join(dict_names))
+        header = '{}\n{} vs {}\n{}'.format(fttl, labvarx, labvary, ','.join(dict_names))
         if type(saveFIT) is str:
             savefile = os.path.join(savedir, '{}.dat'.format(saveFIT))
             esavefile = os.path.join(savedir, '{}_errors.dat'.format(saveFIT))
@@ -7604,35 +7604,35 @@ def getRAM():
     return psutil.virtual_memory()[1]*0.5
 
 def nexus_rsremap(filename):
-	"""
-	Load rs_remap file, usually in exp_dir/processed/
-	returns hh, kk, ll, volume
-	"""
-	n = nxload(filename)
-	hval = np.array(n['/processed/process/reciprocal_space/h-axis'])
-	kval = np.array(n['/processed/process/reciprocal_space/k-axis'])
-	lval = np.array(n['/processed/process/reciprocal_space/l-axis'])
-	volume = np.array(n['/processed/process/reciprocal_space/volume'])
-	hh, kk, ll = np.meshgrid(hval, kval, lval)
-	return hh, kk, ll, volume
+    """
+    Load rs_remap file, usually in exp_dir/processed/
+    returns hh, kk, ll, volume
+    """
+    n = nxload(filename)
+    hval = np.array(n['/processed/process/reciprocal_space/h-axis'])
+    kval = np.array(n['/processed/process/reciprocal_space/k-axis'])
+    lval = np.array(n['/processed/process/reciprocal_space/l-axis'])
+    volume = np.array(n['/processed/process/reciprocal_space/volume'])
+    hh, kk, ll = np.meshgrid(hval, kval, lval)
+    return hh, kk, ll, volume
 
 def nexus_plot_rsremap(filename, n=None):
-	"""
-	Example plot of rs_remap
-	"""
+    """
+    Example plot of rs_remap
+    """
 
-	hh, kk, ll, volume = nexus_rsremap(filename)
+    hh, kk, ll, volume = nexus_rsremap(filename)
 
-	if n is None:
-		n = ll.shape[2]//2
-	lval = ll[0,0,n]
-	ttl = '\n'.join(os.path.split(filename))
+    if n is None:
+        n = ll.shape[2]//2
+    lval = ll[0,0,n]
+    ttl = '\n'.join(os.path.split(filename))
 
-	plt.figure(figsize=[12,10])
-	plt.pcolormesh(hh[:,:,n], kk[:,:,n], volume[:,:,n].T)
-	plt.colorbar()
-	plt.axis('image');
-	labels(ttl, '(h,0,%4.2f)'%lval, '(0,k,%4.2f)'%lval)
+    plt.figure(figsize=[12,10])
+    plt.pcolormesh(hh[:,:,n], kk[:,:,n], volume[:,:,n].T)
+    plt.colorbar()
+    plt.axis('image');
+    labels(ttl, '(h,0,%4.2f)'%lval, '(0,k,%4.2f)'%lval)
 
 class dict2obj(OrderedDict):
     "Convert dictionary object to class instance"
