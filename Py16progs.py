@@ -79,7 +79,7 @@ Some Useful Functions:
     
 
 Version 4.7
-Last updated: 29/11/19
+Last updated: 21/02/20
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -126,6 +126,7 @@ Version History:
 02/10/19 4.5    Added plotqbpm, added defaults for phase plate scans
 23/10/19 4.6    Fixed exec compatibility, now python3 compatible, readnexus added using nexusformat or h5py
 29/11/19 4.7    Changed fit_scans save name to include vary, added nexus_rsremap and nexus_plot_rsremap
+21/02/19 4.7    Added findscans
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -2107,7 +2108,7 @@ def scanpol(num,latex=False):
         return ltx
     return pol
 
-def scantemp(num, sensor=None):
+def scantemp(num, sensor=None, return_value=False):
     "Returns the average temperature of the chosen scan as a formatted string"
     
     try:
@@ -2129,7 +2130,9 @@ def scantemp(num, sensor=None):
     # temperature given as 0 if lakeshore not connected
     if T < 0.1:
         T = 300
-    
+
+    if return_value:
+        return T    
     return '{:1.3g}K'.format(T)
 
 def scanss(num):
@@ -2187,7 +2190,7 @@ def scanenergy(num):
     else:
         E = m.Energy
     
-    return '{:1.4g}keV'.format(E)
+    return '{:1.5g}keV'.format(E)
 
 def scaneuler(num, mean=False):
     """
@@ -2242,6 +2245,17 @@ def scanwl(num):
     lam = h*c/E
     wl = lam/A
     return wl
+
+def scantime(num):
+    "Returns the time the scan file was last modified, as a datetime object"
+
+    #date = readscan(num).metadata.date
+    #time = datetime.datetime.strptime(date,'%a %b %d %H:%M:%S %Y')
+    file = scanfile(num)
+    time = datetime.datetime.fromtimestamp(os.stat(file).st_mtime) # last modified time
+    # Add 1s for good measure
+    time = time + datetime.timedelta(0,1) # days, seconds
+    return time
 
 def scanfile(num):
     "Returns the full file name of scan #num"
@@ -2360,7 +2374,6 @@ def nexussearch(find, tree, name=[], Whole=False, Case=False):
     except AttributeError:
         return outnames, outvals
     return outnames, outvals
-
 
 def prend(start=0,end=None):
     "Calculate the end time of a run, return str"
@@ -3005,6 +3018,93 @@ def get_all_scannos():
     scannos = [np.int(os.path.split(file)[-1][:-4]) for file in ls]
     return scannos
 
+def findscans(scannos=None, hkl=None, energy=None, temperature=None, scan_type=None, stokes=None, psi=None, endtime=None, hours_before=None):
+    """
+    Find scans with certain properties within a given set of scan numbers
+      scans = findscans(scannos, hkl=[0,0,2])
+      - returns scans with metadata recorded at [0,0,2]
+
+     - endtime: datetime.datetime object
+     - hours_before - finds scans between endtime-hours_before and endtime
+    """
+
+    hkl_tol = 0.05
+    energy_tol = 0.001
+    temp_tol = 0.5
+    stokes_tol = 0.1
+    psi_tol = 0.1
+
+    if scannos is None:
+        scannos = get_all_scannos()
+
+    if hkl:
+        hkl = np.asarray(hkl)
+
+    if endtime is None:
+        endtime = datetime.datetime.now() + datetime.timedelta(seconds=5)
+    if hours_before:
+        hours_before = datetime.timedelta(hours=hours_before)
+        starttime = endtime - hours_before
+
+    outscans = []
+    for scan in scannos:
+        d = readscan(scan)
+        if d is None: continue
+        m = d.metadata
+
+        findall = []
+        if hkl is not None:
+            scanhkl = np.array([m.h, m.k, m.l])
+            diff = np.sqrt(np.sum( (scanhkl - hkl)**2 ))
+            if diff < hkl_tol:
+                findall += [True]
+            else:
+                findall += [False]
+
+        if energy:
+            if np.abs(m.Energy - energy) < energy_tol:
+                findall += [True]
+            else:
+                findall += [False]
+
+        if temperature:
+            T = scantemp(d, return_value=True)
+            if np.abs(T - temperature) < temp_tol:
+                findall += [True]
+            else:
+                findall += [False]
+
+        if scan_type:
+            varx = auto_varx(d)
+            if scan_type == varx:
+                findall += [True]
+            else:
+                findall += [False]
+
+        if stokes:
+            if np.abs(m.stokes - stokes) < stokes_tol:
+                findall += [True]
+            else:
+                findall += [False]
+
+        if psi:
+            if np.abs(m.psi - psi) < psi_tol:
+                findall += [True]
+            else:
+                findall += [False]
+
+        if hours_before is not None:
+            scandate = scantime(scan)
+            if starttime < scandate < endtime:
+                findall += [True]
+            else:
+                findall += [False]
+
+        if np.all(findall):
+            outscans += [scan]
+    return outscans
+
+
 
 "----------------------Previous Experiment Functions----------------------"
 
@@ -3257,6 +3357,8 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
     FITTING PROCEDURE:
         >
     """
+
+    scans = np.asarray(scans).astype(int)
     
     # Turn depvar into a list
     if type(depvar) is str:
@@ -3622,6 +3724,7 @@ def load_fits(scans=[0], depvar='Ta', plot=None, vary='sum', fit_type = 'pVoight
         efile = os.path.join(savedir,scans+'_errors.dat')
     
     if file is None:
+        scans = np.asarray(scans).astype(int)
         fname = '{0} ScansFIT {1:1.0f}-{2:1.0f} {3} {4}.dat'.format(' '.join(depvar), scans[0], scans[-1], vary, fit_type)
         ename = '{0} ScansFIT {1:1.0f}-{2:1.0f} {3} {4}_errors.dat'.format(' '.join(depvar), scans[0], scans[-1], vary, fit_type)
         file = os.path.join(savedir, fname)
@@ -7536,7 +7639,7 @@ def findranges(scannos,sep=':'):
 def mini_string_range(scannos,sep=':'):
     "Convert a list of numbers to a simple string"
     
-    scannos = np.sort(scannos).astype(str)
+    scannos = np.sort(scannos).astype(int).astype(str)
     
     n = len(scannos[0])
     while np.all([scannos[0][:-n] == x[:-n] for x in scannos]): 

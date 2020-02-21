@@ -79,7 +79,7 @@ I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
 Version 4.6
-Last updated: 29/11/19
+Last updated: 10/02/20
 
 Version History:
 07/02/16 0.9    Program created
@@ -121,6 +121,7 @@ Version History:
 15/05/19 4.4    Added metadata plotting
 23/10/19 4.5    Now python3 compatible, added metadata search and nexus button
 29/11/19 4.6    Corrected multiple depvar error in multiplot
+10/02/20 4.6    Changed multiplot range to list(range) for python3
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -3113,7 +3114,7 @@ class I16_Peak_Analysis:
             last = pp.latest()
             self.last.set(last)
         
-        scans = range(first,last+1,step)
+        scans = list(range(first,last+1,step))
         
         # Update text in evalbox
         scanstr = str(scans)
