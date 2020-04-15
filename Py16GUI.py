@@ -79,7 +79,7 @@ I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
 Version 4.6
-Last updated: 10/02/20
+Last updated: 29/02/20
 
 Version History:
 07/02/16 0.9    Program created
@@ -122,6 +122,7 @@ Version History:
 23/10/19 4.5    Now python3 compatible, added metadata search and nexus button
 29/11/19 4.6    Corrected multiple depvar error in multiplot
 10/02/20 4.6    Changed multiplot range to list(range) for python3
+29/02/20 4.6    Added reload to python gui
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -2699,6 +2700,8 @@ class I16_Python_Editor:
         btn.pack(side=tk.RIGHT)
         btn = tk.Button(frm_btn,text='Open', font=BF, command=self.f_open)
         btn.pack(side=tk.RIGHT)
+        btn = tk.Button(frm_btn,text='Reload', font=BF, command=self.f_reload)
+        btn.pack(side=tk.RIGHT)
         
     "------------------------------------------------------------------------"
     "--------------------------General Functions-----------------------------"
@@ -2755,6 +2758,15 @@ class I16_Python_Editor:
             filetypes = (("python file","*.py"),("all files","*.*")))
         if self.savelocation != '':
             self.f_save()
+
+    def f_reload(self):
+        "reload the current file"
+        if self.savelocation == '':
+            return
+        with open(self.savelocation) as f:
+            disp_str = f.read()
+        self.text.delete(1.0, tk.END) 
+        self.text.insert(tk.END, disp_str)
 
     def f_exit(self):
         "Closes the current text window"
@@ -3935,7 +3947,7 @@ class I16_Advanced_Fitting:
         for n in range(len(scannos)):
             print( n,scannos[n],masks[n] )
         
-        pp.fit_scans(scannos,dependent,yvar,xvar,fit_type,bkg_type,peaktest,abscor=None,norm=norm,plot='all',show_fits=True,
+        pp.fit_scans(scannos,dependent,yvar,xvar,fit_type,bkg_type,peaktest,abscor=None,norm=norm,plot=['all'],show_fits=True,
                      mask_cmd=self.Masks,estvals=None,xrange=xrange,sortdep=True,Nloop=Nloop, Binit=Binit, Tinc=Tinc, 
                      change_factor=Change, converge_max=Converge, min_change=0.01,savePLOT=save,saveFIT=save)
         plt.show()
@@ -3985,7 +3997,7 @@ class I16_Advanced_Fitting:
         
         if save == 0: save = None
         
-        pp.create_analysis_file(scannos,depvar,yvar,xvar,fit_type,bkg_type,peaktest,abscor=None,norm=norm,plot='all',show_fits=True,
+        pp.create_analysis_file(scannos,depvar,yvar,xvar,fit_type,bkg_type,peaktest,abscor=None,norm=norm,plot=['all'],show_fits=True,
                                 mask_cmd=masks,estvals=None,xrange=xrange,sortdep=True,Nloop=Nloop, Binit=Binit, Tinc=Tinc, 
                                 change_factor=Change, converge_max=Converge, min_change=0.01,savePLOT=save,saveFIT=save)
     
