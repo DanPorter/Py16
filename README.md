@@ -1,16 +1,27 @@
 # I16 Data Viewer
 
-Py16 programs for data viewing and analysis of I16 data
+Py16 programs for data viewing and analysis of data from beamline I16, Diamond Light Source Ltd.
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.3859719.svg)](https://doi.org/10.5281/zenodo.3859719)
 
 By Dan Porter, 2020, Version 4.7
 
-View scan and meta data from scan files generated at the beamline I16 at Diamond Light Source. Quickly look through scan data, plot the results with authomated normalisation and perform analysis such as peak fitting, generation of custom detector regions of interest (ROIs) and conversion of detector images to reciprocal space. Plus much more! Contains a feature rich graphical interface and a large module of automated functions for use in an interactive terminal or through scripting.
+View scan and meta data from scan files generated at the beamline I16 at Diamond Light Source. Quickly look through scan data, plot the results with automated normalisation and perform analysis such as peak fitting, generation of custom detector regions of interest (ROIs) and conversion of detector images to reciprocal space. Plus much more! Contains a feature rich graphical interface and a large module of automated functions for use in an interactive terminal or through scripting.
 
-These programs workin work in almost any python environment, as long as you have numpy, scipy and matplotlib installed and matplotlib initialised in the tkinter backend. The software has been extensivley tested in Python 2.7+ and Python 3.7+.
+These programs work in almost any python environment, as long as you have numpy, scipy and matplotlib installed and matplotlib initialised in the tkinter backend. The software has been extensivley tested in Python 2.7+ and Python 3.7+.
 
 Requirements: numpy, matplotlib, scipy, tkinter, imageio, h5py
 
 See Py16Notes.txt for more info and Py16progs.html or Py16GUI.html for documentation
+
+This software is covered by the Apache 2.0 open source licence, please see file headers for more info.
+
+To cite this software, please use the following DOI: [10.5281/zenodo.3859719](https://doi.org/10.5281/zenodo.3859719)
+
+# Installation
+Download the following files and place them in the directory of your choice:
+* [Py16progs.py](Py16Progs.py) - Contains functions to read data files, perform analysis and plot results
+* [Py16GUI.py](Py16GUI.py) - Contains functions to create GUI elements
 
 # Graphical interface
 From a terminal/ command prompt containing Py16GUI.py and Py16progs.py:
