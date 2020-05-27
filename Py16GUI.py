@@ -78,8 +78,8 @@ I16_Peak_Analysis - Plot and analyse multiple scans, including peak fitting and 
 I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
-Version 4.6
-Last updated: 29/02/20
+Version 4.7
+Last updated: 27/05/20
 
 Version History:
 07/02/16 0.9    Program created
@@ -123,12 +123,32 @@ Version History:
 29/11/19 4.6    Corrected multiple depvar error in multiplot
 10/02/20 4.6    Changed multiplot range to list(range) for python3
 29/02/20 4.6    Added reload to python gui
+27/05/20 4.7    Added licence
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
 @author: Dan Porter
 I16, Diamond Light Source
 2016
+
+-----------------------------------------------------------------------------
+   Copyright 2020 Diamond Light Source Ltd.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+Dr Daniel G Porter, dan.porter@diamond.ac.uk
+www.diamond.ac.uk
+Diamond Light Source, Chilton, Didcot, Oxon, OX11 0DE, U.K.
 """
 
 """
@@ -184,7 +204,7 @@ if cf not in sys.path:
 import Py16progs as pp
 
 # Version
-Py16GUI_Version = 4.6
+Py16GUI_Version = 4.7
 
 # Print layout
 default_print_layout = [3,2]

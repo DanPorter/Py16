@@ -79,7 +79,7 @@ Some Useful Functions:
     
 
 Version 4.7
-Last updated: 21/02/20
+Last updated: 27/05/20
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -126,13 +126,34 @@ Version History:
 02/10/19 4.5    Added plotqbpm, added defaults for phase plate scans
 23/10/19 4.6    Fixed exec compatibility, now python3 compatible, readnexus added using nexusformat or h5py
 29/11/19 4.7    Changed fit_scans save name to include vary, added nexus_rsremap and nexus_plot_rsremap
-21/02/19 4.7    Added findscans
+21/02/20 4.7    Added findscans
+29/02/20 4.7    Added output to plotqbpm
+27/05/20 4.7    Added licence
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
 @author: Dan Porter
 I16, Diamond Light Source
 2016
+
+-----------------------------------------------------------------------------
+   Copyright 2020 Diamond Light Source Ltd.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+Dr Daniel G Porter, dan.porter@diamond.ac.uk
+www.diamond.ac.uk
+Diamond Light Source, Chilton, Didcot, Oxon, OX11 0DE, U.K.
 """
 
 #Ideas for the future:
@@ -5163,9 +5184,18 @@ def plotqbpm(scannos, normaliseby='left', plot=True, show_difference=False, save
     """
     Plots 4 currents from QBPM scans
         e.g. scancn ppth1 0.001 w .5 qbpm6
-    scannos = scan to plot, multiple scans are appended together
-    normaliseby = min, left*, right, mean, none - method of normalisation
-    save = True/ False
+
+        neg, pos, centre, offset = plotqbpm(123456)
+      scannos = scan to plot, multiple scans are appended together
+      normaliseby = min, left*, right, mean, none - method of normalisation
+      plot = True/ False - create plot
+      show_difference=False/ True - display diff on plot
+      save = True/ False
+
+      neg = negative offset
+      pos = positive offset
+      centre = average point between neg and pos
+      offset = offset value from cenre to pos
     """
     
     scannos = np.asarray(scannos).reshape(-1)
@@ -5268,7 +5298,8 @@ def plotqbpm(scannos, normaliseby='left', plot=True, show_difference=False, save
         labels(None,None,'ic1monitor')
         ax2.tick_params(axis='y', labelcolor='g')
         ax2.set_ylabel('ic1monitor',color='g')
-        
+    
+    """
     # Find intercepts
     midpoint = np.mean(ival)
     midpoint = xval[np.argmin(mon)]
@@ -5285,7 +5316,7 @@ def plotqbpm(scannos, normaliseby='left', plot=True, show_difference=False, save
     #neg3 = ivaln[np.argmin(d3[ival<midpoint])]
     #neg4 = ivaln[np.argmin(d4[ival<midpoint])]
     #neg = np.mean([neg1,neg2,neg3,neg4])
-    neg = ivaln[np.argmin(diff[ival<midpoint-step])]
+    #neg = ivaln[np.argmin(diff[ival<midpoint-step])]
 
     ivalp = ival[ival>midpoint+step]
     #pos1 = ivalp[np.argmin(d1[ival>midpoint])]
@@ -5294,6 +5325,19 @@ def plotqbpm(scannos, normaliseby='left', plot=True, show_difference=False, save
     #pos4 = ivalp[np.argmin(d4[ival>midpoint])]
     #pos = np.mean([pos1,pos2,pos3,pos4])
     pos = ivalp[np.argmin(diff[ival>midpoint+step])]
+    """
+    # new method 29/2/2020
+    # find smallest differences furthest appart
+    npoints = 0
+    percentile = 0
+    while npoints < 2:
+        percentile += 1
+        minthresh = np.percentile(diff, percentile)
+        minxvals = ival[ diff < minthresh ]
+        npoints = len(minxvals)
+    neg = minxvals[0]
+    pos = minxvals[-1]
+
     avmid = (pos+neg)/2
     negoff = neg-avmid
     posoff = pos-avmid
@@ -5315,6 +5359,7 @@ def plotqbpm(scannos, normaliseby='left', plot=True, show_difference=False, save
             else:
                 saveplot('{0} QBPM6'.format(num))
         plt.show()
+    return neg, pos, avmid, posoff
         
 
 
@@ -5322,7 +5367,12 @@ def plotqbpm(scannos, normaliseby='left', plot=True, show_difference=False, save
 
 
 def FWHM(x,y,interpolate=False):
-    "Calculate a simple FWHM from a peak"
+    """
+    Calculate a simple FWHM from a peak
+    Finds the peak centre using the maximum values
+    finds the width by finding the positions to the left and right of the centre
+    at half the height of the maximum value.
+    """
     
     if interpolate:
         interx = np.linspace(x[0],x[-1],len(x)*100)
@@ -5350,7 +5400,9 @@ def FWHM(x,y,interpolate=False):
     return abs(hfpos2-hfpos1)
 
 def centre(x,y):
-    "Calcualte centre of a peak"
+    """
+    Calcualte centre of a peak using the weighted average of the largest 20% of points
+    """
     srt = np.argsort(y)
     cen = np.average( x[ srt[ -len(x)//5: ] ] ,weights=y[ srt[ -len(x)//5: ] ]**2)
     return cen
@@ -5920,10 +5972,11 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
     
     # Plot Results
     if plot:
-        plt.figure()
+        plt.figure(figsize=[12,10], dpi=60)
         plt.errorbar(x,y,dy,fmt='b-o',lw=2,label='Data')
         plt.plot(xfit,yfit,'r-',lw=2,label='Fit')
-        plt.legend()
+        plt.legend(loc=0, frameon=False, fontsize=18)
+        plt.text(0.7,0.6, res_str,transform=plt.gca().transAxes,fontsize=16,fontname='Times New Roman')
         plt.show()
     return output,outerr
 
