@@ -32,3 +32,6 @@ d = pp.readscan(123456) \# creates a data holder object 'd' with scan data
 x,y,dy,varx,vary,ttl,d = pp.getdata(123456) \# returns x/y data with automatic choice of variables
 help(pp.getdata) \# see the documentation on this function
 ```
+
+# Screenshot
+![Py16GUI](Py16GUI_Screenshot.png)
