@@ -2,7 +2,7 @@
 
 Py16 programs for data viewing and analysis of I16 data
 
-By Dan Porter, 2019, Version 4.6
+By Dan Porter, 2020, Version 4.7
 
 View scan and meta data from scan files generated at the beamline I16 at Diamond Light Source. Quickly look through scan data, plot the results with authomated normalisation and perform analysis such as peak fitting, generation of custom detector regions of interest (ROIs) and conversion of detector images to reciprocal space. Plus much more! Contains a feature rich graphical interface and a large module of automated functions for use in an interactive terminal or through scripting.
 
