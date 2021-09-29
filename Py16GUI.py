@@ -207,7 +207,7 @@ import Py16progs as pp
 from image_gui import ImageGui
 
 # Version
-Py16GUI_Version = 4.8.1
+Py16GUI_Version = '4.8.1'
 
 # Print layout
 default_print_layout = [3,2]
