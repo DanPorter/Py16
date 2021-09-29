@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.7
-Last updated: 27/05/20
+Version 4.8.2
+Last updated: 29/09/21
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -129,6 +129,11 @@ Version History:
 21/02/20 4.7    Added findscans
 29/02/20 4.7    Added output to plotqbpm
 27/05/20 4.7    Added licence
+01/07/20 4.7.5	Updated plotqbpm to correct error
+11/02/21 4.8    Added colormap options
+23/04/21 4.8    Added detector to findscans
+24/05/21 4.8.1  Added file input to readscan
+29/09/21 4.8.2  Added fig_dpi parameter
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -201,7 +206,7 @@ except ImportError:
 # Variable filedir is called from the namespace and can be changed at any 
 # time,even once the module has been imported, if you change it in the current namespace
 
-filedir = '/dls/i16/data/2018' 
+filedir = '/dls/i16/data/2021' 
 savedir = '/home/i16user/Desktop'
 
 #tmpdir = tempfile.gettempdir() # I16 user accounts don't have access
@@ -254,6 +259,8 @@ pilatus_dead_pixels = np.zeros(shape=(0,2),dtype=int) # Blank
 "----------------------------Plotting Parameters--------------------------"
 plot_colors = ['b','g','m','c','y','k','r'] # change the default colours of plotscan 
 exp_title = '' # Experiment title
+default_colormap = 'viridis'  # maplotlib colormap
+fig_dpi = 80
 #plt.xkcd() # cool plots!
 
 
@@ -361,17 +368,19 @@ def readscan(num):
             d.metadata.en = current energy
         use d.keys() or d.metadata.keys() to see all values
     """
-    
-    if os.path.isdir(filedir) == False: 
-        print( "I can't find the directory: {}".format(filedir) )
-        return None
-    
-    if num < 1: 
-        if latest() is None: return None
-        num = latest()+num
-    
-    file = os.path.join(filedir, datfile_format %num)
-    #print(file)
+    if os.path.isfile(num):
+        file = num
+    else:
+        if os.path.isdir(filedir) == False: 
+            print( "I can't find the directory: {}".format(filedir) )
+            return None
+
+        if num < 1: 
+            if latest() is None: return None
+            num = latest()+num
+        
+        file = os.path.join(filedir, datfile_format %num)
+        #print(file)
     try:
         d = read_dat_file(file)
         #d = dnp.io.load(file,warn=False) # from SciSoftPi
@@ -422,7 +431,7 @@ def readscan(num):
     if 's6xgap' not in metakeys: d.metadata.s6xgap=-1;d.metadata.s6ygap=-1
     if 'm4pitch' not in metakeys: d.metadata.m4pitch=0.0
     if 'Atten' not in metakeys: d.metadata.Atten=-1;d.metadata.Transmission=1.0
-    if 'gam' not in metakeys: d.metadata.gam=d.kgam
+    if 'gam' not in metakeys: d.metadata.gam=0
     if 'azih' not in metakeys: d.metadata.azih=0;d.metadata.azik=0;d.metadata.azil=0
     if 'psi' not in metakeys: d.metadata.psi = 666
     if 'h' not in metakeys: d.metadata.h = 0.0
@@ -2280,6 +2289,11 @@ def scantime(num):
 
 def scanfile(num):
     "Returns the full file name of scan #num"
+
+    try:
+        return num.metadata.filename
+    except:
+        pass
     
     if os.path.isdir(filedir) == False: 
         print( "I can't find the directory: {}".format(filedir) )
@@ -2317,6 +2331,14 @@ def scanimagefile(num, idx=0):
     file = os.path.join(filedir,tif)
     file=file.replace('/',os.path.sep)
     return file
+
+def scanimagefiles(num, setvarx=None):
+    "Return inputs for image_gui: image_file_list, names_list, ttl"
+    
+    x, y, dy, varx, vary, ttl, d = getdata(num, varx=setvarx)
+    file_list = [scanimagefile(d, n) for n in range(len(x))]
+    name_list = ['%s = %10.5g' % (varx, v) for v in x]
+    return file_list, name_list, ttl
 
 def scanimage(num, idx=0):
     "Returns a single image array from scan #num"
@@ -2722,7 +2744,7 @@ def polenergy(sigsig, sigpi, background=None, vary='', bkg_scale=None, flipping_
     bkglab = 'BKG/{:1.3g} #{}'.format(bkg_scale,background)
     
     " Create Plot"
-    fig = plt.figure(figsize=[10,8])
+    fig = plt.figure(figsize=[10,8], dpi=fig_dpi)
     
     plt.plot(nprx,npry/flipping_ratio,'-ob',linewidth=2,label=nprlab)
     plt.plot(prx,pry,'-og',linewidth=2,label=prlab)
@@ -3039,7 +3061,7 @@ def get_all_scannos():
     scannos = [np.int(os.path.split(file)[-1][:-4]) for file in ls]
     return scannos
 
-def findscans(scannos=None, hkl=None, energy=None, temperature=None, scan_type=None, stokes=None, psi=None, endtime=None, hours_before=None):
+def findscans(scannos=None, hkl=None, energy=None, temperature=None, scan_type=None, detector=None, stokes=None, psi=None, endtime=None, hours_before=None):
     """
     Find scans with certain properties within a given set of scan numbers
       scans = findscans(scannos, hkl=[0,0,2])
@@ -3098,6 +3120,13 @@ def findscans(scannos=None, hkl=None, energy=None, temperature=None, scan_type=N
         if scan_type:
             varx = auto_varx(d)
             if scan_type == varx:
+                findall += [True]
+            else:
+                findall += [False]
+
+        if detector:
+            cmd = m.cmd
+            if detector in cmd:
                 findall += [True]
             else:
                 findall += [False]
@@ -3550,7 +3579,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
     for nplot in plot:
         if nplot == 'all':
             # 2D Plots of area, width and position
-            fig = plt.figure(figsize=[18,12],dpi=80)
+            fig = plt.figure(figsize=[18,12], dpi=fig_dpi)
             ax1 = fig.add_subplot(231) # Area
             #plt.plot(valstore[:,0],valstore[:,6],'-o',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+6],errstore[:,Ndep+6],fmt='-o',linewidth=2)
@@ -3603,7 +3632,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
             #ax3.xaxis.set_major_formatter(x_formatter)
         elif nplot == 'int':
             # 2D Plots of area
-            fig = plt.figure(figsize=[8,8])
+            fig = plt.figure(figsize=[8,8], dpi=fig_dpi)
             #plt.plot(valstore[:,0],valstore[:,6],'-o',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+6],errstore[:,Ndep+6],fmt='-o',linewidth=2)
             plt.xlabel(depvar[0],fontsize=18)
@@ -3614,7 +3643,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
             fig.subplots_adjust(left=0.15)
         elif nplot == 'cen':
             # 2D Plots of centre
-            fig = plt.figure(figsize=[8,8])
+            fig = plt.figure(figsize=[8,8], dpi=fig_dpi)
             #plt.plot(valstore[:,0],valstore[:,2],'-+',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+2],errstore[:,Ndep+2],fmt='-o',linewidth=2)
             plt.xlabel(depvar[0],fontsize=18)
@@ -3624,7 +3653,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
             fig.subplots_adjust(left=0.15)
         elif nplot == 'wid':
             # 2D Plots of width
-            fig = plt.figure(figsize=[8,8])
+            fig = plt.figure(figsize=[8,8], dpi=fig_dpi)
             #plt.plot(valstore[:,0],valstore[:,3],'-+',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+3],errstore[:,Ndep+3],fmt='-o',linewidth=2)
             plt.xlabel(depvar[0],fontsize=18)
@@ -3657,7 +3686,7 @@ def fit_scans(scans,depvar='Ta',vary='',varx='',fit_type = 'pVoight',bkg_type='f
             sy_squareA = sy[:rep_len*(len(sy)//rep_len)].reshape(-1,rep_len)
             int_squareA = inte[:rep_len*(len(inte)//rep_len)].reshape(-1,rep_len)
             
-            plt.figure(figsize=[12,10])
+            plt.figure(figsize=[12,10], dpi=fig_dpi)
             plt.pcolormesh(sx_squareA, sy_squareA, int_squareA)
             plt.axis('image')
             cb = plt.colorbar()
@@ -3785,7 +3814,7 @@ def load_fits(scans=[0], depvar='Ta', plot=None, vary='sum', fit_type = 'pVoight
             break
         if nplot == 'all':
             # 2D Plots of area, width and position
-            fig = plt.figure(figsize=[18,12],dpi=80)
+            fig = plt.figure(figsize=[18,12], dpi=fig_dpi)
             ax1 = fig.add_subplot(231) # Area
             #plt.plot(valstore[:,0],valstore[:,6],'-o',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+6],errstore[:,Ndep+6],fmt='-o',linewidth=2)
@@ -3838,7 +3867,7 @@ def load_fits(scans=[0], depvar='Ta', plot=None, vary='sum', fit_type = 'pVoight
             #ax3.xaxis.set_major_formatter(x_formatter)
         elif nplot == 'int':
             # 2D Plots of area
-            fig = plt.figure(figsize=[8,8])
+            fig = plt.figure(figsize=[8,8], dpi=fig_dpi)
             fig.add_subplot(111) # Area
             #plt.plot(valstore[:,0],valstore[:,6],'-o',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+6],errstore[:,Ndep+6],fmt='-o',linewidth=2)
@@ -3850,7 +3879,7 @@ def load_fits(scans=[0], depvar='Ta', plot=None, vary='sum', fit_type = 'pVoight
             fig.subplots_adjust(left=0.15)
         elif nplot == 'cen':
             # 2D Plots of centre
-            fig = plt.figure(figsize=[8,8])
+            fig = plt.figure(figsize=[8,8], dpi=fig_dpi)
             fig.add_subplot(111) # Area
             #plt.plot(valstore[:,0],valstore[:,2],'-+',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+2],errstore[:,Ndep+2],fmt='-o',linewidth=2)
@@ -3861,7 +3890,7 @@ def load_fits(scans=[0], depvar='Ta', plot=None, vary='sum', fit_type = 'pVoight
             fig.subplots_adjust(left=0.15)
         elif nplot == 'wid':
             # 2D Plots of width
-            fig = plt.figure(figsize=[8,8])
+            fig = plt.figure(figsize=[8,8], dpi=fig_dpi)
             fig.add_subplot(111) # Area
             #plt.plot(valstore[:,0],valstore[:,3],'-+',linewidth=2)
             plt.errorbar(valstore[:,1],valstore[:,Ndep+3],errstore[:,Ndep+3],fmt='-o',linewidth=2)
@@ -3895,7 +3924,7 @@ def load_fits(scans=[0], depvar='Ta', plot=None, vary='sum', fit_type = 'pVoight
             sy_squareA = sy[:rep_len*(len(sy)//rep_len)].reshape(-1,rep_len)
             int_squareA = inte[:rep_len*(len(inte)//rep_len)].reshape(-1,rep_len)
             
-            plt.figure(figsize=[12,10])
+            plt.figure(figsize=[12,10], dpi=fig_dpi)
             plt.pcolormesh(sx_squareA, sy_squareA, int_squareA)
             plt.axis('image')
             cb = plt.colorbar()
@@ -3974,7 +4003,7 @@ def pil_peaks(scans,depvar='Ta',ROIsize=[31,31],cax=None,save=False):
             else:
                 saveplot('{} PilatusPeaks {:1.0f}-{:1.0f} {}'.format(depvar,scans[0],scans[-1],n))
         
-    plt.figure(figsize=[10,6])
+    plt.figure(figsize=[10,6], dpi=fig_dpi)
     plt.plot(ROIcenvals[:,1],ROIcenvals[:,0],'b-o',linewidth=2)
     plt.plot(ROIcenvals[0,1],ROIcenvals[0,0],'g+',markeredgewidth=3,markersize=22,label='Start')
     plt.plot(ROIcenvals[-1,1],ROIcenvals[-1,0],'r+',markeredgewidth=3,markersize=22,label='Finish')
@@ -4107,7 +4136,7 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
         varynew = 'Normalised Intensity'
     
     "---Create plot---"
-    fig = plt.figure(figsize=[10,8])
+    fig = plt.figure(figsize=[10,8], dpi=fig_dpi)
     
     plt.errorbar(x,y,dy,fmt='-o',c=plot_colors[0],linewidth=2,label=lbl)
     
@@ -4320,7 +4349,7 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
             saveplot(ttl)
     plt.show()
 
-def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75,67],show_ROIbkg=False,show_peakregion=False,log_colors=False,save=False):
+def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75,67],show_ROIbkg=False,show_peakregion=False,log_colors=False,save=False, colormap=None):
     """
     Pilatus image viewer, plotpil(#)
     Displays pilatus image with a slider to looks throught the whole scan
@@ -4363,6 +4392,12 @@ def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75
     if imnum is None:
         imnum = int(Nframe//2)
     
+    if colormap is None:
+        colormap = default_colormap
+    " Colormap name"
+    if type(colormap) == str:
+        colormap = plt.get_cmap(colormap)
+    
     " Default colour thresholds"
     if cax is None:
         if log_colors:
@@ -4376,10 +4411,10 @@ def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75
         print( 'caxis set at [{0:1.3g},{1:1.3g}]'.format(cax[0],cax[1]) )
     
     " Create figure & plot 1st image"
-    fig = plt.figure(figsize=[10,6])
+    fig = plt.figure(figsize=[10,6], dpi=fig_dpi)
     ax = fig.add_subplot(111)
     if log_colors:
-        p = plt.imshow(vol[:,:,imnum]+1,norm=LogNorm())
+        p = plt.imshow(vol[:,:,imnum]+1, cmap=colormap, norm=LogNorm())
     else:
         p = plt.imshow(vol[:,:,imnum])
     p.set_clim(cax)
@@ -4470,7 +4505,7 @@ def plotmeta(scans, fields='Energy', use_time=False, plot_against=None):
         xlab = 'Scan number'
     
     # create figure
-    fig = plt.figure(figsize=[10,8])
+    fig = plt.figure(figsize=[10,8], dpi=fig_dpi)
     
     # multiple fields
     fields = np.asarray(fields).reshape(-1)
@@ -4522,7 +4557,7 @@ def plotscans(scans=[],depvar=None,vary='',varx='',fit=None,norm=True,logplot=Fa
     """
     
     "---Create plot---"
-    fig = plt.figure(figsize=[10,8])
+    fig = plt.figure(figsize=[10,8], dpi=fig_dpi)
     
     " Define Colourmap"
     cm_plot = plt.get_cmap('rainbow')
@@ -4621,7 +4656,7 @@ def plotscans3D(scans,depvar='Ta',vary='',varx='',norm=True,logplot=False,save=F
     """
     
     "---Create Figure---"
-    fig = plt.figure(figsize=[14,12],dpi=80)
+    fig = plt.figure(figsize=[14,12], dpi=fig_dpi)
     ax = fig.add_subplot(111,projection='3d')
     
     "-----Load & Plot-----"
@@ -4687,7 +4722,7 @@ def plotscans2D(scans,depvar='Ta',vary='',varx='',norm=True,sort=False,logplot=F
     x,y,z,varx,vary,varz,ttl = joindata(scans,varx,depvar,vary,norm,sort)
     
     # Create Plot
-    fig = plt.figure(figsize=[14,12],dpi=80)
+    fig = plt.figure(figsize=[14,12], dpi=fig_dpi)
     ax = plt.subplot(1,1,1)
     if logplot:
         plt.pcolor(x,y,np.log10(z))
@@ -4728,7 +4763,7 @@ def plotscansSURF(scans,depvar='Ta',vary='',varx='',norm=True,sort=False,logplot
     x,y,z,varx,vary,varz,ttl = joindata(scans,varx,depvar,vary,norm,sort)
     
     # Create Plot
-    fig = plt.figure(figsize=[14,12],dpi=80)
+    fig = plt.figure(figsize=[14,12], dpi=fig_dpi)
     ax = plt.subplot(1,1,1,projection='3d')
     if logplot:
         surf = ax.plot_surface(y,x,np.log10(z),rstride=1,cstride=1, cmap=plt.cm.jet)
@@ -4775,7 +4810,7 @@ def plotpilSURF(num,varx='',ROIcen=None,wid=10,save=False):
     X,Y = np.meshgrid(x,range(vol.shape[0]))
     
     
-    fig = plt.figure(figsize=[14,12])
+    fig = plt.figure(figsize=[14,12], dpi=fig_dpi)
     ax = plt.subplot(1,1,1,projection='3d')
     surf = ax.plot_surface(X,Y,slice,rstride=1,cstride=1, cmap=plt.cm.jet)
     #cmap=plt.cm.ScalarMappable(cmap=plt.cm.jet)
@@ -4813,7 +4848,7 @@ def plotpilhist(num, frame=None, bins=100, save=False):
         vol = vol[:,:,frame].reshape(-1)
         ttl += '\n {:s} = {:1.4g}'.format(varx, x[frame])
 
-    plt.figure(figsize=[12,10])
+    plt.figure(figsize=[12,10], dpi=fig_dpi)
     plt.hist(np.log10(vol+1), bins)
     labels(ttl, 'Pixel Intensity', 'No. Pixels')
     plt.yscale('log')
@@ -4945,7 +4980,7 @@ def plotpilhkl_cuts(num,hkl_centre=None,image_centre=None,sum_tolarance=[0.05,0.
         small_vol = vol[ lidx*hk_cen_idx ]
         l_scan[n] = np.sum(small_vol)
     """
-    plt.figure(figsize=[8,12],dpi=80)
+    plt.figure(figsize=[8,12], dpi=fig_dpi)
     plt.subplot(311)
     plt.errorbar(h_list,h_scan,np.sqrt(h_scan+1),fmt='-o',lw=2,ms=12)
     labels(None,'(h,0,0)','Intensity')
@@ -5027,7 +5062,7 @@ def plotpilhkl_surf3d(num,cax=None,log_colors=False,initial_image=None):
     slice_c = colours[imgno]
     
     # Create Plot
-    fig = plt.figure(figsize=[14,12])
+    fig = plt.figure(figsize=[14,12], dpi=fig_dpi)
     ax = plt.subplot(1,1,1,projection='3d')
     surf = ax.plot_surface(slice_h,slice_k,slice_l,rstride=2,cstride=2, facecolors=slice_c)
     plt.axis('tight')
@@ -5117,7 +5152,7 @@ def plotpilxyz_surf3d(num,cax=None,log_colors=False,initial_image=None):
     slice_c = colours[imgno]
     
     # Create Plot
-    fig = plt.figure(figsize=[14,12])
+    fig = plt.figure(figsize=[14,12], dpi=fig_dpi)
     ax = plt.subplot(1,1,1,projection='3d')
     surf = ax.plot_surface(slice_x,slice_y,slice_z,rstride=2,cstride=2, facecolors=slice_c)
     plt.axis('tight')
@@ -5169,7 +5204,7 @@ def plotpiltth(num=None,binsep=0.1,centre_only=False):
     " Multiple nums given"
     nums = np.asarray(num,dtype=int).reshape(-1)
     
-    plt.figure(figsize=[10,8])
+    plt.figure(figsize=[10,8], dpi=fig_dpi)
     for num in nums:
         # Load hkl matrices
         tth,ival = pixel2tth(num,centre_only=centre_only)
@@ -5341,6 +5376,7 @@ def plotqbpm(scannos, normaliseby='left', plot=True, show_difference=False, save
     avmid = (pos+neg)/2
     negoff = neg-avmid
     posoff = pos-avmid
+    midpoint = xval[np.argmin(mon)]
     print(ttl)
     print('Estimated Midpoint: %s=%7.3f'%(xvar,midpoint))
     print('   Lower intercept: %s=%8.4f (%+6.4f)'%(xvar,neg,negoff))
@@ -5972,7 +6008,7 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
     
     # Plot Results
     if plot:
-        plt.figure(figsize=[12,10], dpi=60)
+        plt.figure(figsize=[12,10], dpi=fig_dpi)
         plt.errorbar(x,y,dy,fmt='b-o',lw=2,label='Data')
         plt.plot(xfit,yfit,'r-',lw=2,label='Fit')
         plt.legend(loc=0, frameon=False, fontsize=18)
@@ -6499,7 +6535,7 @@ def abscor(eta=0,chi=90,delta=0,mu=0,gamma=0,u=1.0,disp=False,plot=False):
     
     if plot:
         " Create Figure"
-        fig = plt.figure(figsize=[12,14])
+        fig = plt.figure(figsize=[12,14], dpi=fig_dpi)
         ax = fig.add_subplot(211,projection='3d')
         " Plot axes lines"
         ax.plot3D([-1,1],[0,0],[0,0],'k-',linewidth=1)
@@ -6611,7 +6647,7 @@ def volcor(eta=0,chi=90,delta=0,mu=0,gamma=0,u=1.0,disp=False,plot=False):
     
     if plot:
         " Create Figure"
-        fig = plt.figure(figsize=[12,14])
+        fig = plt.figure(figsize=[12,14], dpi=fig_dpi)
         ax = fig.add_subplot(211,projection='3d')
         " Plot axes lines"
         ax.plot3D([-1,1],[0,0],[0,0],'k-',linewidth=1)
@@ -6743,7 +6779,7 @@ def newplot(*args, **kwargs):
     if 'linewidth' and 'lw' not in kwargs.keys():
         kwargs['linewidth'] = 2
 
-    plt.figure(figsize=[12, 12])
+    plt.figure(figsize=[12, 12], dpi=fig_dpi)
     plt.plot(*args, **kwargs)
 
     plt.setp(plt.gca().spines.values(), linewidth=2)
@@ -6785,7 +6821,7 @@ def multiplot(xvals, yvals=None, datarange=None, cmap='jet', labels=None, marker
         marker = ''
     linearg = '-' + marker
 
-    plt.figure(figsize=[12, 12])
+    plt.figure(figsize=[12, 12], dpi=fig_dpi)
     for n in range(len(datarange)):
         col = cm(colrange[n])
         if len(xvals) == 0:
@@ -6825,7 +6861,7 @@ def newplot3(*args, **kwargs):
     if 'linewidth' and 'lw' not in kwargs.keys():
         kwargs['linewidth'] = 2
 
-    fig = plt.figure(figsize=[12, 12])
+    fig = plt.figure(figsize=[12, 12], dpi=fig_dpi)
     ax = fig.add_subplot(111, projection='3d')
 
     x = np.asarray(args[0], dtype=np.float)
@@ -6859,7 +6895,7 @@ def sliderplot(YY, X=None, slidervals=None, *args, **kwargs):
     if 'linewidth' and 'lw' not in kwargs.keys():
         kwargs['linewidth'] = 2
 
-    fig = plt.figure(figsize=[12, 12])
+    fig = plt.figure(figsize=[12, 12], dpi=fig_dpi)
 
     X = np.asarray(X, dtype=np.float)
     Y = np.asarray(YY, dtype=np.float)
@@ -6915,7 +6951,7 @@ def sliderplot2D(ZZZ, XX=None, YY=None, slidervals=None, *args, **kwargs):
     if 'linewidth' and 'lw' not in kwargs.keys():
         kwargs['linewidth'] = 2
 
-    fig = plt.figure(figsize=[12, 12])
+    fig = plt.figure(figsize=[12, 12], dpi=fig_dpi)
 
     ZZZ = np.asarray(ZZZ, dtype=np.float)
 
@@ -7784,7 +7820,7 @@ def nexus_plot_rsremap(filename, n=None):
     lval = ll[0,0,n]
     ttl = '\n'.join(os.path.split(filename))
 
-    plt.figure(figsize=[12,10])
+    plt.figure(figsize=[12,10], dpi=fig_dpi)
     plt.pcolormesh(hh[:,:,n], kk[:,:,n], volume[:,:,n].T)
     plt.colorbar()
     plt.axis('image');

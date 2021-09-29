@@ -78,8 +78,8 @@ I16_Peak_Analysis - Plot and analyse multiple scans, including peak fitting and 
 I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
-Version 4.7
-Last updated: 27/05/20
+Version 4.8.1
+Last updated: 29/09/21
 
 Version History:
 07/02/16 0.9    Program created
@@ -124,6 +124,8 @@ Version History:
 10/02/20 4.6    Changed multiplot range to list(range) for python3
 29/02/20 4.6    Added reload to python gui
 27/05/20 4.7    Added licence
+11/02/21 4.8    Added colormap options, added image_gui
+29/09/21 4.8.1  Corrected Meta_Display for None values
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -202,9 +204,10 @@ if cf not in sys.path:
     print('Adding to path: ''{}'''.format(cf) )
     sys.path.insert(0,cf)
 import Py16progs as pp
+from image_gui import ImageGui
 
 # Version
-Py16GUI_Version = 4.7
+Py16GUI_Version = 4.8.1
 
 # Print layout
 default_print_layout = [3,2]
@@ -862,7 +865,7 @@ class I16_Data_Viewer():
         self.ax2.set_autoscaley_on(True)
         self.ax2.set_autoscalex_on(True)
         self.ax2.set_frame_on(False)
-        self.pilim = self.ax2.imshow(np.zeros([195,487]))
+        self.pilim = self.ax2.imshow(np.zeros([195,487]), cmap=pp.default_colormap)
         #default_image = pp.misc.imread( os.path.dirname(__file__)+'\default_image.png')
         #self.pilim = self.ax2.imshow(default_image)
         self.ax2.set_position([0,0,1,1])
@@ -1577,9 +1580,31 @@ class I16_Data_Viewer():
     
     def f_fnl_spil(self):
         "Send plotpil command to console"
-        
         # Get the parameters
         self.set_files()
+        pp.normby = self.normtype.get()
+        scanno = self.scanno.get()
+        LOG = self.logplot.get()
+        setvarx = self.varx.get()
+        clim = (self.pilint_i.get(), self.pilint_j.get())
+        colormap = plt.get_cmap(pp.default_colormap)
+
+        x, y, dy, varx, vary, ttl, d = pp.getdata(scanno, varx=setvarx)
+        file_list = [pp.scanimagefile(d, n) for n in range(len(x))]
+        name_list = ['%s = %10.5g' % (varx, v) for v in x]
+        if not self.pilatus_active:
+            if self.livemode.get():
+                imno = len(x)-1
+            else:
+                imno = len(x)//2
+            clim = None
+        else:
+            imno = self.pilpos
+
+        ImageGui(file_list, name_list, title=ttl, initial_index=imno, colormap=colormap, clim=clim, logplot=LOG)
+
+        """
+        # Get the parameters
         pp.normby = self.normtype.get()
         scanno = self.scanno.get()
         LOG = self.logplot.get()
@@ -1600,6 +1625,7 @@ class I16_Data_Viewer():
         print( cmdstr.format(scanno,cax,setvarx,imnum,bkg_img,ROIcen,ROIsize,ROIbkg) )
         pp.plotpil(scanno,cax=cax,varx=setvarx,imnum=imnum,bkg_img=bkg_img,ROIcen=ROIcen,ROIsize=ROIsize,show_ROIbkg=ROIbkg,log_colors=LOG)
         plt.show()
+        """
     
     def f_fnl_phkl(self):
         "Send plotpilhkl command to console"
@@ -2140,6 +2166,7 @@ class I16_Data_Viewer():
             self.pilp5.set_ydata([])
         
         # Set intensity cutoffs
+        self.pilim.set_cmap(plt.get_cmap(pp.default_colormap))
         self.pilim.set_clim([self.pilint_i.get(),self.pilint_j.get()])
 
         # update lines
@@ -2413,7 +2440,7 @@ class I16_Meta_Display:
         # Populate list box
         for k in self.d.metadata.keys():
             if k[0] == '_': continue # Omit _OrderedDict__root/map
-            strval = '{:>20} : {:<20}'.format(k,self.d.metadata[k])
+            strval = '{:>20} : {}'.format(k,self.d.metadata[k])
             self.lst_meta.insert(tk.END,strval)
         
         self.lst_meta.pack(side=tk.LEFT,fill=tk.BOTH,expand=tk.YES)
@@ -4640,6 +4667,7 @@ class I16_Params:
         Max array size  Stops PC form running out of memory on large pilatus scans
         Peak Region     Peak finding (nroi_peak) searches within this box
         Colours         Set the default colour order for plots
+        Colormap        Set the default image colormap
         Title           Set the title that will appear in plot titles
     """
     "------------------------------------------------------------------------"
@@ -4790,6 +4818,18 @@ class I16_Params:
         ety_pltcol.pack(side=tk.LEFT,padx=5,pady=5)
         
         # Line 3b
+        frame3b = tk.Frame(frame3)
+        frame3b.pack()
+        
+        # Colormap
+        self.colormap = tk.StringVar(frame3,str(pp.default_colormap))
+        lbl_pltcol = tk.Label(frame3b,text='Colormap:',font=SF, justify=tk.RIGHT, width=dwid)
+        lbl_pltcol.pack(side=tk.LEFT,padx=5,pady=5)
+        ety_pltcol = tk.Entry(frame3b,textvariable=self.colormap, width=20)
+        ety_pltcol.pack(side=tk.LEFT,padx=5,pady=5)
+        
+        
+        # Line 3b
         frame3c = tk.Frame(frame3)
         frame3c.pack()
         
@@ -4824,6 +4864,7 @@ class I16_Params:
         pp.plot_colors = eval(self.plot_colors.get())
         pp.exp_title = self.exp_title.get()
         pp.default_sensor = self.sensortype.get()
+        pp.default_colormap = self.colormap.get()
         
         # Print layout
         new_print_layout = eval(self.print_layout.get())
