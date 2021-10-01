@@ -78,7 +78,7 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.8.2
+Version 4.8.3
 Last updated: 29/09/21
 
 Version History:
@@ -134,6 +134,7 @@ Version History:
 23/04/21 4.8    Added detector to findscans
 24/05/21 4.8.1  Added file input to readscan
 29/09/21 4.8.2  Added fig_dpi parameter
+01/10/21 4.8.3  Corrected error from os.path.isfile(d)
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -368,7 +369,10 @@ def readscan(num):
             d.metadata.en = current energy
         use d.keys() or d.metadata.keys() to see all values
     """
-    if os.path.isfile(num):
+    
+    if type(num) is dict2obj:
+        return num
+    elif type(num) is str and os.path.isfile(num):
         file = num
     else:
         if os.path.isdir(filedir) == False: 
@@ -666,7 +670,6 @@ def getmeta(nums=None, field='Energy'):
     
     # Prepare output array
     metavals = np.zeros(len(nums))
-    
     for n,num in enumerate(nums):
         d = readscan(num)
         if d is None: continue
