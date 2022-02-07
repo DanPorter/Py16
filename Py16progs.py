@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.8.3
-Last updated: 29/09/21
+Version 4.8.4
+Last updated: 21/01/22
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -135,6 +135,7 @@ Version History:
 24/05/21 4.8.1  Added file input to readscan
 29/09/21 4.8.2  Added fig_dpi parameter
 01/10/21 4.8.3  Corrected error from os.path.isfile(d)
+21/01/22 4.8.4  Corrected error on dat files with "=" in ubMeta
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -231,7 +232,7 @@ detectors = ['APD','sum','maxval'] # error bars are only calculated for counting
 default_sensor = 'Ta' # d.metadata.temperature will read this sensor as the standard
 
 "----------------------------Pilatus Parameters---------------------------"
-pil_centre = [96,243] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
+pil_centre = [106,238] # Centre of pilatus images [y,x], find the current value in /dls_sw/i16/software/gda/config/scripts/localStation.py (search for "ci=")
 hot_pixel = 2**20-100 # Pixels on the pilatus greater than this are set to the intensity chosen by dead_pixel_func
 peakregion=[7,153,186,332] # Search for peaks within this area of the detector [min_y,min_x,max_y,max_x]
 pilpara=[119.536,1904.17,44.4698,0.106948,-0.738038,412.19,-0.175,-0.175] # pilatus position parameters for pixel2hkl
@@ -322,8 +323,9 @@ def read_dat_file(filename):
         if neq == 1:
             'e.g. cmd = "scan x 1 10 1"'
             inlines = [ln]
-        elif neq > 1:
+        elif neq > 1 and '{' not in ln:
             'e.g. SRSRUN=571664,SRSDAT=201624,SRSTIM=183757'
+            ' but not ubMeta={"name": "crystal=big", ...}'
             inlines = ln.split(',')
         else:
             'e.g. <MetaDataAtStart>'
@@ -331,6 +333,7 @@ def read_dat_file(filename):
         
         for inln in inlines:
             vals = inln.split('=')
+            if len(vals) != 2: continue
             try:
                 meta[vals[0]] = eval( vals[1] )
             except:

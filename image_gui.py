@@ -150,6 +150,10 @@ class ImageGui:
         self.current_image.set_cmap(self._colormap)
         self.current_image.set_clim(self.cmin.get(), self.cmax.get())
 
+        # Toolbar coordinates
+        self.ax.format_coord = lambda x,y: "x:{:>5}, y:{:>5}".format(int(x), int(y))
+        self.current_image.format_cursor_data = lambda z: "[I:{:>9.4g}]".format(z)
+
         """
         ROIcen = initial_pilcen
         ROIsize = [75, 67]

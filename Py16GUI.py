@@ -78,8 +78,8 @@ I16_Peak_Analysis - Plot and analyse multiple scans, including peak fitting and 
 I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
-Version 4.8.1
-Last updated: 29/09/21
+Version 4.8.2
+Last updated: 07/02/22
 
 Version History:
 07/02/16 0.9    Program created
@@ -126,6 +126,7 @@ Version History:
 27/05/20 4.7    Added licence
 11/02/21 4.8    Added colormap options, added image_gui
 29/09/21 4.8.1  Corrected Meta_Display for None values
+07/02/22 4.8.2  Some small 
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -204,10 +205,14 @@ if cf not in sys.path:
     print('Adding to path: ''{}'''.format(cf) )
     sys.path.insert(0,cf)
 import Py16progs as pp
-from image_gui import ImageGui
+
+try:
+    from image_gui import ImageGui
+except ImportError:
+    print('ImageGui not available, please download image_gui.py to view detector images.')
 
 # Version
-Py16GUI_Version = '4.8.1'
+Py16GUI_Version = '4.8.2'
 
 # Print layout
 default_print_layout = [3,2]
@@ -1235,8 +1240,8 @@ class I16_Data_Viewer():
             return
         
         # First + last run numbers
-        fn = np.int(re.findall('\d+',os.path.split(ls[0])[1])[0])
-        ln = np.int(re.findall('\d+',os.path.split(ls[-1])[1])[0])
+        fn = int(re.findall('\d+',os.path.split(ls[0])[1])[0])
+        ln = int(re.findall('\d+',os.path.split(ls[-1])[1])[0])
         
         # Load data
         fd = pp.readscan(fn)
@@ -1772,7 +1777,7 @@ class I16_Data_Viewer():
         
         " Determine the number of print figures to generate"
         Nax = default_print_layout[0]*default_print_layout[1]
-        Nfigs = np.ceil( len(fignos)/float(Nax) ).astype(np.int)
+        Nfigs = np.ceil( len(fignos)/float(Nax) ).astype(int)
         
         self.helper.set('Sending {} figures to {} print buffers'.format(len(fignos),Nfigs))
         
@@ -1962,8 +1967,8 @@ class I16_Data_Viewer():
         
         # Timing
         time = d.TimeSec[-1]-d.TimeSec[0]
-        hours = np.int(np.floor(time/3600))
-        mins = np.int(np.floor(np.remainder(time,3600)/60))
+        hours = int(np.floor(time/3600))
+        mins = int(np.floor(np.remainder(time,3600)/60))
         secs = np.remainder(np.remainder(time,3600),60)
         self.runtime.set(m.date)
         self.timetaken.set('{} hours, {} mins, {} seconds'.format(hours,mins,secs))
@@ -4218,7 +4223,7 @@ class I16_Print_Buffer():
         self.tmpdir = pp.tmpdir
         #ax_layout = [3,2] # [vertical, horizontal]
         Nax = ax_layout[0]*ax_layout[1]
-        Nfigs = np.ceil( len(fignos)/float(Nax) ).astype(np.int)
+        Nfigs = np.ceil( len(fignos)/float(Nax) ).astype(int)
         
         " Recursion of class to cover more than Nax figures"
         for nfig in range(1,Nfigs):
