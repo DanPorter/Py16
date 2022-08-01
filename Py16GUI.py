@@ -269,7 +269,7 @@ class I16_Data_Viewer():
     "------------------------------------------------------------------------"
     "--------------------------GUI Initilisation-----------------------------"
     "------------------------------------------------------------------------"
-    def __init__(self,figsize=NORMAL):
+    def __init__(self, figsize=NORMAL, resize=True):
         # Create Tk inter instance
         self.root = tk.Tk()
         self.root.wm_title('I16 Data Viewer [V{}] by D G Porter [dan.porter@diamond.ac.uk]'.format(Py16GUI_Version))
@@ -943,7 +943,7 @@ class I16_Data_Viewer():
         
         
         # Check widget size vs screen size
-        if self.root.winfo_height() > self.root.winfo_screenheight()-80:
+        if resize and self.root.winfo_height() > self.root.winfo_screenheight()-80:
             print('Screen Height = ',self.root.winfo_screenheight())
             print('App Height = ',self.root.winfo_height())
             print('Oh... this is a small screen. I\'ll just make the viewer smaller...')

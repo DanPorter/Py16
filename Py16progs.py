@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.8.4
-Last updated: 21/01/22
+Version 4.8.7
+Last updated: 31/07/22
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -136,6 +136,9 @@ Version History:
 29/09/21 4.8.2  Added fig_dpi parameter
 01/10/21 4.8.3  Corrected error from os.path.isfile(d)
 21/01/22 4.8.4  Corrected error on dat files with "=" in ubMeta
+26/04/22 4.8.5  Corrected error in CheckScan for python3
+03/05/22 4.8.6  Corrected error for merlinroi1 in getdata
+30/07/22 4.8.7  Corrected error in polflip plotting, remove plt.show from plotscan
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -549,7 +552,7 @@ def getdata(num=None, varx='', vary='', norm=True, abscor=None):
     
     
     "***Get y values***"
-    if 'nroi' in vary.lower():
+    if vary.lower().startswith('nroi'):
         " y values from automatic peak search in pilatus"
         # e.g. 'nroi'           > Defaults to ROI2 in centre of pilatus
         # e.g. 'nroi[11,11]'    > in centre with size [11,11]
@@ -1555,10 +1558,10 @@ def latest():
         print( "No files in directory: {}".format(filedir) )
         return
     
-    newest = ls[-1] # file with highest number
-    #newest = max(ls, key=os.path.getctime) # file created last
+    #newest = ls[-1] # file with highest number
+    newest = max(ls, key=os.path.getctime) # file created last
     #num = np.int(os.path.split(newest)[-1][:-4])
-    num = np.abs(np.int(os.path.split(newest)[-1][-10:-4])) # handles i10-#####.dat and ######.dat
+    num = np.abs(int(os.path.split(newest)[-1][-10:-4])) # handles i10-#####.dat and ######.dat
     return num
 
 def checkexp():
@@ -1645,7 +1648,7 @@ def checkscan(num=None, showval=None):
     
     # Print information
     outstr = ''
-    outstr += '-----------Run ', m.SRSRUN, '-----------\n'
+    outstr += '-----------Run %s-----------\n' % m.SRSRUN
     outstr += '  File Dir: {}\n'.format(filedir)
     outstr += '   Command: {}\n'.format(m.cmd)
     outstr += '   Npoints: {}\n'.format(len(d.TimeSec))
@@ -1954,8 +1957,8 @@ def auto_varx(num):
         
     if varx not in keys:
         varx = keys[0]
-    if varx == 'ppp_energy':
-        varx = 'ppp_offset'
+    if '_energy' in varx:
+        varx = varx.replace('_energy', '_offset')
     return varx
 
 def auto_vary(num):
@@ -2623,8 +2626,8 @@ def polflip(sigsig, sigpi, fit='Gauss', output=False, plot=False):
     if plot:
         plotscan([nprN,prN],fit=fit,fits=True)
         plt.legend([r'#{}: $\sigma-\sigma$'.format(nprN),r'#{}: $\sigma-\pi$'.format(prN)])
-        plt.show()
-        saveplot('POLFLIP '+saveable(ttl1))
+        # plt.show()
+        # saveplot('POLFLIP '+saveable(ttl1))
 
 def polenergy(sigsig, sigpi, background=None, vary='', bkg_scale=None, flipping_ratio=None, low_points=5, save=False):
     "Create Plot of energy-polarisation scans and calculate the subtraction"
@@ -4353,7 +4356,7 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
             saveplot(save)
         else:
             saveplot(ttl)
-    plt.show()
+    # plt.show()
 
 def plotpil(num,cax=None,varx='',imnum=None,bkg_img=None,ROIcen=None,ROIsize=[75,67],show_ROIbkg=False,show_peakregion=False,log_colors=False,save=False, colormap=None):
     """
@@ -5221,7 +5224,7 @@ def plotpiltth(num=None,binsep=0.1,centre_only=False):
     plt.show()
 
 
-def plotqbpm(scannos, normaliseby='left', plot=True, show_difference=False, save=False):
+def plotqbpm(scannos, xvar=None, normaliseby='left', plot=True, show_difference=False, save=False, omit_left=0, omit_right=0):
     """
     Plots 4 currents from QBPM scans
         e.g. scancn ppth1 0.001 w .5 qbpm6
@@ -5232,6 +5235,8 @@ def plotqbpm(scannos, normaliseby='left', plot=True, show_difference=False, save
       plot = True/ False - create plot
       show_difference=False/ True - display diff on plot
       save = True/ False
+      omit_left = 0 number of values to omit on left
+      omit_right = 0 number of values to omit of right
 
       neg = negative offset
       pos = positive offset
@@ -5240,7 +5245,8 @@ def plotqbpm(scannos, normaliseby='left', plot=True, show_difference=False, save
     """
     
     scannos = np.asarray(scannos).reshape(-1)
-    xvar = auto_varx(scannos[0])
+    if xvar is None:
+        xvar = auto_varx(scannos[0])
     xval = np.empty(0)
     mon = np.empty(0)
     C1=np.empty(0)
@@ -5250,12 +5256,15 @@ def plotqbpm(scannos, normaliseby='left', plot=True, show_difference=False, save
     for scan in scannos:
         d = readscan(scan)
         norm = d.ic1monitor/(d.rc/exp_ring_current)
-        xval = np.append(xval, getattr(d, xvar))
+        ln = len(norm) - omit_right
+        norm = norm[omit_left:ln]
+        
+        xval = np.append(xval, getattr(d, xvar)[omit_left:ln])
         mon = np.append(mon, norm)
-        C1 = np.append(C1, d.C1/norm)
-        C2 = np.append(C2, d.C2/norm)
-        C3 = np.append(C3, d.C3/norm)
-        C4 = np.append(C4, d.C4/norm)
+        C1 = np.append(C1, d.C1[omit_left:ln]/norm)
+        C2 = np.append(C2, d.C2[omit_left:ln]/norm)
+        C3 = np.append(C3, d.C3[omit_left:ln]/norm)
+        C4 = np.append(C4, d.C4[omit_left:ln]/norm)
     
     if normaliseby.lower() in ['none']:
         minC1 = 0
