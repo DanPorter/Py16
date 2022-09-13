@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.8.7
-Last updated: 31/07/22
+Version 4.8.8
+Last updated: 13/08/22
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -139,6 +139,7 @@ Version History:
 26/04/22 4.8.5  Corrected error in CheckScan for python3
 03/05/22 4.8.6  Corrected error for merlinroi1 in getdata
 30/07/22 4.8.7  Corrected error in polflip plotting, remove plt.show from plotscan
+13/09/22 4.8.8  Corrected detector slits label in several functions, added phaseplate_normalisation, added fig_size parameter
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -230,7 +231,7 @@ error_func = lambda x: np.sqrt(np.abs(x)+0.1) # Define how the error on each int
 exp_ring_current = 300.0 # Standard ring current for current experiment for normalisation
 exp_monitor = 800.0 # Standard ic1monitor value for current experiment for normalisation
 normby = 'rc' # Incident beam normalisation option: 'rc','ic1' or 'none'
-dont_normalise = ['Ta','Tb','Tc','Td','ic1monitor','rc','Cmes','Vmes','Rmes']
+dont_normalise = ['Ta','Tb','Tc','Td','ic1monitor','rc','Cmes','Vmes','Rmes', 'fwhm']
 detectors = ['APD','sum','maxval'] # error bars are only calculated for counting detectors
 default_sensor = 'Ta' # d.metadata.temperature will read this sensor as the standard
 
@@ -266,6 +267,7 @@ plot_colors = ['b','g','m','c','y','k','r'] # change the default colours of plot
 exp_title = '' # Experiment title
 default_colormap = 'viridis'  # maplotlib colormap
 fig_dpi = 80
+fig_size = [10,8]
 #plt.xkcd() # cool plots!
 
 
@@ -1776,9 +1778,9 @@ def checkscans(num1=None,num2=None,showval=None,find_scans=None):
         # Only display scans of type find_scans
         if find_scans is not None and find_scans != varx:
             continue
-        
-        sampsl = '{0:4.2g}x{1:<4.2g}'.format(m.s5xgap,m.s5ygap)
-        detsl = '{0:4.2g}x{1:<4.2g}'.format(m.s6xgap,m.s6ygap)
+
+        sampsl = scanss(d)
+        detsl = scands(d)
         
         h = round(m.h*10)/10.0 + 0.0 # + 0.0 to remove -0 
         k = round(m.k*10)/10.0 + 0.0
@@ -4030,6 +4032,113 @@ def pil_peaks(scans,depvar='Ta',ROIsize=[31,31],cax=None,save=False):
         else:
             saveplot('{} PilatusPeaks {:1.0f}-{:1.0f} i-j'.format(depvar,scans[0],scans[-1]))
 
+def phaseplate_normalisation(x_data, sigma_data, pi_data, monitor=None, normaliseby='left', show_difference=False):
+    """
+    Normalise polarisation scans and determine crossing points for phase plate scans polarisation scans.
+        neg, pos, centre, offset = plotqbpm(xdata, ydata_sigma, ydata_pi, ydata_monitor)
+    
+    xdata = array(n) of scanned data
+    sigma_data = array(n) of data in the vertical polarisation channel
+    pi_data = array(n) of data in the horizontal polarisation channel
+    monitor = array(n) of data to use to normalise sigma and pi (or leave as None)
+    normaliseby = min, left*, right, mean, none - method of normalisation of max/min values
+    plot = True/ False - create plot
+    show_difference=False/ True - display diff on plot
+
+    neg = negative offset
+    pos = positive offset
+    centre = average point between neg and pos
+    offset = offset value from cenre to pos
+    """
+    x_data = np.asarray(x_data)
+    sigma_data = np.asarray(sigma_data)
+    pi_data = np.asarray(pi_data)
+    if monitor is None:
+        monitor = np.ones_like(sigma_data)
+    else:
+        monitor = np.asarray(monitor)
+
+    sigma_data = sigma_data / monitor
+    pi_data = pi_data / monitor
+    
+    if normaliseby.lower() in ['none']:
+        min_sigma = 0
+        min_pi = 0
+        max_sigma = 1
+        max_pi = 1
+    elif normaliseby.lower() in ['mean']:
+        min_sigma = sigma_data.min()
+        min_pi = np.mean(np.append(pi_data[:5], pi_data[-5:]))
+        max_sigma = np.mean(np.append(sigma_data[:5], sigma_data[-5:]))
+        max_pi = pi_data.max()
+    elif normaliseby.lower() in ['right', 'r']:
+        min_sigma = sigma_data.min()
+        min_pi = np.mean(pi_data[-5:])
+        max_sigma = np.mean(sigma_data[-5:])
+        max_pi = pi_data.max()
+    elif normaliseby.lower() in ['left', 'l', 'start']:
+        min_sigma = sigma_data.min()
+        min_pi = np.mean(pi_data[:5])
+        max_sigma = np.mean(sigma_data[:5])
+        max_pi = pi_data.max()
+    else:
+        min_sigma = sigma_data.min()
+        min_pi = pi_data.min()
+        max_sigma = sigma_data.max()
+        max_pi = pi_data.max()
+
+    # Normalise
+    sigma_data = (sigma_data-minsigma_data)/np.max(sigma_data-minsigma_data)
+    pi_data = (pi_data-minpi_data)/np.max(pi_data-minpi_data)
+    
+    # interpolate
+    ival = np.linspace(np.min(x_data), np.max(x_data), 100*len(x_data))
+    isigma = np.interp(ival, xval, sigma_data)
+    ipi = np.interp(ival, xval, pi_data)
+    
+    diff = np.abs(isigma - ipi)
+
+    if plot:
+        fig, ax1 = plt.subplots(figsize=fig_size)
+        plt.plot(x_data, sigma_data, 'b-', lw=2, label=r'$\sigma$')
+        plt.plot(x_data, pi_data, 'r-', lw=2, label=r'$\pi$')
+        if show_difference:
+            plt.plot(ival, diff, 'k-', lw=0.5, label='|$\sigma$-$\pi$|')
+        labels(None, None, None, legend=True)
+        
+        ax2 = ax1.twinx()
+        plt.plot(xval, mon, 'g:', lw=2, label='ic1monitor')
+        labels(None,None,'ic1monitor')
+        ax2.tick_params(axis='y', labelcolor='g')
+        ax2.set_ylabel('ic1monitor',color='g')
+
+    # find smallest differences furthest appart
+    npoints = 0
+    percentile = 0
+    while npoints < 2:
+        percentile += 1
+        minthresh = np.percentile(diff, percentile)
+        minxvals = ival[ diff < minthresh ]
+        npoints = len(minxvals)
+    neg = minxvals[0]
+    pos = minxvals[-1]
+
+    avmid = (pos+neg)/2
+    negoff = neg-avmid
+    posoff = pos-avmid
+    midpoint = xval[np.argmin(mon)]
+    print('\n---Polarisation scan---')
+    print('Estimated Midpoint: %7.3f'%(midpoint))
+    print('   Lower intercept: %8.4f (%+6.4f)'%(neg,negoff))
+    print('   Upper intercept: %8.4f (%+6.4f)'%(pos,posoff))
+    print('   Actual midpoint: %8.4f'%(avmid))
+    
+    if plot:
+        plt.sca(ax1)
+        plt.axvline(neg, c='k', lw=0.5)
+        plt.axvline(pos, c='k', lw=0.5)
+        plt.show()
+    return neg, pos, avmid, posoff
 
 "---------------------------Plotting Functions----------------------------"
 
@@ -4082,8 +4191,8 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
     " Get metadata"
     m = d.metadata
     cmd = m.cmd_short # Scan command
-    sampsl = '{0:4.2g}x{1:<4.2g}'.format(m.s5xgap,m.s5ygap)
-    detsl = '{0:4.2g}x{1:<4.2g}'.format(m.s6xgap,m.s6ygap)
+    sampsl = scanss(d)
+    detsl = scands(d)
     atten1 = '{0:1.0f}'.format(m.Atten)
     if labels is None:
         lbl = str(m.SRSRUN)
@@ -4145,7 +4254,7 @@ def plotscan(num=None,vary='',varx='',fit=None,norm=True,sum=False,subtract=Fals
         varynew = 'Normalised Intensity'
     
     "---Create plot---"
-    fig = plt.figure(figsize=[10,8], dpi=fig_dpi)
+    fig = plt.figure(figsize=fig_size, dpi=fig_dpi)
     
     plt.errorbar(x,y,dy,fmt='-o',c=plot_colors[0],linewidth=2,label=lbl)
     
@@ -4514,7 +4623,7 @@ def plotmeta(scans, fields='Energy', use_time=False, plot_against=None):
         xlab = 'Scan number'
     
     # create figure
-    fig = plt.figure(figsize=[10,8], dpi=fig_dpi)
+    fig = plt.figure(figsize=fig_size, dpi=fig_dpi)
     
     # multiple fields
     fields = np.asarray(fields).reshape(-1)
@@ -4566,7 +4675,7 @@ def plotscans(scans=[],depvar=None,vary='',varx='',fit=None,norm=True,logplot=Fa
     """
     
     "---Create plot---"
-    fig = plt.figure(figsize=[10,8], dpi=fig_dpi)
+    fig = plt.figure(figsize=fig_size, dpi=fig_dpi)
     
     " Define Colourmap"
     cm_plot = plt.get_cmap('rainbow')
@@ -4586,8 +4695,8 @@ def plotscans(scans=[],depvar=None,vary='',varx='',fit=None,norm=True,logplot=Fa
         " Get metadata"
         m = d.metadata
         cmd = m.cmd_short # Scan command
-        sampsl = '{0:4.2g}x{1:<4.2g}'.format(m.s5xgap,m.s5ygap)
-        detsl = '{0:4.2g}x{1:<4.2g}'.format(m.s6xgap,m.s6ygap)
+        sampsl = scanss(d)
+        detsl = scands(d)
         atten1 = '{0:1.0f}'.format(m.Atten)
         if depvar not in m.keys():
             lbl = str(m.SRSRUN)
@@ -4857,7 +4966,7 @@ def plotpilhist(num, frame=None, bins=100, save=False):
         vol = vol[:,:,frame].reshape(-1)
         ttl += '\n {:s} = {:1.4g}'.format(varx, x[frame])
 
-    plt.figure(figsize=[12,10], dpi=fig_dpi)
+    plt.figure(figsize=fig_size, dpi=fig_dpi)
     plt.hist(np.log10(vol+1), bins)
     labels(ttl, 'Pixel Intensity', 'No. Pixels')
     plt.yscale('log')
@@ -5213,7 +5322,7 @@ def plotpiltth(num=None,binsep=0.1,centre_only=False):
     " Multiple nums given"
     nums = np.asarray(num,dtype=int).reshape(-1)
     
-    plt.figure(figsize=[10,8], dpi=fig_dpi)
+    plt.figure(figsize=fig_size, dpi=fig_dpi)
     for num in nums:
         # Load hkl matrices
         tth,ival = pixel2tth(num,centre_only=centre_only)
@@ -5332,7 +5441,7 @@ def plotqbpm(scannos, xvar=None, normaliseby='left', plot=True, show_difference=
     diff = np.abs((iC1+iC3)/2 - (iC2+iC4)/2)
 
     if plot:
-        fig, ax1 = plt.subplots(figsize=[12,10])
+        fig, ax1 = plt.subplots(figsize=fig_size)
         plt.plot(xval, C1, 'b-', lw=2, label='C1')
         plt.plot(xval, C2, 'r-', lw=2, label='C2')
         plt.plot(xval, C3, 'c-', lw=2, label='C3')
@@ -6023,7 +6132,7 @@ def peakfit(x,y,dy=None,type='pVoight',bkg_type='flat',peaktest=1,estvals=None,
     
     # Plot Results
     if plot:
-        plt.figure(figsize=[12,10], dpi=fig_dpi)
+        plt.figure(figsize=fig_size, dpi=fig_dpi)
         plt.errorbar(x,y,dy,fmt='b-o',lw=2,label='Data')
         plt.plot(xfit,yfit,'r-',lw=2,label='Fit')
         plt.legend(loc=0, frameon=False, fontsize=18)
@@ -6550,7 +6659,7 @@ def abscor(eta=0,chi=90,delta=0,mu=0,gamma=0,u=1.0,disp=False,plot=False):
     
     if plot:
         " Create Figure"
-        fig = plt.figure(figsize=[12,14], dpi=fig_dpi)
+        fig = plt.figure(figsize=fig_size, dpi=fig_dpi)
         ax = fig.add_subplot(211,projection='3d')
         " Plot axes lines"
         ax.plot3D([-1,1],[0,0],[0,0],'k-',linewidth=1)
@@ -6662,7 +6771,7 @@ def volcor(eta=0,chi=90,delta=0,mu=0,gamma=0,u=1.0,disp=False,plot=False):
     
     if plot:
         " Create Figure"
-        fig = plt.figure(figsize=[12,14], dpi=fig_dpi)
+        fig = plt.figure(figsize=fig_size, dpi=fig_dpi)
         ax = fig.add_subplot(211,projection='3d')
         " Plot axes lines"
         ax.plot3D([-1,1],[0,0],[0,0],'k-',linewidth=1)
@@ -6794,7 +6903,7 @@ def newplot(*args, **kwargs):
     if 'linewidth' and 'lw' not in kwargs.keys():
         kwargs['linewidth'] = 2
 
-    plt.figure(figsize=[12, 12], dpi=fig_dpi)
+    plt.figure(figsize=fig_size, dpi=fig_dpi)
     plt.plot(*args, **kwargs)
 
     plt.setp(plt.gca().spines.values(), linewidth=2)
@@ -6836,7 +6945,7 @@ def multiplot(xvals, yvals=None, datarange=None, cmap='jet', labels=None, marker
         marker = ''
     linearg = '-' + marker
 
-    plt.figure(figsize=[12, 12], dpi=fig_dpi)
+    plt.figure(figsize=fig_size, dpi=fig_dpi)
     for n in range(len(datarange)):
         col = cm(colrange[n])
         if len(xvals) == 0:
@@ -6876,7 +6985,7 @@ def newplot3(*args, **kwargs):
     if 'linewidth' and 'lw' not in kwargs.keys():
         kwargs['linewidth'] = 2
 
-    fig = plt.figure(figsize=[12, 12], dpi=fig_dpi)
+    fig = plt.figure(figsize=fig_size, dpi=fig_dpi)
     ax = fig.add_subplot(111, projection='3d')
 
     x = np.asarray(args[0], dtype=np.float)
@@ -6910,7 +7019,7 @@ def sliderplot(YY, X=None, slidervals=None, *args, **kwargs):
     if 'linewidth' and 'lw' not in kwargs.keys():
         kwargs['linewidth'] = 2
 
-    fig = plt.figure(figsize=[12, 12], dpi=fig_dpi)
+    fig = plt.figure(figsize=fig_size, dpi=fig_dpi)
 
     X = np.asarray(X, dtype=np.float)
     Y = np.asarray(YY, dtype=np.float)
@@ -6966,7 +7075,7 @@ def sliderplot2D(ZZZ, XX=None, YY=None, slidervals=None, *args, **kwargs):
     if 'linewidth' and 'lw' not in kwargs.keys():
         kwargs['linewidth'] = 2
 
-    fig = plt.figure(figsize=[12, 12], dpi=fig_dpi)
+    fig = plt.figure(figsize=fig_size, dpi=fig_dpi)
 
     ZZZ = np.asarray(ZZZ, dtype=np.float)
 
@@ -7835,7 +7944,7 @@ def nexus_plot_rsremap(filename, n=None):
     lval = ll[0,0,n]
     ttl = '\n'.join(os.path.split(filename))
 
-    plt.figure(figsize=[12,10], dpi=fig_dpi)
+    plt.figure(figsize=fig_size, dpi=fig_dpi)
     plt.pcolormesh(hh[:,:,n], kk[:,:,n], volume[:,:,n].T)
     plt.colorbar()
     plt.axis('image');
