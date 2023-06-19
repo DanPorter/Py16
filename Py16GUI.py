@@ -78,8 +78,8 @@ I16_Peak_Analysis - Plot and analyse multiple scans, including peak fitting and 
 I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
-Version 4.8.2
-Last updated: 07/02/22
+Version 4.8.3
+Last updated: 19/06/23
 
 Version History:
 07/02/16 0.9    Program created
@@ -126,7 +126,8 @@ Version History:
 27/05/20 4.7    Added licence
 11/02/21 4.8    Added colormap options, added image_gui
 29/09/21 4.8.1  Corrected Meta_Display for None values
-07/02/22 4.8.2  Some small 
+07/02/22 4.8.2  Some small adjustments
+19/06/23 4.8.3  Minor adjusments
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -212,7 +213,7 @@ except ImportError:
     print('ImageGui not available, please download image_gui.py to view detector images.')
 
 # Version
-Py16GUI_Version = '4.8.2'
+Py16GUI_Version = '4.8.3'
 
 # Print layout
 default_print_layout = [3,2]
@@ -1833,7 +1834,10 @@ class I16_Data_Viewer():
         
         if d is None:
             # Set frame variables
-            self.cmd.set('')
+            if os.path.isfile(pp.scanfile(self.scanno.get())):
+                self.cmd.set('*** File %d exists, no metadata ***' % self.scanno.get())
+            else:
+                self.cmd.set('*** File %d doesnt exist ***' % self.scanno.get())
             self.N.set('')
             self.HKL.set('')
             self.ENG.set('')

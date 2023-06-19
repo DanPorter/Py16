@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.8.8
-Last updated: 13/08/22
+Version 4.8.9
+Last updated: 19/06/23
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -140,6 +140,7 @@ Version History:
 03/05/22 4.8.6  Corrected error for merlinroi1 in getdata
 30/07/22 4.8.7  Corrected error in polflip plotting, remove plt.show from plotscan
 13/09/22 4.8.8  Corrected detector slits label in several functions, added phaseplate_normalisation, added fig_size parameter
+19/06/23 4.8.9  Changed [...] to [()] in nexus reader
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -2376,7 +2377,7 @@ def nexustree(tree, name=[]):
         for branch in tree.keys():
             branchname = name + [branch]
             try:
-                val = tree[branch][...]
+                val = tree[branch][()]
                 if np.prod(val.shape) > 1:
                     pval = val.shape
                 elif np.prod(val.shape) == 1:
@@ -2411,7 +2412,7 @@ def nexussearch(find, tree, name=[], Whole=False, Case=False):
                 not Whole and not Case and find.lower() in branch.lower()
                 ):
                 try:
-                    val = tree[branch][...]
+                    val = tree[branch][()]
                     if np.prod(val.shape) > 1:
                         pval = val.shape
                     else:
