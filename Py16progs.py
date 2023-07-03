@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.8.9
-Last updated: 19/06/23
+Version 4.9.0
+Last updated: 03/07/23
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -129,7 +129,7 @@ Version History:
 21/02/20 4.7    Added findscans
 29/02/20 4.7    Added output to plotqbpm
 27/05/20 4.7    Added licence
-01/07/20 4.7.5	Updated plotqbpm to correct error
+01/07/20 4.7.5  Updated plotqbpm to correct error
 11/02/21 4.8    Added colormap options
 23/04/21 4.8    Added detector to findscans
 24/05/21 4.8.1  Added file input to readscan
@@ -141,6 +141,7 @@ Version History:
 30/07/22 4.8.7  Corrected error in polflip plotting, remove plt.show from plotscan
 13/09/22 4.8.8  Corrected detector slits label in several functions, added phaseplate_normalisation, added fig_size parameter
 19/06/23 4.8.9  Changed [...] to [()] in nexus reader
+03/07/23 4.9.0  Changed latest() to work with scans >1000000
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -149,7 +150,7 @@ I16, Diamond Light Source
 2016
 
 -----------------------------------------------------------------------------
-   Copyright 2020 Diamond Light Source Ltd.
+   Copyright 2023 Diamond Light Source Ltd.
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -213,7 +214,7 @@ except ImportError:
 # Variable filedir is called from the namespace and can be changed at any 
 # time,even once the module has been imported, if you change it in the current namespace
 
-filedir = '/dls/i16/data/2021' 
+filedir = '/dls/i16/data/2023' 
 savedir = '/home/i16user/Desktop'
 
 #tmpdir = tempfile.gettempdir() # I16 user accounts don't have access
@@ -1564,7 +1565,9 @@ def latest():
     #newest = ls[-1] # file with highest number
     newest = max(ls, key=os.path.getctime) # file created last
     #num = np.int(os.path.split(newest)[-1][:-4])
-    num = np.abs(int(os.path.split(newest)[-1][-10:-4])) # handles i10-#####.dat and ######.dat
+    #num = np.abs(int(os.path.split(newest)[-1][-10:-4])) # handles i10-#####.dat and ######.dat
+    name = re.findall(r'\d+.dat', newest)[-1].strip('.dat')
+    num = np.abs(int(name)) # handles i10-#####.dat and ######.dat  
     return num
 
 def checkexp():
