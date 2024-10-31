@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.9.0
-Last updated: 03/07/23
+Version 4.9.1
+Last updated: 31/10/24
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -142,6 +142,7 @@ Version History:
 13/09/22 4.8.8  Corrected detector slits label in several functions, added phaseplate_normalisation, added fig_size parameter
 19/06/23 4.8.9  Changed [...] to [()] in nexus reader
 03/07/23 4.9.0  Changed latest() to work with scans >1000000
+31/10/24 4.9.1	Switch to using np.genfromtxt for reading columns to handle string input
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -315,7 +316,7 @@ def read_dat_file(filename):
          d.values() - returns all parameter values
          d.items() - returns parameter (name,value) tuples
     """
-    f = open(filename,'r')
+    f = open(filename,'r', errors='ignore')
     lines = f.readlines()
     f.close()
     
@@ -351,7 +352,13 @@ def read_dat_file(filename):
     # previous loop ended at &END, now starting on list of names
     names = lines[lineno].split()
     # Load 2D arrays of scanned values
-    vals = np.loadtxt(lines[lineno+1:],ndmin=2)
+    # vals = np.loadtxt(lines[lineno+1:],ndmin=2)
+    try:
+        vals = np.genfromtxt(lines[lineno+1:], ndmin=2)  # changed 31/10/24 to handle 'true'/'false' in file (returns nan)
+    except TypeError:  # numpy < 1.2
+        vals = np.genfromtxt(lines[lineno+1:])
+        if np.ndim(vals) < 2:  # single point scans
+            vals = np.reshape(vals, (1, -1))
     # Assign arrays to a dictionary
     main = OrderedDict()
     for name,value in zip(names,vals.T):

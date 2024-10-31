@@ -78,8 +78,8 @@ I16_Peak_Analysis - Plot and analyse multiple scans, including peak fitting and 
 I16_Advanced_Fitting - More fitting options, including masks
 colour_cutoffs - A separate GUI that will interactively change the colormap max/min of the current figure.
 
-Version 4.8.3
-Last updated: 19/06/23
+Version 4.8.2
+Last updated: 07/02/22
 
 Version History:
 07/02/16 0.9    Program created
@@ -126,8 +126,8 @@ Version History:
 27/05/20 4.7    Added licence
 11/02/21 4.8    Added colormap options, added image_gui
 29/09/21 4.8.1  Corrected Meta_Display for None values
-07/02/22 4.8.2  Some small adjustments
-19/06/23 4.8.3  Minor adjusments
+07/02/22 4.8.2  Some small changes
+31/10/24 4.8.3	Attempted to make work in python 3.10 but askdirectory() doesn't work during run
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
@@ -978,9 +978,15 @@ class I16_Data_Viewer():
     def f_fldr_browse(self):
         "Browse for data directory"
         inidir = self.filedir.get()
-        dir = filedialog.askdirectory(initialdir=inidir)
-        self.filedir.set(dir)
-        self.savedir.set(dir +os.path.sep+'processing')
+        new_dir = filedialog.askdirectory(
+            parent=self.root, 
+            initialdir=inidir, 
+            title='Choose data directory', 
+            mustexist=True
+        )
+        if new_dir:
+            self.filedir.set(new_dir)
+            self.savedir.set(new_dir +os.path.sep+'processing')
         #self.helper.set('Now set the analysis folder - saved images and scripts will be stored here')
     
     def f_fldr_find(self):
@@ -1834,10 +1840,7 @@ class I16_Data_Viewer():
         
         if d is None:
             # Set frame variables
-            if os.path.isfile(pp.scanfile(self.scanno.get())):
-                self.cmd.set('*** File %d exists, no metadata ***' % self.scanno.get())
-            else:
-                self.cmd.set('*** File %d doesnt exist ***' % self.scanno.get())
+            self.cmd.set('')
             self.N.set('')
             self.HKL.set('')
             self.ENG.set('')
@@ -5039,8 +5042,10 @@ if __name__ == '__main__':
     print( 'Or to just load a scan, type: d = pp.readscan(scan_number)' )
     print( 'See "Py16Notes.txt" or type help(pp) for more info' )
     
-    
-    pp.recall_last_exp()
+    if os.path.isdir(sys.argv[-1]):
+        pp.filedir = sys.argv[-1]
+    else:
+        pp.recall_last_exp()
     dv=I16_Data_Viewer()
     #colour_cutoffs()
     
