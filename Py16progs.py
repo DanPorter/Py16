@@ -4,7 +4,7 @@ Module: I16 Data analysis programs "Py16Progs.py"
 
 By Dan Porter, PhD
 Diamond
-2016
+2016-2025
 
 Usage: 
 ******In Script********
@@ -78,8 +78,8 @@ Some Useful Functions:
     str = stfm(val,err)
     
 
-Version 4.9.1
-Last updated: 31/10/24
+Version 4.9.3
+Last updated: 20/10/25
 
 Version History:
 07/02/16 0.9    Program created from DansI16progs.py V3.0
@@ -143,15 +143,17 @@ Version History:
 19/06/23 4.8.9  Changed [...] to [()] in nexus reader
 03/07/23 4.9.0  Changed latest() to work with scans >1000000
 31/10/24 4.9.1	Switch to using np.genfromtxt for reading columns to handle string input
+19/06/25 4.9.2  Switched time.clock to time.process_time
+20/10/25 4.9.3  Updates from the beamline
 
 ###FEEDBACK### Please submit your bug reports, feature requests or queries to: dan.porter@diamond.ac.uk
 
 @author: Dan Porter
 I16, Diamond Light Source
-2016
+2016-2025
 
 -----------------------------------------------------------------------------
-   Copyright 2023 Diamond Light Source Ltd.
+   Copyright 2023-2025 Diamond Light Source Ltd.
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -433,6 +435,7 @@ def readscan(num):
     if 'energy2' in keys: d.energy = d.energy2
     if 'rc' not in keys: d.rc = exp_ring_current*np.ones(len(d[keys[0]]))
     if 'TimeSec' not in keys: d.TimeSec = np.arange(0,len(d[keys[0]]))
+    if 'path' not in keys: d.path = np.arange(1, len(d[keys[0]]) + 1)
     # Correct d.metadata
     if 'en' in metakeys: d.metadata.Energy = d.metadata.en; metakeys+=['Energy']
     if 'pgm_energy' in metakeys: d.metadata.Energy = d.metadata.pgm_energy; metakeys+=['Energy']
@@ -1106,7 +1109,7 @@ def pixel2hkl(num, detdim=[195,487], UB=None):
     m = d.metadata
     scan_arrays = [x for x in d.keys() if type(d[x]) == np.ndarray ] # only keys linked to arrays
     pi=np.pi
-    t1=time.clock()
+    t1=time.process_time()
     
     if varx in ['h','k','l','hkl']:
         # for hkl scans, convert motor angles to eulerian
@@ -1143,19 +1146,19 @@ def pixel2hkl(num, detdim=[195,487], UB=None):
     # Rotation functions
     def R_x_r(alpha):
        "right rotation about x"
-       alpha = np.float(alpha)
+       alpha = float(alpha)
        ALPHA=np.matrix([[1.0, 0.0, 0.0],[0.0, np.cos(alpha),-np.sin(alpha)], [0.0, np.sin(alpha), np.cos(alpha)]])
        return ALPHA
     
     def R_y_r(alpha):
        "right rotation about y"
-       alpha = np.float(alpha)
+       alpha = float(alpha)
        ALPHA=np.matrix([[np.cos(alpha),0.0, np.sin(alpha)],[0.0, 1.0, 0.0], [-np.sin(alpha), 0.0, np.cos(alpha)]])
        return ALPHA
     
     def R_z_l(alpha):
        "left rotation about z"
-       alpha = np.float(alpha)
+       alpha = float(alpha)
        ALPHA=np.matrix([[np.cos(alpha),np.sin(alpha), 0.0],[-np.sin(alpha), np.cos(alpha), 0.0], [0.0, 0.0, 1.0]])
        return ALPHA
     
@@ -1325,7 +1328,7 @@ def pixel2hkl(num, detdim=[195,487], UB=None):
         KKK[:,:,index_r]=invUBinvZ[1,0]*k[:,:,0] + invUBinvZ[1,1]*k[:,:,1] + invUBinvZ[1,2]*k[:,:,2];
         LLL[:,:,index_r]=invUBinvZ[2,0]*k[:,:,0] + invUBinvZ[2,1]*k[:,:,1] + invUBinvZ[2,2]*k[:,:,2];
     
-    t2=time.clock()
+    t2=time.process_time()
     print("#{} Time spent generating hkl positions={}".format(num,t2-t1))
     return HHH,KKK,LLL
 
@@ -1365,7 +1368,7 @@ def pixel2tth(num, detdim=[195,487], centre_only=False, norm=True):
     """
     
     XXX,YYY,ZZZ = pixel2xyz(num,detdim)
-    t1=time.clock()
+    t1=time.process_time()
     Qmag = np.sqrt(XXX**2 + YYY**2 + ZZZ**2)
     
     TTH = q2tth(Qmag,getmeta(num,'Energy'))
@@ -1387,7 +1390,7 @@ def pixel2tth(num, detdim=[195,487], centre_only=False, norm=True):
     TTH = TTH[sortindex]
     vol = vol[sortindex]
     
-    t2=time.clock()
+    t2=time.process_time()
     print("time spent sorting tth values={}".format(t2-t1))
     
     return TTH,vol
@@ -1421,7 +1424,7 @@ def pixel2tth2(num, detdim=[195,487], norm=True, pixel_centre=[104, 205], frame_
     """
     
     XXX,YYY,ZZZ = pixel2xyz(num,detdim)
-    t1=time.clock()
+    t1=time.process_time()
     Qmag = np.sqrt(XXX**2 + YYY**2 + ZZZ**2)
     TTH = q2tth(Qmag,getmeta(num,'Energy'))
     vol = getvol(num)
@@ -1449,7 +1452,7 @@ def pixel2tth2(num, detdim=[195,487], norm=True, pixel_centre=[104, 205], frame_
         tth = TTH[pixel_centre[0],:,frame_centre]
         voltth = vol[pixel_centre[0]-pixel_width//2:pixel_centre[0]+pixel_width//2,:,frame_centre-frame_width//2:frame_centre+frame_width//2]
         I = voltth.sum(axis=0).sum(axis=1)
-    t2=time.clock()
+    t2=time.process_time()
     print("time spent sorting tth values={}".format(t2-t1))
     
     return tth,I
@@ -1483,7 +1486,7 @@ def pixel2chi(num, detdim=[195,487], norm=True, pixel_centre=[104, 205], frame_c
     """
     
     XXX,YYY,ZZZ = pixel2xyz(num,detdim)
-    t1=time.clock()
+    t1=time.process_time()
     CHI=90+np.rad2deg(np.arcsin(YYY/ZZZ))
     vol = getvol(num)
     norm_val,norm_txt = normalise(num)
@@ -1501,7 +1504,7 @@ def pixel2chi(num, detdim=[195,487], norm=True, pixel_centre=[104, 205], frame_c
     chi = CHI[:,pixel_centre[1],frame_centre]
     volchi = vol[:,pixel_centre[1]-pixel_width//2:pixel_centre[1]+pixel_width//2,frame_centre-frame_width//2:frame_centre+frame_width//2]
     I = volchi.sum(axis=1).sum(axis=1)
-    t2=time.clock()
+    t2=time.process_time()
     print("time spent sorting chi values={}".format(t2-t1))
     
     return chi,I
@@ -6947,7 +6950,7 @@ def multiplot(xvals, yvals=None, datarange=None, cmap='jet', labels=None, marker
 
     if datarange is None:
         datarange = range(len(yvals))
-    datarange = np.asarray(datarange,dtype=np.float)
+    datarange = np.asarray(datarange,dtype=float)
 
     cm = plt.get_cmap(cmap)
     colrange = (datarange - datarange.min()) / (datarange.max() - datarange.min())
@@ -6999,9 +7002,9 @@ def newplot3(*args, **kwargs):
     fig = plt.figure(figsize=fig_size, dpi=fig_dpi)
     ax = fig.add_subplot(111, projection='3d')
 
-    x = np.asarray(args[0], dtype=np.float)
-    y = np.asarray(args[1], dtype=np.float)
-    z = np.asarray(args[2], dtype=np.float)
+    x = np.asarray(args[0], dtype=float)
+    y = np.asarray(args[1], dtype=float)
+    z = np.asarray(args[2], dtype=float)
 
     if z.ndim == 2:
         if x.ndim < 2:
@@ -7032,11 +7035,11 @@ def sliderplot(YY, X=None, slidervals=None, *args, **kwargs):
 
     fig = plt.figure(figsize=fig_size, dpi=fig_dpi)
 
-    X = np.asarray(X, dtype=np.float)
-    Y = np.asarray(YY, dtype=np.float)
+    X = np.asarray(X, dtype=float)
+    Y = np.asarray(YY, dtype=float)
     if slidervals is None:
         slidervals = range(Y.shape[0])
-    slidervals = np.asarray(slidervals, dtype=np.float)
+    slidervals = np.asarray(slidervals, dtype=float)
 
     if X.ndim < 2:
         X = np.tile(X, Y.shape[0]).reshape(Y.shape)
@@ -7088,18 +7091,18 @@ def sliderplot2D(ZZZ, XX=None, YY=None, slidervals=None, *args, **kwargs):
 
     fig = plt.figure(figsize=fig_size, dpi=fig_dpi)
 
-    ZZZ = np.asarray(ZZZ, dtype=np.float)
+    ZZZ = np.asarray(ZZZ, dtype=float)
 
     if slidervals is None:
         slidervals = range(ZZZ.shape[2])
-    slidervals = np.asarray(slidervals, dtype=np.float)
+    slidervals = np.asarray(slidervals, dtype=float)
 
     if XX is None:
         XX = range(ZZZ.shape[1])
     if YY is None:
         YY = range(ZZZ.shape[0])
-    XX = np.asarray(XX, dtype=np.float)
-    YY = np.asarray(YY, dtype=np.float)
+    XX = np.asarray(XX, dtype=float)
+    YY = np.asarray(YY, dtype=float)
     if XX.ndim < 2:
         XX, YY = np.meshgrid(XX, YY)
 
@@ -7281,7 +7284,7 @@ def bindata(X,Y,binsep=0.01,bin_cen=None,bin_func=np.nanmean):
         CEN,INT = bindata(tth,ival,0.01)
     """
     
-    t0 = time.clock()
+    t0 = time.process_time()
     
     # Generate bin positions
     if bin_cen is None:
@@ -7298,7 +7301,7 @@ def bindata(X,Y,binsep=0.01,bin_cen=None,bin_func=np.nanmean):
     
     # Histogram the th values
     bin_pos = np.digitize(X,bin_edge) - 1 # digitize indexes values from bin_edege[i-1] to bin_edge[i], hence the - 1
-    t1 = time.clock()
+    t1 = time.process_time()
     print('Digitise took {} s'.format(t1-t0))
     
     # Loop over binned angles and average the intensities
@@ -7307,7 +7310,7 @@ def bindata(X,Y,binsep=0.01,bin_cen=None,bin_func=np.nanmean):
         inbin = bin_pos == n
         bin_int[n] = bin_func(Y[inbin])
     
-    t2 = time.clock()
+    t2 = time.process_time()
     print('Bin average took {} s'.format(t2-t1))
     
     return bin_cen,bin_int
